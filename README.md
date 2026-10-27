@@ -14,9 +14,14 @@ App Menu replaces the stock app list with a big grid made for a remote and for t
 
 ## Download
 
-**Version 1.0.** [AppMenu-1.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
+**Version 1.1.** [AppMenu-1.1.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `ef577610709bcb517ce2d9665e5f41389315bb92b8ca1b16197bccbcb2f8f449`
+SHA-256: `2bc5e8f92a47e429d5c0854a2ce3f88714e886a8aaef0fa7d12e5c06e398c608`
+
+## What's new in 1.1
+
+- Root (Magisk) instead of ADB: if the device is rooted (a car head unit, a TV box, a phone), the app works without a computer and without debugging — stop, cache, data, permissions, special access, silent install and uninstall, OBB, downgrade and USB drives all go through root. Allow root for the app in Magisk once; the app then connects by itself. Settings → “Connect ADB” has a “Connect via root” button and a switch. Without root everything works over ADB as before. You choose: the switch decides what is used at start, and the ADB connect buttons switch to ADB.
+- Fixed: on Samsung phones installing over ADB could add a second icon of the same app (a copy in “Dual app”). Apps are now installed only for the current user.
 
 ## Features
 
@@ -52,17 +57,17 @@ SHA-256: `ef577610709bcb517ce2d9665e5f41389315bb92b8ca1b16197bccbcb2f8f449`
 
 ## Quick start
 
-1. Download AppMenu-1.0.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
+1. Download AppMenu-1.1.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
 2. Open it: apps are launched with OK or a tap, a long press (or holding OK, or the Menu key) opens the action card. To use it instead of the stock menu turn on “Launcher mode” in Settings.
-3. To act on other apps connect ADB: Settings → “Connect ADB”. Android 9 and older TV boxes with network ADB connect by themselves. Android 11+: turn on the “App Menu” service in Accessibility once, press “Connect automatically”. Android 10 and older: run adb tcpip 5555 once from a computer (repeat after a reboot).
+3. To act on other apps connect ADB: Settings → “Connect ADB”. Android 9 and older TV boxes with network ADB connect by themselves. Android 11+: turn on the “App Menu” service in Accessibility once, press “Connect automatically”. Android 10 and older: run adb tcpip 5555 once from a computer (repeat after a reboot). With root (Magisk) none of this is needed: allow root for the app once and it connects by itself.
 
 ## Requirements
 
-Android 6.0 or newer (ARMv7, ARM64, x86). ADB of the same device is needed only for actions on other apps (stop, cache, data, permissions, special access, silent install and uninstall, OBB on Android 11+, downgrade); the menu, folders, sorting and launching work without it. Tested on a TV box with Android 9, 11 and 12, Samsung S9 (Android 10) and A14 (Android 15).
+Android 6.0 or newer (ARMv7, ARM64, x86). ADB (or root with Magisk) of the same device is needed only for actions on other apps (stop, cache, data, permissions, special access, silent install and uninstall, OBB on Android 11+, downgrade); the menu, folders, sorting and launching work without it. Tested on a TV box with Android 9, 11 and 12, Samsung S9 (Android 10) and A14 (Android 15).
 
 ## Limitations and warnings
 
-- Actions on other apps need ADB debugging of the same device. App Menu works locally and sends nothing anywhere; the only network requests are the ones you start yourself (F-Droid and GitHub search, a link you type).
+- Actions on other apps need ADB debugging of the same device or root (Magisk). App Menu works locally and sends nothing anywhere; the only network requests are the ones you start yourself (F-Droid and GitHub search, a link you type).
 - The automatic ADB connection on Android 11+ uses an accessibility service. It reads only the system settings windows and acts only for three minutes after you press “Connect automatically”. It is tested on Samsung One UI; other firmwares may word the settings differently, then use the manual way.
 - Real Wi‑Fi Direct is not used: files are received over a page in a browser in the same network or through the hotspot of a phone. OBB files on Android 11 and newer can only be copied through ADB.
 - System apps cannot be uninstalled. Not on Google Play: download the APK here; Android may warn about an unknown source.
