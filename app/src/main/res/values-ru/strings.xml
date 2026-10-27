@@ -42,6 +42,10 @@
     <string name="adb_short">ADB</string>
     <string name="adb_on">ADB: подключено</string>
     <string name="adb_off">ADB: не подключено</string>
+    <string name="root_on">Root (Magisk): подключено</string>
+    <string name="root_connect_btn">Подключить через root (Magisk)</string>
+    <string name="root_use_title">Использовать root (Magisk) вместо ADB</string>
+    <string name="root_hint">Если на устройстве есть root, ADB и компьютер не нужны. При первом запуске разрешите root этому приложению в Magisk. Что использовать при запуске, решает переключатель; кнопки подключения ADB переключают на ADB.</string>
     <string name="adb_ok">Подключено</string>
     <string name="adb_fail">Не удалось подключиться</string>
     <string name="connect_text">Для остановки, кэша, данных, разрешений и батареи нужна отладка по ADB на этом устройстве.\nAndroid 11 и новее: Настройки → Для разработчиков → Беспроводная отладка → «Подключение устройства с кодом»: введи здесь порт и код сопряжения, нажми «Сопряжение».\nAndroid 10 и старше или автомагнитола: включи ADB по сети (порт 5555) и нажми «ADB по сети».</string>
