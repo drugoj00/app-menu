@@ -309,8 +309,14 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                     }
                 }
                 Section(stringResource(R.string.adb_title)) {
-                    Text(stringResource(if (Conn.connected) R.string.adb_on else R.string.adb_off), color = if (Conn.connected) t.accent else t.sub, fontSize = 14.sp)
+                    Text(stringResource(Conn.statusRes), color = if (Conn.connected) t.accent else t.sub, fontSize = 14.sp)
                     Chip(stringResource(R.string.adb_connect_btn), false) { adbDialog = true }
+                    Text(stringResource(R.string.root_use_title), color = t.sub, fontSize = 13.sp)
+                    Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.useRoot) {
+                        Cfg.changeUseRoot(it)
+                        if (!it) { Adb.disableRoot(); Conn.refresh() }
+                    }
+                    Text(stringResource(R.string.root_hint), color = t.hint, fontSize = 12.sp)
                 }
                 Spacer(Modifier.size(24.dp))
             } else {

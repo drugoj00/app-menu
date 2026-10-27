@@ -465,7 +465,7 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
     ) {
         Column(Modifier.onFocusChanged { headerHasFocus = it.hasFocus }) {
         HalfUi {
-        val adbText = stringResource(if (Conn.connected) R.string.adb_on else R.string.adb_off)
+        val adbText = stringResource(Conn.statusRes)
         val headerButtons: @Composable () -> Unit = {
             HeaderTextButton(stringResource(R.string.restart)) { restartApp(ctx) }
             HeaderTextButton(stringResource(R.string.reset_icons)) {

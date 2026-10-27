@@ -37,6 +37,8 @@ object Cfg {
     var folders by mutableStateOf<List<Folder>>(emptyList()); private set
     /** Сохранять копию приложения перед удалением. */
     var backupOnDelete by mutableStateOf(true); private set
+    /** Пробовать права root (Magisk) вместо ADB, если они есть. */
+    var useRoot by mutableStateOf(true); private set
     /** Пакет набора значков; пусто — родные значки. */
     var iconPack by mutableStateOf(""); private set
     /** Растёт при смене значков, чтобы список перезагрузился. */
@@ -80,6 +82,7 @@ object Cfg {
             if (p.size < 3) null else Folder(p[0], p[1], p[2].split(",").filter { it.isNotBlank() })
         }
         backupOnDelete = sp.getBoolean("backup_delete", true)
+        useRoot = sp.getBoolean("use_root", true)
         transparentTiles = sp.getBoolean("tile_transparent", true)
         iconPack = sp.getString("icon_pack", "") ?: ""
         nativeHome = sp.getString("native_home", "") ?: ""
@@ -114,6 +117,7 @@ object Cfg {
     fun changeAccent(v: String) { accent = v; sp.edit().putString("accent", v).apply() }
     fun changeLang(v: String) { lang = v; sp.edit().putString("lang", v).apply() }
     fun changeTransparentTiles(v: Boolean) { transparentTiles = v; sp.edit().putBoolean("tile_transparent", v).apply() }
+    fun changeUseRoot(v: Boolean) { useRoot = v; sp.edit().putBoolean("use_root", v).apply() }
     fun changeBackupOnDelete(v: Boolean) { backupOnDelete = v; sp.edit().putBoolean("backup_delete", v).apply() }
 
     // ---- папки ----

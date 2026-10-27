@@ -93,7 +93,10 @@ import kotlin.math.max
 /** Состояние ADB-соединения для значка в шапке и пунктов меню. */
 object Conn {
     var connected by mutableStateOf(false)
-    fun refresh() { connected = Adb.isConnected }
+    var root by mutableStateOf(false)
+    fun refresh() { connected = Adb.isConnected; root = Adb.isRoot }
+    /** Строка состояния: «ADB: подключено», «Root: подключено» или «не подключено». */
+    val statusRes: Int get() = if (!connected) R.string.adb_off else if (root) R.string.root_on else R.string.adb_on
 }
 
 private fun toast(ctx: android.content.Context, s: String) = Toast.makeText(ctx, s, Toast.LENGTH_SHORT).show()
@@ -595,6 +598,7 @@ private fun ConnectPanel(first: FocusRequester, onDone: () -> Unit, onBack: () -
             else toast(ctx, ctx.getString(R.string.adb_fail))
         }
     }
+    LaunchedEffect(Unit) { if (!Adb.isConnected && Cfg.useRoot && Adb.tryRoot()) { Conn.refresh(); toast(ctx, ctx.getString(R.string.adb_ok)); onDone() } }
     // пока окно открыто и подключения нет, программа сама пробует порт 5555: стоит один раз включить сетевой ADB (с компьютера или по беспроводной отладке), и подключение произойдёт без нажатий
     LaunchedEffect(Unit) {
         while (!Adb.isConnected) {
@@ -609,7 +613,11 @@ private fun ConnectPanel(first: FocusRequester, onDone: () -> Unit, onBack: () -
         if (Adb.isConnected) { Conn.refresh(); onDone() }
     }
     BackRow(first, onBack)
-    Text(stringResource(if (Conn.connected) R.string.adb_on else R.string.adb_off), color = if (Conn.connected) Pop.accent else Pop.sub, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp))
+    Text(stringResource(Conn.statusRes), color = if (Conn.connected) Pop.accent else Pop.sub, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp))
+    PopButton(stringResource(R.string.root_connect_btn), enabled = !busy) {
+        run { if (Adb.tryRoot()) Result.success(Unit) else Result.failure(IllegalStateException("no root")) }
+    }
+    Text(stringResource(R.string.root_hint), color = Pop.text, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 8.dp))
     if (android.os.Build.VERSION.SDK_INT < 30) Text(stringResource(R.string.connect_text_old), color = Pop.text, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 8.dp))
     if (busy) Text(stringResource(R.string.working), color = Pop.accent, modifier = Modifier.padding(horizontal = 8.dp))
     if (android.os.Build.VERSION.SDK_INT < 30) {
@@ -687,6 +695,8 @@ private fun ConnectPanel(first: FocusRequester, onDone: () -> Unit, onBack: () -
 suspend fun autoConnect(ctx: android.content.Context) {
     Adb.awaitReady()
     if (Adb.isConnected) { Conn.refresh(); return }
+    // root (Magisk) важнее ADB: компьютер и отладка по Wi-Fi не нужны (магнитолы, приставки)
+    if (Cfg.useRoot && Adb.tryRoot()) { Conn.refresh(); return }
     val r = Adb.connectWireless(ctx, null)
     if (r.isFailure || !Adb.isConnected) Adb.connectLocal(5555)
     Conn.refresh()
