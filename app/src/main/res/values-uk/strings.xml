@@ -42,6 +42,10 @@
     <string name="adb_short">ADB</string>
     <string name="adb_on">ADB: підключено</string>
     <string name="adb_off">ADB: не підключено</string>
+    <string name="root_on">Root (Magisk): підключено</string>
+    <string name="root_connect_btn">Підключити через root (Magisk)</string>
+    <string name="root_use_title">Використовувати root (Magisk) замість ADB</string>
+    <string name="root_hint">Якщо на пристрої є root, ADB і комп\'ютер не потрібні. Під час першого запуску дозвольте root цьому застосунку в Magisk. Що використовувати під час запуску, вирішує перемикач; кнопки підключення ADB перемикають на ADB.</string>
     <string name="adb_ok">Підключено</string>
     <string name="adb_fail">Не вдалося підключитися</string>
     <string name="connect_text">Для зупинки, кешу, даних, дозволів і батареї потрібне налагодження ADB на цьому пристрої.\nAndroid 11 і новіше: Налаштування → Для розробників → Бездротове налагодження → «Підключення пристрою за кодом»: введи тут порт і код сполучення, натисни «Сполучення».\nAndroid 10 і старше або автомагнітола: увімкни ADB по мережі (порт 5555) і натисни «ADB по мережі».</string>
