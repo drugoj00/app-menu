@@ -52,6 +52,10 @@ S = {
     'adb_short': ('ADB', 'ADB', 'ADB'),
     'adb_on': ('ADB: connected', 'ADB: подключено', 'ADB: підключено'),
     'adb_off': ('ADB: off', 'ADB: не подключено', 'ADB: не підключено'),
+    'root_on': ('Root (Magisk): connected', 'Root (Magisk): подключено', 'Root (Magisk): підключено'),
+    'root_connect_btn': ('Connect via root (Magisk)', 'Подключить через root (Magisk)', 'Підключити через root (Magisk)'),
+    'root_use_title': ('Use root (Magisk) instead of ADB', 'Использовать root (Magisk) вместо ADB', 'Використовувати root (Magisk) замість ADB'),
+    'root_hint': ('If the device has root, ADB and a computer are not needed. On first start allow root for this app in Magisk. The switch decides what is used at start; the ADB connect buttons switch to ADB.', 'Если на устройстве есть root, ADB и компьютер не нужны. При первом запуске разрешите root этому приложению в Magisk. Что использовать при запуске, решает переключатель; кнопки подключения ADB переключают на ADB.', "Якщо на пристрої є root, ADB і комп'ютер не потрібні. Під час першого запуску дозвольте root цьому застосунку в Magisk. Що використовувати під час запуску, вирішує перемикач; кнопки підключення ADB перемикають на ADB."),
     'adb_ok': ('Connected', 'Подключено', 'Підключено'),
     'adb_fail': ('Could not connect', 'Не удалось подключиться', 'Не вдалося підключитися'),
     'connect_text': (
