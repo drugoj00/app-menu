@@ -42,6 +42,10 @@
     <string name="adb_short">ADB</string>
     <string name="adb_on">ADB: connected</string>
     <string name="adb_off">ADB: off</string>
+    <string name="root_on">Root (Magisk): connected</string>
+    <string name="root_connect_btn">Connect via root (Magisk)</string>
+    <string name="root_use_title">Use root (Magisk) instead of ADB</string>
+    <string name="root_hint">If the device has root, ADB and a computer are not needed. On first start allow root for this app in Magisk. The switch decides what is used at start; the ADB connect buttons switch to ADB.</string>
     <string name="adb_ok">Connected</string>
     <string name="adb_fail">Could not connect</string>
     <string name="connect_text">Stop, cache, data, permissions and battery need ADB debugging on this device.\nAndroid 11 and newer: Settings → Developer options → Wireless debugging → \"Pair device with pairing code\": enter the pairing port and code here, press \"Pair\".\nAndroid 10 and older or head units: turn on ADB over network (port 5555) and press \"ADB over network\".</string>
