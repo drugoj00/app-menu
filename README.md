@@ -14,14 +14,15 @@ App Menu replaces the stock app list with a big grid made for a remote and for t
 
 ## Download
 
-**Version 1.1.** [AppMenu-1.1.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
+**Version 1.2.** [AppMenu-1.2.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `2bc5e8f92a47e429d5c0854a2ce3f88714e886a8aaef0fa7d12e5c06e398c608`
+SHA-256: `35bb89b9770804a1646ff5cc0b5ae7d1fa0758ccf1120ef39ea7055e990868b3`
 
-## What's new in 1.1
+## What's new in 1.2
 
-- Root (Magisk) instead of ADB: if the device is rooted (a car head unit, a TV box, a phone), the app works without a computer and without debugging — stop, cache, data, permissions, special access, silent install and uninstall, OBB, downgrade and USB drives all go through root. Allow root for the app in Magisk once; the app then connects by itself. Settings → “Connect ADB” has a “Connect via root” button and a switch. Without root everything works over ADB as before. You choose: the switch decides what is used at start, and the ADB connect buttons switch to ADB.
-- Fixed: on Samsung phones installing over ADB could add a second icon of the same app (a copy in “Dual app”). Apps are now installed only for the current user.
+- App updates: an “Updates” button on an icon card (versions by source, newer, same or older, “Install”) and in the header (a check of all your apps with “Update” and “Update all”, which needs root or ADB). Sources: F-Droid, IzzyOnDroid, Aptoide, GitHub Releases and Codeberg; AppGallery (Huawei) and RuStore can be turned on in “Sources”. Before installing, the downloaded APK is checked: package, CPU, minimum Android version, a higher version code and the same signature as the installed app. The previous version is saved as a copy. Split packages (APKS, XAPK) and apps with OBB are not updated by themselves.
+- A scheduled check (off by default): “Updates” → “Auto-check…”, every 6 hours, day or 3 days, with a notification; automatic installation is a separate switch (off by default).
+- Fixed: a long press of OK on the remote and a long tap launched the app instead of opening the menu. The long OK is now recognised by time (half a second) and the repeats and the release of the button no longer press the first item of the menu.
 
 ## Features
 
@@ -31,6 +32,7 @@ SHA-256: `2bc5e8f92a47e429d5c0854a2ce3f88714e886a8aaef0fa7d12e5c06e398c608`
 - **Install from anywhere.** APK, split packages (APKS, APKM, XAPK, ZIP with APK and OBB: the parts that fit the device are chosen automatically), from a folder or an archive (ZIP, 7z, RAR, TAR), from the built-in file manager, from USB drives (through ADB, when the system hides them), from network folders (SMB, with search in the local network), from a phone or a computer over Wi‑Fi (a page in the browser) and from the internet (F-Droid, GitHub, a direct link). Batch install and batch delete.
 - **Backups and any version.** Before an app is deleted its APK is saved. Install any saved version, a version from the F-Droid catalogue or your own file, an older one too (the current version is saved first).
 - **Launcher mode.** Home shows this menu, a second press of Home opens the native home screen, Back returns from an app to the menu. Turn it on and off in Settings.
+- **App updates.** An “Updates” button on an icon card and in the header: versions by source (F-Droid, IzzyOnDroid, Aptoide, GitHub, Codeberg; AppGallery and RuStore optional), “Update” and “Update all”. Before installing, the package, CPU, version and signature are checked, and the previous version is saved as a copy. The scheduled check is off until you turn it on.
 - **Look and language.** Dark, black (OLED), light or like the system theme, six accent colours, Russian, Ukrainian and English, own icons and icon packs, backup and restore of settings.
 - **Simple ADB connection.** On Android 9 TV boxes with network ADB it connects by itself. On Android 11+ press “Connect automatically”: the app turns on wireless debugging, reads the pairing code and pairs on its own (needs its accessibility service, which acts only after you press the button). Android 10 and older: one command from a computer, then it connects by itself.
 - **Free.** No ads, open source.
@@ -67,7 +69,7 @@ Android 6.0 or newer (ARMv7, ARM64, x86). ADB (or root with Magisk) of the same 
 
 ## Limitations and warnings
 
-- Actions on other apps need ADB debugging of the same device or root (Magisk). App Menu works locally and sends nothing anywhere; the only network requests are the ones you start yourself (F-Droid and GitHub search, a link you type).
+- Actions on other apps need ADB debugging of the same device or root (Magisk). App Menu works locally and sends nothing anywhere; the only network requests are the ones you start yourself (F-Droid and GitHub search, a link you type, an update check); the scheduled check stays off until you turn it on.
 - The automatic ADB connection on Android 11+ uses an accessibility service. It reads only the system settings windows and acts only for three minutes after you press “Connect automatically”. It is tested on Samsung One UI; other firmwares may word the settings differently, then use the manual way.
 - Real Wi‑Fi Direct is not used: files are received over a page in a browser in the same network or through the hotspot of a phone. OBB files on Android 11 and newer can only be copied through ADB.
 - System apps cannot be uninstalled. Not on Google Play: download the APK here; Android may warn about an unknown source.
