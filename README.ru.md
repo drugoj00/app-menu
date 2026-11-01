@@ -89,4 +89,4 @@ Kotlin и Jetpack Compose; ADB-клиент libadb-android (MuntashirAkon, GPL-3
 
 - Картой или Google Pay (от 50 грн): https://secure.wayforpay.com/button/bba92579a4647
 - USDT (TRON TRC20): `TXk32CLkwJryTqhmkw6urcM5CacJgPsSpJ`
-- IBAN (счёт ФОП, добровольный взнос): `UA413052990000026004040212620`
+- IBAN (добровольный взнос): `UA413052990000026004040212620`
