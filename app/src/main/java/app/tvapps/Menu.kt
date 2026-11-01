@@ -341,7 +341,8 @@ fun AppMenu(e: Entry, hidden: Boolean, onToggleHide: () -> Unit, onSelect: () ->
                         }
                         Row(Modifier.fillMaxWidth()) {
                             ActionCell(IconVersions, stringResource(R.string.versions_cell), Modifier.weight(1f)) { onClose(); host?.openVersions(e) }
-                            Spacer(Modifier.weight(3f))
+                            ActionCell(IconUpdates, stringResource(R.string.upd_cell), Modifier.weight(1f)) { onClose(); host?.openUpdates(e) }
+                            Spacer(Modifier.weight(2f))
                         }
                     }
                     else -> Column(Modifier.fillMaxWidth().background(Pop.band).padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -445,6 +446,15 @@ private val IconVersions: ImageVector by lazy {
         moveTo(12f, 3f); lineTo(21f, 8f); lineTo(12f, 13f); lineTo(3f, 8f); close()
         moveTo(3f, 12f); lineTo(12f, 17f); lineTo(21f, 12f)
         moveTo(3f, 16f); lineTo(12f, 21f); lineTo(21f, 16f)
+    }
+}
+
+private val IconUpdates: ImageVector by lazy {
+    outline("Updates") {
+        // стрелка вверх над линией: «обновить»
+        moveTo(12f, 16f); lineTo(12f, 5f)
+        moveTo(7f, 10f); lineTo(12f, 5f); lineTo(17f, 10f)
+        moveTo(5f, 19f); lineTo(19f, 19f)
     }
 }
 

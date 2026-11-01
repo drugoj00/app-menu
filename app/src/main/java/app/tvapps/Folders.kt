@@ -71,6 +71,7 @@ interface HostOps {
     fun renameFolder(id: String)
     fun addToFolder(id: String)
     fun openVersions(e: Entry)
+    fun openUpdates(e: Entry)
 }
 
 val LocalHost = compositionLocalOf<HostOps?> { null }

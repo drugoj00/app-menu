@@ -14,6 +14,8 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         val app = ctx.applicationContext
         Cfg.init(app)
+        // фоновая проверка обновлений: расписание заново после загрузки (не зависит от «Готовить кэш при включении»)
+        UpdSched.apply(app)
         if (!Cfg.bootWarm) return
         val pending = goAsync()
         Thread {

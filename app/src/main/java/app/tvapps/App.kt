@@ -7,6 +7,9 @@ import java.security.Security
 class App : Application() {
     override fun onCreate() {
         super.onCreate()
+        // расписание фоновой проверки обновлений (если включено)
+        Cfg.init(this)
+        UpdSched.apply(this)
         // загрузка шифрования и ключа ADB занимает заметное время на слабых приставках: делаем в фоне,
         // экран при этом уже рисуется; подключение дожидается готовности (Adb.awaitReady)
         Thread {

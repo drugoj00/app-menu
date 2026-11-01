@@ -39,6 +39,20 @@ object Cfg {
     var backupOnDelete by mutableStateOf(true); private set
     /** Пробовать права root (Magisk) вместо ADB, если они есть. */
     var useRoot by mutableStateOf(true); private set
+    /** Приложения, которые не нужно предлагать обновить. */
+    var updSkip by mutableStateOf<Set<String>>(emptySet()); private set
+    /** Включённые источники обновлений; хрупкие (apkpure) по умолчанию выключены. */
+    var updSources by mutableStateOf(setOf("fdroid", "izzy", "aptoide", "github", "gitlab", "codeberg")); private set
+    /** Необязательный токен GitHub для проверки обновлений (снимает лимит запросов). */
+    var ghToken by mutableStateOf(""); private set
+    /** Проверять обновления в фоне по расписанию (по умолчанию выключено). */
+    var autoUpd by mutableStateOf(false); private set
+    /** Как часто проверять, часов: 6, 24 или 72. */
+    var autoUpdHours by mutableIntStateOf(24); private set
+    /** Ставить найденные обновления сами (только с root/ADB; по умолчанию выключено). */
+    var autoInstall by mutableStateOf(false); private set
+    /** Сколько приложений с обновлением нашла последняя проверка: показывается в шапке. */
+    var updFound by mutableIntStateOf(0); private set
     /** Пакет набора значков; пусто — родные значки. */
     var iconPack by mutableStateOf(""); private set
     /** Растёт при смене значков, чтобы список перезагрузился. */
@@ -83,6 +97,16 @@ object Cfg {
         }
         backupOnDelete = sp.getBoolean("backup_delete", true)
         useRoot = sp.getBoolean("use_root", true)
+        updSkip = sp.getStringSet("upd_skip", emptySet())?.toSet() ?: emptySet()
+        updSources = sp.getStringSet("upd_sources", null)?.toSet()?.let { st ->
+            // прежний набор по умолчанию (до Codeberg) получает и Codeberg
+            if (st == setOf("fdroid", "izzy", "aptoide", "github", "gitlab")) st + "codeberg" else st
+        } ?: setOf("fdroid", "izzy", "aptoide", "github", "gitlab", "codeberg")
+        ghToken = sp.getString("gh_token", "") ?: ""
+        autoUpd = sp.getBoolean("auto_upd", false)
+        autoUpdHours = sp.getInt("auto_upd_hours", 24).let { if (it == 6 || it == 24 || it == 72) it else 24 }
+        autoInstall = sp.getBoolean("auto_install", false)
+        updFound = sp.getInt("upd_found", 0)
         transparentTiles = sp.getBoolean("tile_transparent", true)
         iconPack = sp.getString("icon_pack", "") ?: ""
         nativeHome = sp.getString("native_home", "") ?: ""
@@ -117,6 +141,23 @@ object Cfg {
     fun changeAccent(v: String) { accent = v; sp.edit().putString("accent", v).apply() }
     fun changeLang(v: String) { lang = v; sp.edit().putString("lang", v).apply() }
     fun changeTransparentTiles(v: Boolean) { transparentTiles = v; sp.edit().putBoolean("tile_transparent", v).apply() }
+    fun toggleUpdSource(id: String) {
+        updSources = if (id in updSources) updSources - id else updSources + id
+        sp.edit().putStringSet("upd_sources", updSources).apply()
+    }
+    fun toggleUpdSkip(pkg: String) {
+        updSkip = if (pkg in updSkip) updSkip - pkg else updSkip + pkg
+        sp.edit().putStringSet("upd_skip", updSkip).apply()
+    }
+    fun changeAutoUpd(v: Boolean) { autoUpd = v; sp.edit().putBoolean("auto_upd", v).apply() }
+    fun changeAutoUpdHours(v: Int) { autoUpdHours = v; sp.edit().putInt("auto_upd_hours", v).apply() }
+    fun changeAutoInstall(v: Boolean) { autoInstall = v; sp.edit().putBoolean("auto_install", v).apply() }
+    /** Запоминает число найденных обновлений и «ключ» набора (чтобы не повторять одно и то же уведомление). */
+    fun setUpdFound(n: Int, key: String) { updFound = n; sp.edit().putInt("upd_found", n).putString("upd_found_key", key).apply() }
+    fun updFoundKey(): String = sp.getString("upd_found_key", "") ?: ""
+    fun updNotifiedKey(): String = sp.getString("upd_notified_key", "") ?: ""
+    fun setUpdNotifiedKey(k: String) { sp.edit().putString("upd_notified_key", k).apply() }
+    fun changeGhToken(v: String) { ghToken = v.trim(); sp.edit().putString("gh_token", ghToken).apply() }
     fun changeUseRoot(v: Boolean) { useRoot = v; sp.edit().putBoolean("use_root", v).apply() }
     fun changeBackupOnDelete(v: Boolean) { backupOnDelete = v; sp.edit().putBoolean("backup_delete", v).apply() }
 

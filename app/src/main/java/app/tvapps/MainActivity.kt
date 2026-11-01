@@ -101,8 +101,30 @@ data class Entry(
     val bmp: androidx.compose.ui.graphics.ImageBitmap? = null,
 )
 
+/** После долгого «ОК» меню открывается, пока кнопка ещё зажата: её повторы и отпускание не должны попасть в первый пункт меню и что-то запустить. */
+/** Сколько держать «ОК» на пульте, чтобы это считалось долгим нажатием. */
+internal const val LONG_OK_MS = 500L
+
+internal object OkGuard {
+    @Volatile var until = 0L
+    fun arm() { until = android.os.SystemClock.elapsedRealtime() + 6000 }
+}
+
 class MainActivity : ComponentActivity() {
     private val resumeTick = mutableIntStateOf(0)
+
+    override fun dispatchKeyEvent(ev: android.view.KeyEvent): Boolean {
+        val ok = ev.keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER || ev.keyCode == android.view.KeyEvent.KEYCODE_ENTER ||
+            ev.keyCode == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER
+        if (ok && OkGuard.until != 0L) {
+            if (android.os.SystemClock.elapsedRealtime() > OkGuard.until) OkGuard.until = 0L
+            else {
+                if (ev.action == android.view.KeyEvent.ACTION_UP) OkGuard.until = 0L
+                return true
+            }
+        }
+        return super.dispatchKeyEvent(ev)
+    }
     private var asHome by androidx.compose.runtime.mutableStateOf(false)
 
     /** Кнопка «Домой» нажата, когда меню уже на экране: это второе нажатие, уходим на родной главный экран. */
@@ -141,6 +163,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         Cfg.init(this)
         asHome = intent?.categories?.contains(Intent.CATEGORY_HOME) == true
+        if (intent?.getBooleanExtra(UpdOpen.EXTRA, false) == true) UpdOpen.requested = true
         applyFullscreen()
         setContent {
             val tc = currentTC()
@@ -176,6 +199,7 @@ class MainActivity : ComponentActivity() {
         val secondHome = isHome && onScreen
         super.onNewIntent(intent)
         setIntent(intent)
+        if (intent.getBooleanExtra(UpdOpen.EXTRA, false)) UpdOpen.requested = true
         asHome = isHome
         if (secondHome) goNativeHome()
     }
@@ -258,6 +282,10 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
     var folderRename by remember { mutableStateOf<String?>(null) }
     var folderAdd by remember { mutableStateOf<String?>(null) }
     var versionsFor by remember { mutableStateOf<Entry?>(null) }
+    var updatesFor by remember { mutableStateOf<Entry?>(null) }
+    var updatesAll by remember { mutableStateOf(false) }
+    // нажатие на уведомление «Доступно обновлений»: сразу открываем окно «Обновления»
+    LaunchedEffect(UpdOpen.requested) { if (UpdOpen.requested) { updatesAll = true; UpdOpen.requested = false } }
     // перетаскивание: над какой плиткой палец (и в центре ли) и готова ли папка принять значок
     var dragHover by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
     var mergeReady by remember { mutableStateOf<String?>(null) }
@@ -333,7 +361,7 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
             restoreFocus()
         }
     }
-    val noDialogs = menuFor == null && folderOpen == null && folderRename == null && folderAdd == null && versionsFor == null && !confirmDelete && moving == null
+    val noDialogs = menuFor == null && folderOpen == null && folderRename == null && folderAdd == null && versionsFor == null && updatesFor == null && !updatesAll && !confirmDelete && moving == null
     // фокус потерян (например, значок с курсором ушёл за край при прокрутке): держим его на корне, чтобы первая стрелка вернула курсор на место
     LaunchedEffect(gridHasFocus, headerHasFocus, noDialogs) {
         if (!gridHasFocus && !headerHasFocus && noDialogs) {
@@ -437,6 +465,7 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
             override fun renameFolder(id: String) { folderRename = id }
             override fun addToFolder(id: String) { folderAdd = id }
             override fun openVersions(e: Entry) { versionsFor = e }
+            override fun openUpdates(e: Entry) { updatesFor = e }
         }
     }
     fun moveKey(pkg: String, key: androidx.compose.ui.input.key.Key): Boolean {
@@ -475,6 +504,7 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
             }
             if (searching || query.isNotEmpty()) SearchBox(query, wide = !narrow) { query = it }
             else HeaderTextButton(stringResource(R.string.search_hint)) { searching = true }
+            HeaderTextButton(if (Cfg.updFound > 0) stringResource(R.string.upd_badge, Cfg.updFound) else stringResource(R.string.upd_cell)) { updatesAll = true }
             HeaderTextButton(stringResource(R.string.settings)) { screen = "settings" }
         }
         if (narrow && androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 720) {
@@ -584,6 +614,8 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
     folderRename?.let { HalfUi { RenameFolderDialog(it) { folderRename = null } } }
     folderAdd?.let { HalfUi { AddToFolderDialog(it, apps) { folderAdd = null } } }
     versionsFor?.let { e -> HalfUi { VersionsDialog(e.pkg, e.label) { versionsFor = null } } }
+    updatesFor?.let { e -> HalfUi { UpdatesDialog(e.pkg, e.label) { updatesFor = null } } }
+    if (updatesAll) HalfUi { UpdatesAllDialog { updatesAll = false } }
 
     if (confirmDelete) {
         val removable = selectedApps.filter { !it.system }
@@ -690,6 +722,8 @@ internal fun AppTile(
     val t = LocalTh.current
     var focused by remember { mutableStateOf(false) }
     var pending by remember { mutableStateOf(false) }
+    var downAt by remember { mutableStateOf(0L) }
+    val okScope = androidx.compose.runtime.rememberCoroutineScope()
     val (hm, hover) = rememberHover()
     val scale by animateFloatAsState(if (merge) 1.12f else if (focused || hover) 1.05f else 1f, label = "scale")
     val bmp = remember(e.pkg, e.icon, e.bmp) { e.bmp ?: e.icon.toBitmap(128, 128).asImageBitmap() }
@@ -716,10 +750,22 @@ internal fun AppTile(
                         when (ev.type) {
                             KeyEventType.KeyDown -> {
                                 val rc = ev.nativeKeyEvent.repeatCount
-                                if (rc == 0) pending = true
-                                else if (rc == 1 && pending) { pending = false; onMenu() }
+                                if (rc == 0) {
+                                    pending = true
+                                    downAt = android.os.SystemClock.uptimeMillis()
+                                    // у части пультов при удержании нет повторов: долгое нажатие определяем по времени
+                                    okScope.launch {
+                                        kotlinx.coroutines.delay(LONG_OK_MS)
+                                        if (pending) { pending = false; OkGuard.arm(); onMenu() }
+                                    }
+                                } else if (pending) {
+                                    pending = false; OkGuard.arm(); onMenu()
+                                }
                             }
-                            KeyEventType.KeyUp -> if (pending) { pending = false; onOpen() }
+                            KeyEventType.KeyUp -> if (pending) {
+                                pending = false
+                                if (android.os.SystemClock.uptimeMillis() - downAt >= LONG_OK_MS) onMenu() else onOpen()
+                            }
                             else -> {}
                         }
                         true
