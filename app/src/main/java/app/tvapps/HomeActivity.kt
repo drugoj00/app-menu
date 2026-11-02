@@ -54,7 +54,17 @@ internal object AppsMem {
  * хранит [HomeStore]; всё меняется долгим нажатием «ОК» на элементе. Меню всех приложений открывается значком «Все приложения».
  * Включается как главный экран через настройки (HomeAlias указывает сюда).
  */
+/** Нажатия «Домой» на самом «Доме» (передаются экрану). */
+internal object HomeNav {
+    val press = mutableIntStateOf(0)
+    /** меню на экране; когда оно ушло с экрана (миг назад); «Назад» из меню просит вернуть на «Дом»: тогда это не «Домой на Доме» */
+    @Volatile var menuOn = false
+    @Volatile var menuPausedAt = 0L
+    @Volatile var fromMenu = false
+}
+
 class HomeActivity : ComponentActivity() {
+    private var homeShown = false
     private val resumeTick = mutableIntStateOf(0)
     private val againTick = mutableIntStateOf(0)
 
@@ -93,6 +103,7 @@ class HomeActivity : ComponentActivity() {
         HomeStore.init(this)
         val c = WindowInsetsControllerCompat(window, window.decorView)
         SysBars.apply(this)       // по умолчанию скрыты на ТВ/приставке и видны на телефоне; переключатель в настройках
+        MouseAsTouch.install(window)
         setContent {
             val tc = currentTC()
             MaterialTheme(colorScheme = if (tc.dark) darkColorScheme() else lightColorScheme()) {
@@ -112,18 +123,24 @@ class HomeActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        homeShown = true
         SysBars.apply(this)
         resumeTick.intValue++
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        // «Домой» на «Доме»: в начало и курсор на первый элемент
-        againTick.intValue++
+        // «Домой» из другой программы: на «Дом», в начало и курсор на первый элемент;
+        // «Домой» на самом «Доме» (мы уже здесь): в начало, а если уже в начале, то открывается меню приложений
+        // «Домой на Доме» (мы уже на «Доме», меню поверх нет и «Назад» из меню не нажимали): открывается меню; иначе просто вернулись на «Дом»
+        val covered = HomeNav.menuOn || HomeNav.fromMenu || android.os.SystemClock.elapsedRealtime() - HomeNav.menuPausedAt < 1500L
+        HomeNav.fromMenu = false
+        if (homeShown && !covered) HomeNav.press.intValue++ else againTick.intValue++
     }
 
     override fun onStop() {
         super.onStop()
+        homeShown = false
         runCatching { unregisterReceiver(pkgReceiver) }
         runCatching { AppWidgets.host(this).stopListening() }
         if (HomeStore.dirty) {
@@ -280,6 +297,28 @@ private fun HomeScreen(tick: Int, again: Int) {
         ctx.startActivity(Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("from_home", true))
         (ctx as? android.app.Activity)?.overridePendingTransition(0, 0)
     }
+    // «Домой» на «Доме»: если страница прокручена, в начало; если уже в начале, открывается меню приложений
+    // реагируем только на НОВОЕ нажатие (прежнее значение при пересоздании экрана игнорируется, иначе меню открывалось бы снова и снова)
+    val seenPress = remember { intArrayOf(HomeNav.press.intValue) }
+    LaunchedEffect(HomeNav.press.intValue) {
+        val v = HomeNav.press.intValue
+        if (v != seenPress[0]) {
+            seenPress[0] = v
+            if (scroll.value > 0) { scroll.scrollTo(0); runCatching { firstReq.requestFocus() } } else openMenu()
+        }
+    }
+    // когда закрывается любое окно, курсор пульта возвращается на плитку, где он был (а не прыгает наверх)
+    val overlaysOpen = dlg != null || TopUi.recents.value || TopUi.notifs.value || TopUi.hdmi.value || versionsFor != null || updatesFor != null ||
+        Voice.picking.value || Voice.capturing.value
+    val wasOpen = remember { booleanArrayOf(false) }
+    LaunchedEffect(overlaysOpen) {
+        if (!overlaysOpen && wasOpen[0]) {
+            delay(150)
+            val r = TileFocus.reqs[TileFocus.last]
+            if (r != null) runCatching { r.requestFocus() }
+        }
+        wasOpen[0] = overlaysOpen
+    }
     // «Назад» на главном экране ничего не делает; в режиме перемещения заканчивает перемещение
     BackHandler {
         if (movingItem != null || movingStatus != null) { movingItem = null; movingStatus = null }
@@ -353,6 +392,7 @@ private fun HomeScreen(tick: Int, again: Int) {
                     }
                 }
             }
+            TileDragOverlay(scroll)
             if (TopUi.recents.value) RecentsDialog(apps, openApp) { TopUi.recents.value = false }
             if (TopUi.notifs.value) NotificationsDialog { TopUi.notifs.value = false }
             if (TopUi.hdmi.value) HdmiDialog { TopUi.hdmi.value = false }

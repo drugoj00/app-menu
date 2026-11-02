@@ -394,14 +394,16 @@ internal fun CatCardsRow(row: HRow, tick: Int, firstReq: androidx.compose.ui.foc
         ) { Text(stringResource(R.string.cq_none), color = t.sub, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp)) }
         return
     }
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 4.dp)) {
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+    val k = if (row.fit) fitScaleN(maxWidth.value - 8f, w.toFloat(), row.gap.toFloat(), row.perLine) else 1f
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(row.gap.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 4.dp)) {
         itemsIndexed(group.items.take(row.count), key = { i, _ -> i }) { i, item ->
             val bmp by produceState<Bitmap?>(null, item.poster) { value = item.poster?.let { withContext(Dispatchers.IO) { Catalogs.poster(it) } } }
             var menu by remember { mutableStateOf(false) }
             val uri = remember(item) { Catalogs.intentUri(group, item, q) }
             if (menu) CardMenu(item.title, item.poster, group.pkg, uri, false, { onDlg(Dlg.RowD(row.id)) }, { menu = false })
             HomeBox(
-                Modifier.size(w.dp, h.dp), RoundedCornerShape(12.dp), t.tile, focusReq = if (i == 0) firstReq else null,
+                Modifier.size((w * k).dp, (h * k).dp), RoundedCornerShape(12.dp), t.tile, focusReq = if (i == 0) firstReq else null, memKey = "c|" + row.id + "|" + i,
                 onClick = {
                     CardStore.record(ctx, item.title, item.poster, group.pkg, uri)
                     if (!Catalogs.open(ctx, group, item, q)) android.widget.Toast.makeText(ctx, ctx.getString(R.string.home_cant_open), android.widget.Toast.LENGTH_SHORT).show()
@@ -416,5 +418,5 @@ internal fun CatCardsRow(row: HRow, tick: Int, firstReq: androidx.compose.ui.foc
                 }
             }
         }
-    }
+    }    }
 }

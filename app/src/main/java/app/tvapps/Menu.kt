@@ -279,8 +279,9 @@ fun AppMenu(e: Entry, hidden: Boolean, onToggleHide: () -> Unit, onSelect: () ->
         HalfUi {
         Column(Modifier.width(minOf(384f, screenDp().first - 16f).dp)) {
             if (provider.below) Tail(provider.tailX, up = true, color = Pop.card)
+            val cardScroll = rememberScrollState()
             Column(
-                Modifier.clip(RoundedCornerShape(28.dp)).background(Pop.card).heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
+                Modifier.clip(RoundedCornerShape(28.dp)).background(Pop.card).heightIn(max = 560.dp).mouseDragScroll(cardScroll).verticalScroll(cardScroll),
             ) {
                 // шапка: название по центру и кружок «i» справа, как в One UI
                 Box(Modifier.fillMaxWidth().padding(start = 16.dp, end = 10.dp, top = 12.dp, bottom = 6.dp), contentAlignment = Alignment.Center) {

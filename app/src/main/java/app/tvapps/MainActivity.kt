@@ -200,6 +200,7 @@ class MainActivity : ComponentActivity() {
         NavReq.read(intent)
         if (intent?.getBooleanExtra(UpdOpen.EXTRA, false) == true) UpdOpen.requested = true
         applyFullscreen()
+        MouseAsTouch.install(window)
         setContent {
             val tc = currentTC()
             MaterialTheme(colorScheme = if (tc.dark) darkColorScheme() else lightColorScheme()) {
@@ -219,9 +220,16 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         onScreen = true
+        HomeNav.menuOn = true
         resumeTick.intValue++
         applyFullscreen()
         Pending.next(this)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        HomeNav.menuOn = false
+        HomeNav.menuPausedAt = android.os.SystemClock.elapsedRealtime()
     }
 
     override fun onStop() {
@@ -906,6 +914,7 @@ internal fun AppTile(
 
 /** Возврат на экран «Дом»: он живёт в своей задаче, поэтому открывается сразу. */
 internal fun goHome(ctx: android.content.Context) {
+    HomeNav.fromMenu = true
     runCatching { ctx.startActivity(Intent(ctx, HomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
     (ctx as? android.app.Activity)?.overridePendingTransition(0, 0)
 }

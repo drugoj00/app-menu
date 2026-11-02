@@ -43,7 +43,7 @@ fun screenDp(): Pair<Float, Float> {
  */
 @Composable
 fun HDialog(onDismissRequest: () -> Unit, properties: androidx.compose.ui.window.DialogProperties = androidx.compose.ui.window.DialogProperties(), content: @Composable () -> Unit) {
-    androidx.compose.ui.window.Dialog(onDismissRequest = onDismissRequest, properties = properties) { HalfUi { content() } }
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismissRequest, properties = properties) { MouseDragInDialog(); HalfUi { content() } }
 }
 
 /**

@@ -40,6 +40,8 @@ internal fun HomeDialogs(
 ) {
     val ctx = LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    // «Оформление»: менять только этот значок или все значки строки
+    var lookAll by remember { mutableStateOf(false) }
     val close = { setDlg(null) }
     val on = stringResource(R.string.on)
     val off = stringResource(R.string.off)
@@ -59,6 +61,7 @@ internal fun HomeDialogs(
                 add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома» — первым пунктом, чтобы было видно сразу
                 if (!auto) {
                     add(Opt(stringResource(R.string.d_move)) { close(); startMove(dlg.itemId) })
+                    add(Opt(stringResource(R.string.d_to_row)) { setDlg(Dlg.MoveToRow(dlg.itemId)) })
                     add(Opt(stringResource(R.string.d_look)) { setDlg(Dlg.Look(dlg.rowId, dlg.itemId)) })
                 }
                 if (entry != null) add(Opt(stringResource(if (Cfg.isFavorite(entry.pkg)) R.string.d_unfav else R.string.d_fav)) { Cfg.toggleFavorite(entry.pkg); close() })
@@ -70,7 +73,6 @@ internal fun HomeDialogs(
                     }.onFailure { Toast.makeText(ctx, ctx.getString(R.string.no_settings_page), Toast.LENGTH_SHORT).show() }
                 })
                 if (entry != null) add(Opt(stringResource(if (Cfg.isHidden(entry.pkg)) R.string.d_unhide else R.string.d_hide)) { Cfg.toggleHidden(entry.pkg); close() })
-                if (!auto) add(Opt(stringResource(R.string.d_to_row)) { setDlg(Dlg.MoveToRow(dlg.itemId)) })
                 if (!auto) add(Opt(stringResource(R.string.d_remove), danger = true) { HomeStore.removeItem(dlg.rowId, dlg.itemId); close() })
                 add(Opt(stringResource(R.string.d_add_here)) { setDlg(Dlg.AddItem(dlg.rowId)) })
                 add(Opt(stringResource(R.string.row_add_below)) { setDlg(Dlg.AddRow(dlg.rowId)) })
@@ -84,7 +86,9 @@ internal fun HomeDialogs(
             val row = HomeStore.row(dlg.rowId)
             val item = row?.items?.firstOrNull { it.id == dlg.itemId }
             if (item == null) { close(); return }
-            val set = { f: (HItem) -> HItem -> HomeStore.updateItem(dlg.rowId, dlg.itemId, f) }
+            val set = { f: (HItem) -> HItem ->
+                if (lookAll) HomeStore.updateRow(dlg.rowId) { r -> r.copy(items = r.items.map(f)) } else HomeStore.updateItem(dlg.rowId, dlg.itemId, f)
+            }
             val accent = LocalTh.current.accent
             val ci = BORDER_COLORS.indexOf(item.borderC).coerceAtLeast(0)
             val swatch = remember(ci, accent) {
@@ -93,13 +97,14 @@ internal fun HomeDialogs(
                 b.asImageBitmap()
             }
             val opts = listOf(
+                Opt(stringResource(R.string.look_scope), if (lookAll) stringResource(R.string.look_scope_all) else stringResource(R.string.look_scope_one), onClick = { lookAll = !lookAll }),
                 Opt(stringResource(R.string.look_view), if (item.mode == "banner") stringResource(R.string.look_banner) else stringResource(R.string.look_icon), onClick = {
                     set { it.copy(mode = if (it.mode == "banner") "icon" else "banner", showLabel = it.mode == "banner") }
                 }),
                 Opt(stringResource(R.string.look_img), onOff(item.img, stringResource(R.string.look_img_set), stringResource(R.string.look_img_none)), onClick = { pickImage(item.id) }),
                 Opt(stringResource(R.string.bn_make), onClick = { setDlg(Dlg.BannerStyle(dlg.rowId, dlg.itemId)) }),
                 Opt(stringResource(R.string.look_img_clear), onClick = { HomeImg.delete(item.id); set { it.copy(img = false) } }),
-                Opt(stringResource(R.string.look_radius), "${item.radius}", { set { it.copy(radius = (it.radius - 2).coerceAtLeast(0)) } }, { set { it.copy(radius = (it.radius + 2).coerceAtMost(48)) } }),
+                Opt(stringResource(R.string.look_radius), "${item.radius}", { set { it.copy(radius = (it.radius - 1).coerceAtLeast(0)) } }, { set { it.copy(radius = (it.radius + 1).coerceAtMost(48)) } }),
                 Opt(
                     stringResource(R.string.look_bg),
                     when (item.bg) { 1 -> stringResource(R.string.look_bg_clear); 2 -> stringResource(R.string.look_bg_card); else -> stringResource(R.string.look_bg_auto) },
@@ -117,7 +122,6 @@ internal fun HomeDialogs(
                     { set { it.copy(borderC = BORDER_COLORS[(ci + 1) % BORDER_COLORS.size]) } },
                     icon = swatch,
                 ),
-                Opt(stringResource(R.string.look_label), onOff(item.showLabel, on, off), onClick = { set { it.copy(showLabel = !it.showLabel) } }),
                 Opt(stringResource(R.string.look_name), item.label, onClick = { setDlg(Dlg.Label(dlg.rowId, dlg.itemId)) }),
             )
             ListDialog(stringResource(R.string.look_title), opts, { setDlg(Dlg.ItemD(dlg.rowId, dlg.itemId)) })
@@ -143,7 +147,10 @@ internal fun HomeDialogs(
                 add(Opt(stringResource(R.string.row_title_visible), onOff(row.showTitle, on, off), onClick = { upd { it.copy(showTitle = !it.showTitle) } }))
                 when (row.kind) {
                     "apps" -> {
-                        add(Opt(stringResource(R.string.row_size_icons), "${row.size}", { upd { it.copy(size = (it.size - 8).coerceAtLeast(32)) } }, { upd { it.copy(size = (it.size + 8).coerceAtMost(180)) } }))
+                        add(Opt(stringResource(R.string.row_size_icons), "${row.size}", { upd { it.copy(size = (it.size - 1).coerceAtLeast(32)) } }, { upd { it.copy(size = (it.size + 1).coerceAtMost(180)) } }))
+                        add(Opt(stringResource(R.string.row_fit), onOff(row.fit, on, off), onClick = { upd { it.copy(fit = !it.fit) } }))
+                        if (row.fit) add(Opt(stringResource(R.string.row_perline), if (row.perLine == 0) stringResource(R.string.perline_auto) else "${row.perLine}", { upd { it.copy(perLine = (it.perLine - 1).coerceAtLeast(0)) } }, { upd { it.copy(perLine = (it.perLine + 1).coerceAtMost(40)) } }))
+                        add(Opt(stringResource(R.string.row_wrap), onOff(row.wrap, on, off), onClick = { upd { it.copy(wrap = !it.wrap) } }))
                         add(Opt(stringResource(R.string.row_itemmode), if (row.itemMode == "banner") stringResource(R.string.look_banner) else stringResource(R.string.look_icon), onClick = {
                             val m = if (row.itemMode == "banner") "icon" else "banner"
                             upd { r -> r.copy(itemMode = m, items = r.items.map { i -> i.copy(mode = m, showLabel = m == "icon") }) }
@@ -157,7 +164,9 @@ internal fun HomeDialogs(
                         if (row.auto.isNotEmpty()) add(Opt(stringResource(R.string.row_count), "${row.count}", { upd { it.copy(count = (it.count - 1).coerceAtLeast(1)) } }, { upd { it.copy(count = (it.count + 1).coerceAtMost(40)) } }))
                     }
                     "cards" -> {
-                        add(Opt(stringResource(R.string.row_size_cards), "${row.size}", { upd { it.copy(size = (it.size - 10).coerceAtLeast(50)) } }, { upd { it.copy(size = (it.size + 10).coerceAtMost(260)) } }))
+                        add(Opt(stringResource(R.string.row_size_cards), "${row.size}", { upd { it.copy(size = (it.size - 1).coerceAtLeast(50)) } }, { upd { it.copy(size = (it.size + 1).coerceAtMost(260)) } }))
+                        add(Opt(stringResource(R.string.row_fit), onOff(row.fit, on, off), onClick = { upd { it.copy(fit = !it.fit) } }))
+                        if (row.fit) add(Opt(stringResource(R.string.row_perline), if (row.perLine == 0) stringResource(R.string.perline_auto) else "${row.perLine}", { upd { it.copy(perLine = (it.perLine - 1).coerceAtLeast(0)) } }, { upd { it.copy(perLine = (it.perLine + 1).coerceAtMost(40)) } }))
                         add(Opt(stringResource(R.string.row_source), onClick = { setDlg(Dlg.CardSource(row.id)) }, value = sourceName(ctx, row.auto)))
                         if (row.auto.startsWith("cat:")) add(Opt(stringResource(R.string.cq_menu), row.auto.substringAfter('|', ""), onClick = { setDlg(Dlg.CatQuery(row.id, row.auto.removePrefix("cat:").substringBefore('|'))) }))
                         add(Opt(stringResource(R.string.row_count), "${row.count}", { upd { it.copy(count = (it.count - 1).coerceAtLeast(1)) } }, { upd { it.copy(count = (it.count + 1).coerceAtMost(60)) } }))
@@ -167,10 +176,12 @@ internal fun HomeDialogs(
                         }))
                     }
                     else -> {
-                        add(Opt(stringResource(R.string.row_size_widgets), "${row.size}", { upd { it.copy(size = (it.size - 10).coerceAtLeast(60)) } }, { upd { it.copy(size = (it.size + 10).coerceAtMost(320)) } }))
+                        add(Opt(stringResource(R.string.row_size_widgets), "${row.size}", { upd { it.copy(size = (it.size - 1).coerceAtLeast(60)) } }, { upd { it.copy(size = (it.size + 1).coerceAtMost(320)) } }))
                         add(Opt(stringResource(R.string.row_slots), "${row.slots.size}", { HomeStore.setSlotCount(row.id, row.slots.size - 1) }, { HomeStore.setSlotCount(row.id, row.slots.size + 1) }))
                     }
                 }
+                add(Opt(stringResource(R.string.screen_row_gap), "${HomeStore.layout.rowGap}", { HomeStore.set(HomeStore.layout.copy(rowGap = (HomeStore.layout.rowGap - 1).coerceAtLeast(0))) }, { HomeStore.set(HomeStore.layout.copy(rowGap = (HomeStore.layout.rowGap + 1).coerceAtMost(60))) }))
+                add(Opt(stringResource(R.string.row_gap), "${row.gap}", { upd { it.copy(gap = (it.gap - 1).coerceAtLeast(0)) } }, { upd { it.copy(gap = (it.gap + 1).coerceAtMost(60)) } }))
                 add(Opt(stringResource(R.string.row_up)) { HomeStore.moveRow(row.id, -1) })
                 add(Opt(stringResource(R.string.row_down)) { HomeStore.moveRow(row.id, 1) })
                 add(Opt(stringResource(R.string.row_add_below)) { setDlg(Dlg.AddRow(row.id)) })
@@ -314,10 +325,10 @@ internal fun HomeDialogs(
                         add(Opt(stringResource(R.string.wg_show_date), onOff(w.flag, on, off), onClick = { upd { it.copy(flag = !it.flag) } }))
                     }
                 }
-                add(Opt(stringResource(R.string.wg_font), "${w.fs}%", { upd { it.copy(fs = (it.fs - 10).coerceAtLeast(50)) } }, { upd { it.copy(fs = (it.fs + 10).coerceAtMost(250)) } }))
+                add(Opt(stringResource(R.string.wg_font), "${w.fs}%", { upd { it.copy(fs = (it.fs - 1).coerceAtLeast(50)) } }, { upd { it.copy(fs = (it.fs + 1).coerceAtMost(250)) } }))
                 if (row.slots.size > 1) {
                     val total = row.slots.sumOf { it.wt.coerceIn(30, 300) }.coerceAtLeast(1)
-                    add(Opt(stringResource(R.string.wg_width), "${w.wt.coerceIn(30, 300) * 100 / total}%", { upd { it.copy(wt = (it.wt - 10).coerceAtLeast(30)) } }, { upd { it.copy(wt = (it.wt + 10).coerceAtMost(300)) } }))
+                    add(Opt(stringResource(R.string.wg_width), "${w.wt.coerceIn(30, 300) * 100 / total}%", { upd { it.copy(wt = (it.wt - 1).coerceAtLeast(30)) } }, { upd { it.copy(wt = (it.wt + 1).coerceAtMost(300)) } }))
                 }
                 add(Opt(stringResource(R.string.row_slots), "${row.slots.size}", { HomeStore.setSlotCount(row.id, row.slots.size - 1) }, { HomeStore.setSlotCount(row.id, row.slots.size + 1) }))
                 add(Opt(stringResource(R.string.d_row_settings)) { setDlg(Dlg.RowD(row.id)) })
@@ -378,6 +389,9 @@ internal fun HomeDialogs(
                 Opt(stringResource(R.string.sb_nav), (rev * 0).let { if (SysBars.hidden(ctx, true)) off else on },
                     onClick = { SysBars.set(ctx, true, if (SysBars.hidden(ctx, true)) 1 else 2); (ctx as? android.app.Activity)?.let { SysBars.apply(it) }; rev++ }),
                 Opt(stringResource(R.string.top_items)) { setDlg(Dlg.Top) },
+                Opt(stringResource(R.string.screen_row_gap), "${HomeStore.layout.rowGap}",
+                    { HomeStore.set(HomeStore.layout.copy(rowGap = (HomeStore.layout.rowGap - 1).coerceAtLeast(0))); rev++ },
+                    { HomeStore.set(HomeStore.layout.copy(rowGap = (HomeStore.layout.rowGap + 1).coerceAtMost(60))); rev++ }),
                 Opt(stringResource(R.string.bg_title)) { setDlg(Dlg.Bg) },
                 Opt(stringResource(R.string.screen_menu_settings)) {
                     close()
@@ -438,6 +452,7 @@ internal fun HomeDialogs(
                 add(Opt(stringResource(R.string.top_recent), onOff(top.recent, on, off), onClick = { HomeStore.updateTop { it.copy(recent = !it.recent) } }))
                 add(Opt(stringResource(R.string.top_hdmi), onOff(top.hdmi, on, off), onClick = { HomeStore.updateTop { it.copy(hdmi = !it.hdmi) } }))
                 add(Opt(stringResource(R.string.top_search), onOff(top.search, on, off), onClick = { HomeStore.updateTop { it.copy(search = !it.search) } }))
+                add(Opt(stringResource(R.string.top_voice_btn), onOff(top.voice, on, off), onClick = { HomeStore.updateTop { it.copy(voice = !it.voice) } }))
                 add(Opt(stringResource(R.string.voice_engine), Voice.label(ctx).take(26), onClick = { Voice.picking.value = true; close() }))
                 add(Opt(stringResource(R.string.voice_bind_key), Voice.keyName(Voice.customCode(ctx)).ifEmpty { stringResource(R.string.voice_key_default) }, onClick = { Voice.capturing.value = true; close() }))
                 top.status.forEach { s ->
@@ -591,7 +606,7 @@ internal fun BgDialogHost(menu: Boolean, onClose: () -> Unit) {
                     add(Opt(stringResource(R.string.bg_fit), if (bg.fit == "stretch") stringResource(R.string.bg_fit_stretch) else stringResource(R.string.bg_fit_crop),
                         onClick = { put(bg.copy(fit = if (bg.fit == "stretch") "crop" else "stretch")) }))
                 if (bg.type != "none") add(Opt(stringResource(R.string.bg_dim), "${bg.dim}%",
-                    { put(bg.copy(dim = (bg.dim - 10).coerceAtLeast(0))) }, { put(bg.copy(dim = (bg.dim + 10).coerceAtMost(80))) }))
+                    { put(bg.copy(dim = (bg.dim - 1).coerceAtLeast(0))) }, { put(bg.copy(dim = (bg.dim + 1).coerceAtMost(80))) }))
             }
             ListDialog(stringResource(if (menu) R.string.bg_menu_title else R.string.bg_title) + ": " + typeName, opts, onClose, stringResource(R.string.bg_hint))
         }

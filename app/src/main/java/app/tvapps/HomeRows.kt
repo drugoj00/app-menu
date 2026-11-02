@@ -2,6 +2,12 @@
 package app.tvapps
 
 import android.graphics.Bitmap
+import kotlin.math.roundToInt
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
@@ -98,7 +104,22 @@ internal object HomeFocus {
 }
 
 /** Один показанный элемент строки значков: свой (из списка строки) или автоматический (избранное, недавние, входы). */
-private data class El(val item: HItem, val entry: Entry?, val tv: TvIn?, val auto: Boolean)
+internal data class El(val item: HItem, val entry: Entry?, val tv: TvIn?, val auto: Boolean)
+
+/** Во сколько раз растянуть плитки, чтобы строка заполнилась от края до края целым числом плиток (avail, base, gap в dp). */
+internal fun fitScale(avail: Float, base: Float, gap: Float): Float = fitGrid(avail, base, gap).second
+
+/** Масштаб карточек: при заданном числе в линии (perLine > 0) точно по нему, иначе по ширине плитки. */
+internal fun fitScaleN(avail: Float, base: Float, gap: Float, perLine: Int): Float =
+    if (perLine > 0 && base > 0f) ((avail - gap * (perLine - 1)) / (perLine * base)).coerceIn(0.4f, 2.5f) else fitScale(avail, base, gap)
+
+/** Сколько плиток помещается в линию и во сколько раз их растянуть, чтобы линия заполнилась от края до края. */
+internal fun fitGrid(avail: Float, base: Float, gap: Float): Pair<Int, Float> {
+    if (avail <= 0f || base <= 0f) return 1 to 1f
+    val n = kotlin.math.floor((avail + gap) / (base + gap)).toInt().coerceAtLeast(1)
+    val w = (avail - gap * (n - 1)) / n
+    return n to (w / base).coerceIn(0.4f, 2.5f)
+}
 
 private fun ratio(a: String) = when (a) { "1:1" -> 1f; "2:3" -> 2f / 3f; else -> 16f / 9f }
 
@@ -140,7 +161,7 @@ internal fun HomeRowsView(
         value = if (needInputs) withContext(Dispatchers.IO) { TvInputs.list(ctx) } else emptyList()
     }
     val movingReq = remember { FocusRequester() }
-    Column(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(layout.rowGap.dp)) {
         layout.rows.forEachIndexed { idx, row ->
             androidx.compose.runtime.key(row.id) {
                 RowTitle(row, onDlg)
@@ -231,17 +252,42 @@ private fun AppsRow(
             }
         }
     }
-    LazyRow(state = state, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)) {
-        items(els, key = { it.item.id }) { el ->
+    androidx.compose.foundation.layout.BoxWithConstraints(
+        Modifier.fillMaxWidth().onGloballyPositioned { c ->
+            val p = c.positionInRoot()
+            TileDrag.rowRects[row.id] = androidx.compose.ui.geometry.Rect(p, androidx.compose.ui.geometry.Size(c.size.width.toFloat(), c.size.height.toFloat()))
+        },
+    ) {
+    androidx.compose.runtime.DisposableEffect(row.id) { onDispose { TileDrag.rowRects.remove(row.id) } }
+    // ширина слота каждой плитки при масштабе 1 (у значков не уже 84 dp: под ними подпись); линии набираются по реальной ширине
+    val availW = maxWidth.value - 8f - 0.5f
+    val gapF = row.gap.toFloat()
+    val slotW = els.map { e -> val sz = row.size.toFloat(); maxOf(if (e.item.mode == "banner") sz * 16f / 9f else sz, 84f) }
+    val lines = ArrayList<List<Int>>()
+    if (row.fit && row.perLine > 0) lines.addAll(els.indices.toList().chunked(row.perLine)) else run {
+        var cur = ArrayList<Int>(); var sum = 0f
+        for (i in els.indices) {
+            val add = slotW[i] + (if (cur.isEmpty()) 0f else gapF)
+            if (cur.isNotEmpty() && sum + add > availW) { lines += cur; cur = ArrayList(); sum = 0f }
+            sum += slotW[i] + (if (cur.isEmpty()) 0f else gapF); cur.add(i)
+        }
+        if (cur.isNotEmpty()) lines += cur
+    }
+    fun lineK(l: List<Int>): Float = ((availW - gapF * (l.size - 1)) / l.sumOf { slotW[it].toDouble() }.toFloat()).coerceIn(0.4f, 2.5f)
+    // масштаб каждой линии: заполненные линии растягиваются точно до краёв, последняя берёт масштаб предыдущей (или не больше 1,5)
+    val ks = FloatArray(lines.size)
+    for (li in lines.indices) ks[li] = if (!row.fit) 1f else if (li < lines.lastIndex) lineK(lines[li]) else if (li > 0) ks[li - 1] else lineK(lines[li]).coerceAtMost(1.5f)
+    val kFirst = if (lines.isEmpty()) 1f else ks[0]
+    val tile: @Composable (El, Float) -> Unit = { el, k ->
             val isMoving = movingItem == el.item.id
             val bring = remember { BringIntoViewRequester() }
             val idx = els.indexOf(el)
             if (isMoving) LaunchedEffect(idx, row.id) { delay(30); runCatching { movingReq.requestFocus() }; runCatching { bring.bringIntoView() } }
-            val sizeDp = row.size
-            val wDp = if (el.item.mode == "banner") sizeDp * 16 / 9 else sizeDp
+            val sizeDp = row.size * k
+            val wDp = if (el.item.mode == "banner") sizeDp * 16f / 9f else sizeDp
             val req = if (isMoving) movingReq else if (el === els.first()) firstReq else if (HomeFocus.key == el.item.id && HomeFocus.rowId == row.id) lastReq else null
             HomeAppTile(
-                row, el, isMoving, req, with(density) { (wDp + 8).dp.toPx() }, Modifier.bringIntoViewRequester(bring),
+                row, el, isMoving, req, with(density) { (wDp + row.gap).dp.toPx() }, Modifier.bringIntoViewRequester(bring), k,
                 onClick = {
                     if (isMoving) onMoveEnd()
                     else when (el.item.kind) {
@@ -252,8 +298,8 @@ private fun AppsRow(
                     }
                 },
                 onLong = { onDlg(Dlg.ItemD(row.id, el.item.id)) },
-                onMoveKey = { k ->
-                    if (el.auto) true else when (k) {
+                onMoveKey = { k2 ->
+                    if (el.auto) true else when (k2) {
                         Key.DirectionLeft -> { HomeStore.moveItem(el.item.id, -1, 0); true }
                         Key.DirectionRight -> { HomeStore.moveItem(el.item.id, 1, 0); true }
                         Key.DirectionUp -> { HomeStore.moveItem(el.item.id, 0, -1); true }
@@ -262,22 +308,43 @@ private fun AppsRow(
                     }
                 },
                 onStep = { d -> if (!el.auto) { onDlg(null); HomeStore.moveItem(el.item.id, d, 0) } },
+                dragEnabled = !el.auto && !isMoving,
             )
+    }
+    if (row.wrap && row.fit) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(row.gap.dp)) {
+            lines.forEachIndexed { li, line ->
+                Row(horizontalArrangement = Arrangement.spacedBy(row.gap.dp)) {
+                    line.forEach { i -> val el = els[i]; androidx.compose.runtime.key(el.item.id) { tile(el, ks[li]) } }
+                }
+            }
         }
+    } else if (row.wrap) {
+        androidx.compose.foundation.layout.FlowRow(
+            Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(row.gap.dp), verticalArrangement = Arrangement.spacedBy(row.gap.dp),
+        ) { els.forEach { el -> androidx.compose.runtime.key(el.item.id) { tile(el, 1f) } } }
+    } else {
+        LazyRow(state = state, horizontalArrangement = Arrangement.spacedBy(row.gap.dp), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)) {
+            items(els, key = { it.item.id }) { el -> tile(el, kFirst) }
+        }
+    }
     }
 }
 
 @Composable
 private fun HomeAppTile(
     row: HRow, el: El, moving: Boolean, req: FocusRequester?, stepPx: Float, mod: Modifier,
+    scale: Float = 1f,
     onClick: () -> Unit, onLong: () -> Unit, onMoveKey: (Key) -> Boolean, onStep: (Int) -> Unit,
+    dragEnabled: Boolean = false,
 ) {
     val t = LocalTh.current
     val ctx = LocalContext.current
     val item = el.item
     val banner = item.mode == "banner"
-    val sizeDp = row.size
-    val wDp = if (banner) sizeDp * 16 / 9 else sizeDp
+    val sizeDp = row.size * scale
+    val wDp = if (banner) sizeDp * 16f / 9f else sizeDp
     val radius = item.radius.dp
     val custom = if (item.img) remember(item.id, HomeStore.imgTick) { HomeImg.load(ctx, item.id)?.asImageBitmap() } else null
     val bannerBmp by produceState<Bitmap?>(el.entry?.let { Banners.peek(it.pkg) }, el.entry?.pkg, banner) {
@@ -295,14 +362,23 @@ private fun HomeAppTile(
         }
     }
     val vec = when (item.kind) { "menu" -> HIcons.apps; "settings" -> HIcons.gear; else -> HIcons.input }
-    val showLabel = row.labels && item.showLabel
+    val showLabel = row.labels && item.mode == "icon"      // подписи только общие на строку (у значков), у баннеров название уже на картинке
     val shape = RoundedCornerShape(radius)
+    val dens = androidx.compose.ui.platform.LocalDensity.current
+    androidx.compose.runtime.DisposableEffect(item.id) { onDispose { TileDrag.tileRects.remove(item.id) } }
     HomeBox(
-        mod, RoundedCornerShape(radius + 2.dp), Color.Transparent, moving, req, stepPx, onMoveKey, onStep, onClick = onClick, onMoveEnd = onClick, onLong = onLong,
+        mod.onGloballyPositioned { c ->
+            if (dragEnabled) TileDrag.tileRects[item.id] = row.id to androidx.compose.ui.geometry.Rect(c.positionInRoot(), androidx.compose.ui.geometry.Size(c.size.width.toFloat(), c.size.height.toFloat()))
+        }.graphicsLayer { alpha = if (TileDrag.active?.el?.item?.id == item.id) 0.25f else 1f },
+        RoundedCornerShape(radius + 2.dp), Color.Transparent, moving, req, stepPx, onMoveKey, onStep, onClick = onClick, onMoveEnd = onClick, onLong = onLong,
+        memKey = row.id + "|" + item.id,
+        dragStart = if (dragEnabled) ({ p -> TileDrag.active = TileDrag.Info(row, el, scale, with(dens) { wDp.dp.toPx() }, with(dens) { sizeDp.dp.toPx() }); TileDrag.pos = p }) else null,
+        dragMove = if (dragEnabled) ({ p -> TileDrag.pos = p }) else null,
+        dragEnd = if (dragEnabled) ({ p -> TileDrag.drop(item.id, p) }) else null,
         ringColor = if (item.borderW > 0 && item.borderHover) (if (item.borderC == 0L) t.accent else Color(item.borderC.toInt())) else null,
         ringWidth = if (item.borderHover) item.borderW else 0,
     ) {
-        Column(Modifier.width(maxOf(wDp, 84).dp).padding(2.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.width(maxOf(wDp, 84f * scale).dp).padding(2.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Box(
                 Modifier.size(wDp.dp, sizeDp.dp).then(if (item.shadow) Modifier.shadow(10.dp, shape) else Modifier)
                     .clip(shape).background(if (card) t.tile else Color.Transparent)
@@ -325,7 +401,7 @@ private fun HomeAppTile(
             }
             if (showLabel) Text(
                 label, color = t.text, fontSize = (sizeDp / 5.5f).coerceIn(10f, 15f).sp, maxLines = 2, minLines = 1, overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center, modifier = Modifier.width(maxOf(wDp, 84).dp).padding(top = 3.dp),
+                textAlign = TextAlign.Center, modifier = Modifier.width(maxOf(wDp, 84f * scale).dp).padding(top = 3.dp),
             )
         }
     }
@@ -375,16 +451,19 @@ private fun CardsRow(
             }
         }
     }
-    LazyRow(state = state, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)) {
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+    val k = if (row.fit) fitScaleN(maxWidth.value - 8f, h * ratio(row.aspect), row.gap.toFloat(), row.perLine) else 1f
+    LazyRow(state = state, horizontalArrangement = Arrangement.spacedBy(row.gap.dp), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)) {
         items(programs, key = { it.kind.toString() + "|" + it.id }) { p ->
             val pk = p.kind.toString() + "|" + p.id
-            ProgramTile(p, w, h, if (p === programs.first()) firstReq else if (HomeFocus.key == pk && HomeFocus.rowId == row.id) lastReq else null, row.auto, { onDlg(Dlg.RowD(row.id)) }, { HomeFocus.mark(row.id, pk) })
+            ProgramTile(p, w * k, h * k, if (p === programs.first()) firstReq else if (HomeFocus.key == pk && HomeFocus.rowId == row.id) lastReq else null, row.auto, { onDlg(Dlg.RowD(row.id)) }, { HomeFocus.mark(row.id, pk) })
         }
+    }
     }
 }
 
 @Composable
-private fun ProgramTile(p: ChProgram, w: Int, h: Int, req: FocusRequester?, rowAuto: String, onLong: () -> Unit, onLaunch: () -> Unit) {
+private fun ProgramTile(p: ChProgram, w: Float, h: Float, req: FocusRequester?, rowAuto: String, onLong: () -> Unit, onLaunch: () -> Unit) {
     val ctx = LocalContext.current
     var menu by remember { androidx.compose.runtime.mutableStateOf(false) }
     if (menu) CardMenu(p.title, p.poster, p.pkg, p.intentUri, rowAuto == "mine:seen", onLong, { menu = false })
@@ -392,7 +471,7 @@ private fun ProgramTile(p: ChProgram, w: Int, h: Int, req: FocusRequester?, rowA
         if (value == null && p.poster != null) value = withContext(Dispatchers.IO) { Pics.load(ctx, p.poster) }
     }
     HomeBox(
-        Modifier.size(w.dp, h.dp), RoundedCornerShape(12.dp), LocalTh.current.tile, focusReq = req,
+        Modifier.size(w.dp, h.dp), RoundedCornerShape(12.dp), LocalTh.current.tile, focusReq = req, memKey = "p|" + p.kind + "|" + p.id,
         onClick = {
             onLaunch()
             CardStore.record(ctx, p.title, p.poster, p.pkg, p.intentUri)
@@ -418,11 +497,11 @@ private fun WidgetsRow(row: HRow, tick: Int, refreshTick: Int, firstReq: FocusRe
     // если владелица сама поменяла высоту (не 120), берётся её значение
     val wideScreen = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 900
     val rowH = if (wideScreen && row.size == 120) 160 else row.size
-    Row(Modifier.fillMaxWidth().height(rowH.dp).padding(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(Modifier.fillMaxWidth().height(rowH.dp).padding(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(row.gap.dp)) {
         row.slots.forEachIndexed { i, w ->
             androidx.compose.runtime.key(i) {
                 HomeBox(
-                    Modifier.weight(w.wt.coerceIn(30, 300) / 100f).fillMaxHeight(), RoundedCornerShape(16.dp), t.tile, focusReq = if (i == 0) firstReq else null,
+                    Modifier.weight(w.wt.coerceIn(30, 300) / 100f).fillMaxHeight(), RoundedCornerShape(16.dp), if (w.type == "appwidget") Color.Transparent else t.tile, focusReq = if (i == 0) firstReq else null, memKey = row.id + "|w" + i,
                     onClick = { widgetClick(ctx, w) { refresh++ } },
                     onLong = { onDlg(Dlg.WidgetD(row.id, i)) },
                 ) {
@@ -434,5 +513,51 @@ private fun WidgetsRow(row: HRow, tick: Int, refreshTick: Int, firstReq: FocusRe
                 }
             }
         }
+    }
+}
+
+
+// ------------------------------------------------------------------ перетаскивание плиток
+
+/** Состояние перетаскивания плитки (зажать и двигать): плитка «летит» за указателем, при отпускании встаёт в строку под ним. */
+internal object TileDrag {
+    class Info(val row: HRow, val el: El, val scale: Float, val w: Float, val h: Float)
+    var active by androidx.compose.runtime.mutableStateOf<Info?>(null)
+    var pos by androidx.compose.runtime.mutableStateOf(androidx.compose.ui.geometry.Offset.Zero)
+    /** Прямоугольники строк значков и ручных плиток в корне экрана (обновляются самими плитками). */
+    val rowRects = HashMap<String, androidx.compose.ui.geometry.Rect>()
+    val tileRects = HashMap<String, Pair<String, androidx.compose.ui.geometry.Rect>>()
+
+    /** Отпускание: найти строку под указателем и место в ней. */
+    fun drop(id: String, p: androidx.compose.ui.geometry.Offset) {
+        active = null
+        val rowId = rowRects.entries.firstOrNull { it.value.contains(p) }?.key ?: return
+        val order = HomeStore.row(rowId)?.items?.filter { it.id != id } ?: return
+        var index = order.size
+        for ((i, it) in order.withIndex()) {
+            val r = tileRects[it.id]?.second ?: continue
+            if (p.y < r.top || (p.y <= r.bottom && p.x < r.center.x)) { index = i; break }
+        }
+        HomeStore.moveItemTo(id, rowId, index)
+    }
+}
+
+/** Плитка, летящая за указателем, и прокрутка страницы у верхнего и нижнего края. */
+@Composable
+internal fun TileDragOverlay(scroll: androidx.compose.foundation.ScrollState) {
+    val d = TileDrag.active ?: return
+    var h by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    LaunchedEffect(d) {
+        while (true) {
+            delay(16)
+            val y = TileDrag.pos.y
+            if (y < 110f) scroll.dispatchRawDelta(-20f) else if (h > 0 && y > h - 110f) scroll.dispatchRawDelta(20f)
+        }
+    }
+    Box(Modifier.fillMaxSize().onSizeChanged { h = it.height }) {
+        Box(
+            Modifier.offset { androidx.compose.ui.unit.IntOffset((TileDrag.pos.x - d.w / 2).roundToInt(), (TileDrag.pos.y - d.h / 2).roundToInt()) }
+                .graphicsLayer { alpha = 0.92f; scaleX = 1.08f; scaleY = 1.08f },
+        ) { HomeAppTile(d.row, d.el, false, null, 0f, Modifier, d.scale, {}, {}, { false }, {}) }
     }
 }

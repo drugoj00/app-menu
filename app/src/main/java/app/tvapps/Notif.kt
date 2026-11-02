@@ -137,15 +137,22 @@ fun NotificationsDialog(onClose: () -> Unit) {
  */
 @Composable
 fun RecentsDialog(apps: List<Entry>, onOpen: (Entry) -> Unit, onClose: () -> Unit) {
-    val list = remember(apps) {
+    var rev by remember { mutableStateOf(0) }
+    val list = remember(apps, rev) {
         apps.filter { Cfg.lastLaunch(it.pkg) > 0L && !Cfg.isHidden(it.pkg) }.sortedByDescending { Cfg.lastLaunch(it.pkg) }.take(15)
     }
     val fmt = remember { SimpleDateFormat("dd.MM HH:mm") }
     val opts = if (list.isEmpty()) listOf(Opt(stringResource(R.string.rc_none), "", onClick = { onClose() }))
     else list.map { e ->
-        Opt(e.label, fmt.format(Date(Cfg.lastLaunch(e.pkg))), icon = e.bmp ?: runCatching { e.icon.toBitmap(64, 64).asImageBitmap() }.getOrNull(), onClick = { onClose(); onOpen(e) })
+        Opt(
+            e.label, fmt.format(Date(Cfg.lastLaunch(e.pkg))), icon = e.bmp ?: runCatching { e.icon.toBitmap(64, 64).asImageBitmap() }.getOrNull(),
+            onRemove = { Cfg.clearLast(e.pkg); rev++ }, onClick = { onClose(); onOpen(e) },
+        )
     }
-    ListDialog(stringResource(R.string.rc_title), opts, onClose)
+    ListDialog(
+        stringResource(R.string.rc_title), opts, onClose,
+        footer = if (list.isEmpty()) null else Opt(stringResource(R.string.rc_clear_all), danger = true, onClick = { Cfg.clearAllLast(); rev++ }),
+    )
 }
 
 /** Окно «Входы»: HDMI и другие внешние входы телевизора; ОК переключает на вход. Если входов нет (телефон, планшет), говорит об этом. */

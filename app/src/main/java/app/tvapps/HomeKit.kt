@@ -4,6 +4,9 @@ package app.tvapps
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -36,6 +39,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.input.pointer.isSecondaryPressed
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -138,8 +143,20 @@ internal fun HomeBox(
     /** своя рамка при наведении и выборе пультом (цвет и толщина, dp); без неё цвет темы */
     ringColor: Color? = null,
     ringWidth: Int = 0,
+    /** перетаскивание плитки (зажать и двигать, мышью или пальцем): начало, движение, отпускание; позиции в корне экрана */
+    dragStart: ((androidx.compose.ui.geometry.Offset) -> Unit)? = null,
+    dragMove: ((androidx.compose.ui.geometry.Offset) -> Unit)? = null,
+    dragEnd: ((androidx.compose.ui.geometry.Offset) -> Unit)? = null,
+    /** ключ плитки: курсор пульта запоминается и возвращается на неё после закрытия окон */
+    memKey: String? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
+    val selfReq = focusReq ?: remember { FocusRequester() }
+    androidx.compose.runtime.DisposableEffect(memKey) {
+        if (memKey != null) TileFocus.reqs[memKey] = selfReq
+        onDispose { if (memKey != null && TileFocus.reqs[memKey] === selfReq) TileFocus.reqs.remove(memKey) }
+    }
+    var boxCoords by remember { mutableStateOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
     val t = LocalTh.current
     var focused by remember { mutableStateOf(false) }
     var pending by remember { mutableStateOf(false) }
@@ -158,7 +175,7 @@ internal fun HomeBox(
             .zIndex(if (focused || hover) 1f else 0f)      // выбранный элемент выше соседей: увеличенная рамка не прячется под правым
             .scale(scale)
             .then(hm)
-            .then(if (focusReq != null) Modifier.focusRequester(focusReq) else Modifier)
+            .focusRequester(selfReq)
             .onPreviewKeyEvent { ev ->
                 if (moving) {
                     return@onPreviewKeyEvent when (ev.key) {
@@ -195,7 +212,7 @@ internal fun HomeBox(
                     else -> false
                 }
             }
-            .onFocusChanged { focused = it.isFocused }
+            .onFocusChanged { focused = it.isFocused; if (it.isFocused && memKey != null) TileFocus.last = memKey }
             .clip(shape)
             .background(if (focused || hover) t.tileFocus else bg, shape)
             .border(
@@ -205,20 +222,25 @@ internal fun HomeBox(
             .mouseSecondary { long() }
             .combinedClickable(
                 onClick = { if (android.os.SystemClock.elapsedRealtime() > suppressUntil) click() },
-                onLongClick = { suppressUntil = android.os.SystemClock.elapsedRealtime() + 700; long() },
+                onLongClick = if (dragStart == null) ({ suppressUntil = android.os.SystemClock.elapsedRealtime() + 700; long() }) else null,
             )
-            .pointerInput(Unit) {
-                var acc = 0f
-                detectDragGesturesAfterLongPress(
-                    onDragStart = { acc = 0f },
-                    onDrag = { change, amount ->
-                        change.consume()
-                        acc += amount.x
-                        while (acc > stepPx) { acc -= stepPx; step(1) }
-                        while (acc < -stepPx) { acc += stepPx; step(-1) }
-                    },
-                )
-            },
+            .onGloballyPositioned { boxCoords = it }
+            .then(
+                if (dragStart != null && dragMove != null && dragEnd != null) Modifier.pointerInput(Unit) {
+                    tileDragGesture({ boxCoords }, { suppressUntil = android.os.SystemClock.elapsedRealtime() + 700; long() }, dragStart, dragMove, dragEnd)
+                } else Modifier.pointerInput(Unit) {
+                    var acc = 0f
+                    detectDragGesturesAfterLongPress(
+                        onDragStart = { acc = 0f },
+                        onDrag = { change, amount ->
+                            change.consume()
+                            acc += amount.x
+                            while (acc > stepPx) { acc -= stepPx; step(1) }
+                            while (acc < -stepPx) { acc += stepPx; step(-1) }
+                        },
+                    )
+                },
+            ),
         contentAlignment = Alignment.Center,
         content = content,
     )
@@ -234,6 +256,8 @@ class Opt(
     val onInc: (() -> Unit)? = null,
     val danger: Boolean = false,
     val icon: ImageBitmap? = null,
+    /** справа крестик: убрать этот пункт (например, из «Недавних») */
+    val onRemove: (() -> Unit)? = null,
     /** картинка широкая (превью баннера 16:9), а не маленький значок */
     val wide: Boolean = false,
     val onClick: (() -> Unit)? = null,
@@ -245,12 +269,16 @@ private fun OptRow(o: Opt, req: FocusRequester?) {
     var focused by remember { mutableStateOf(false) }
     val (hm, hover) = rememberHover()
     val stepper = o.onDec != null && o.onInc != null
+    val rowReq = remember { FocusRequester() }
+    val rmReq = remember { FocusRequester() }
     Row(
         Modifier.fillMaxWidth()
             .then(hm)
             .then(if (req != null) Modifier.focusRequester(req) else Modifier)
+            .focusRequester(rowReq)
             .onPreviewKeyEvent { ev ->
                 if (OkShield.eats(ev)) return@onPreviewKeyEvent true
+                if (o.onRemove != null && ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionRight) { runCatching { rmReq.requestFocus() }; return@onPreviewKeyEvent true }
                 if (stepper && ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionLeft) { o.onDec?.invoke(); true }
                 else if (stepper && ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionRight) { o.onInc?.invoke(); true }
                 else false
@@ -267,21 +295,34 @@ private fun OptRow(o: Opt, req: FocusRequester?) {
         o.icon?.let { Image(it, null, if (o.wide) Modifier.size(128.dp, 72.dp).clip(RoundedCornerShape(8.dp)) else Modifier.size(30.dp)) }
         Text(o.label, color = if (o.danger) Color(0xFFF87171) else t.text, fontSize = 16.sp, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
         if (stepper) {
-            Text("‹", color = t.sub, fontSize = 20.sp, modifier = Modifier.combinedClickable(onClick = { o.onDec?.invoke() }).padding(horizontal = 8.dp))
+            Text("‹", color = t.sub, fontSize = 20.sp, modifier = Modifier.holdRepeat { o.onDec?.invoke() }.padding(horizontal = 8.dp))
             Text(o.value, color = t.accent, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            Text("›", color = t.sub, fontSize = 20.sp, modifier = Modifier.combinedClickable(onClick = { o.onInc?.invoke() }).padding(horizontal = 8.dp))
+            Text("›", color = t.sub, fontSize = 20.sp, modifier = Modifier.holdRepeat { o.onInc?.invoke() }.padding(horizontal = 8.dp))
         } else if (o.value.isNotEmpty()) Text(o.value, color = t.accent, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 220.dp))
+        o.onRemove?.let { rm ->
+            var cf by remember { mutableStateOf(false) }
+            Box(
+                Modifier.size(34.dp).clip(androidx.compose.foundation.shape.CircleShape).background(if (cf) t.accent else Color.Transparent)
+                    .focusRequester(rmReq)
+                    .onPreviewKeyEvent { ev ->
+                        if (ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionLeft) { runCatching { rowReq.requestFocus() }; true } else false
+                    }
+                    .onFocusChanged { cf = it.isFocused }.clickable { rm() },
+                contentAlignment = Alignment.Center,
+            ) { Text("✕", color = if (cf) t.bg else t.sub, fontSize = 15.sp) }
+        }
     }
 }
 
 /** Окно со списком пунктов: пульт, касание и мышь. Стрелки влево/вправо на пункте-счётчике меняют число. */
 @Composable
-internal fun ListDialog(title: String, opts: List<Opt>, onClose: () -> Unit, hint: String = "", onRawKey: ((android.view.KeyEvent) -> Boolean)? = null) {
+internal fun ListDialog(title: String, opts: List<Opt>, onClose: () -> Unit, hint: String = "", onRawKey: ((android.view.KeyEvent) -> Boolean)? = null, footer: Opt? = null) {
     val t = LocalBaseTh.current ?: LocalTh.current
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) { delay(50); runCatching { first.requestFocus() } }
     val maxH = (LocalConfiguration.current.screenHeightDp * 0.86f).dp
     androidx.compose.ui.window.Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        MouseDragInDialog()
         FixedFont { androidx.compose.runtime.CompositionLocalProvider(LocalTh provides t) { Column(
             Modifier.widthIn(min = 320.dp, max = 540.dp).heightIn(max = maxH)
                 .then(if (onRawKey != null) Modifier.onPreviewKeyEvent { onRawKey(it.nativeKeyEvent) } else Modifier)
@@ -290,9 +331,10 @@ internal fun ListDialog(title: String, opts: List<Opt>, onClose: () -> Unit, hin
         ) {
             Text(title, color = t.text, fontSize = 19.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
             if (hint.isNotEmpty()) Text(hint, color = t.hint, fontSize = 12.sp)
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            LazyColumn(Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 itemsIndexed(opts) { i, o -> OptRow(o, if (i == 0) first else null) }
             }
+            if (footer != null) OptRow(footer, null)
         } } }
     }
 }
@@ -305,6 +347,7 @@ internal fun TextDialog(title: String, initial: String, hint: String = "", onDon
     val fr = remember { FocusRequester() }
     LaunchedEffect(Unit) { delay(80); runCatching { fr.requestFocus() } }
     androidx.compose.ui.window.Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        MouseDragInDialog()
         FixedFont { androidx.compose.runtime.CompositionLocalProvider(LocalTh provides t) { Column(
             Modifier.widthIn(min = 320.dp, max = 520.dp).clip(RoundedCornerShape(20.dp)).background(t.bg)
                 .border(1.dp, t.border, RoundedCornerShape(20.dp)).padding(18.dp),
@@ -338,4 +381,73 @@ internal fun openSys(ctx: android.content.Context, vararg actions: String): Bool
         if (ok) return true
     }
     return false
+}
+
+
+/**
+ * Жест плитки: короткое нажатие и прокрутка работают как обычно; если удержать ~полсекунды и затем двигать, плитка «берётся»
+ * (start, move, end с позицией в корне экрана); удержание без движения и отпускание открывает меню плитки (onLong).
+ */
+private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.tileDragGesture(
+    coords: () -> androidx.compose.ui.layout.LayoutCoordinates?,
+    onLong: () -> Unit,
+    start: (androidx.compose.ui.geometry.Offset) -> Unit,
+    move: (androidx.compose.ui.geometry.Offset) -> Unit,
+    end: (androidx.compose.ui.geometry.Offset) -> Unit,
+) = awaitEachGesture {
+    val down = awaitFirstDown(requireUnconsumed = false)
+    if (down.type == androidx.compose.ui.input.pointer.PointerType.Mouse && currentEvent.buttons.isSecondaryPressed) return@awaitEachGesture
+    val slop = viewConfiguration.touchSlop
+    val early = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+        while (true) {
+            val ev = awaitPointerEvent()
+            val ch = ev.changes.firstOrNull { it.id == down.id } ?: return@withTimeoutOrNull true
+            if (ch.isConsumed || !ch.pressed || (ch.position - down.position).getDistance() > slop) return@withTimeoutOrNull true
+        }
+        @Suppress("UNREACHABLE_CODE") false
+    }
+    if (early != null) return@awaitEachGesture          // обычное нажатие или прокрутка: не наш жест
+    fun root(p: androidx.compose.ui.geometry.Offset) = coords()?.localToRoot(p) ?: p
+    var started = false
+    var last = down.position
+    while (true) {
+        val ev = awaitPointerEvent()
+        val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
+        last = ch.position
+        if (!ch.pressed) { ch.consume(); break }
+        if (!started && (ch.position - down.position).getDistance() > slop) { started = true; start(root(ch.position)) }
+        if (started) { ch.consume(); move(root(ch.position)) }
+    }
+    if (started) end(root(last)) else onLong()
+}
+
+
+/**
+ * Нажал и держишь («‹» или «›» мышью или пальцем): шаг сразу, через 0,4 с повторы с ровным темпом (~14 в секунду), пока не отпустишь.
+ */
+private fun Modifier.holdRepeat(action: () -> Unit): Modifier = pointerInput(Unit) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false)
+        down.consume()
+        action()
+        var delayMs = 400L          // первая пауза перед повтором, дальше ровный темп
+        while (true) {
+            val ev = withTimeoutOrNull(delayMs) { awaitPointerEvent() }
+            if (ev == null) {
+                action()
+                delayMs = 70L
+                continue
+            }
+            val c = ev.changes.firstOrNull { it.id == down.id } ?: break
+            c.consume()
+            if (!c.pressed) break
+        }
+    }
+}
+
+
+/** Какая плитка «Дома» была под курсором пульта: после закрытия окон курсор возвращается на неё, а не прыгает наверх. */
+internal object TileFocus {
+    @Volatile var last: String = ""
+    val reqs = HashMap<String, FocusRequester>()
 }

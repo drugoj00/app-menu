@@ -227,6 +227,15 @@ object Cfg {
         sp.edit().putStringSet("hidden", hidden).apply()
     }
 
+    /** Убрать приложение из «Недавних» (счётчик запусков остаётся). */
+    fun clearLast(pkg: String) { sp.edit().remove("t_$pkg").apply(); launchTick++ }
+    /** Очистить все «Недавние». */
+    fun clearAllLast() {
+        val e = sp.edit()
+        sp.all.keys.filter { it.startsWith("t_") }.forEach { e.remove(it) }
+        e.apply(); launchTick++
+    }
+
     fun launches(pkg: String): Int = sp.getInt("n_$pkg", 0)
     fun countLaunch(pkg: String) {
         sp.edit().putInt("n_$pkg", launches(pkg) + 1).putLong("t_$pkg", System.currentTimeMillis()).apply()

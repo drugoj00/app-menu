@@ -217,7 +217,7 @@ private fun AppWidgetBody(w: HWidget) {
         val wd = (maxWidth.value / k).toInt()
         val hd = (maxHeight.value / k).toInt()
         androidx.compose.ui.viewinterop.AndroidView(
-            factory = { c -> AppWidgets.host(c).createView(c, id, info).also { it.updateAppWidgetSize(null, wd, hd, wd, hd) } },
+            factory = { c -> AppWidgets.host(c).createView(c, id, info).also { it.setPadding(0, 0, 0, 0); it.updateAppWidgetSize(null, wd, hd, wd, hd) } },
             update = { it.updateAppWidgetSize(null, wd, hd, wd, hd) },
             modifier = Modifier.requiredSize(maxWidth / k, maxHeight / k)
                 .graphicsLayer(scaleX = k, scaleY = k, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)),

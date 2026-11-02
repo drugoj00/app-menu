@@ -72,6 +72,14 @@ data class HRow(
     val labels: Boolean = true,
     /** вид элементов по умолчанию: banner (баннеры) или icon (значки) */
     val itemMode: String = "banner",
+    /** расстояние между плитками, dp */
+    val gap: Int = 8,
+    /** плитки растягиваются так, чтобы строка заполнялась от края до края целым числом плиток */
+    val fit: Boolean = true,
+    /** значки, не влезающие в экран, переносятся на следующую линию (иначе строка листается вбок) */
+    val wrap: Boolean = false,
+    /** при подгонке по ширине: сколько плиток в линии (0: считается по размеру значков) */
+    val perLine: Int = 0,
 )
 
 /** Значок состояния в верхней полоске: bt, net, usb, time, date. */
@@ -101,7 +109,8 @@ data class HBg(
     val dim: Int = 0,
 )
 
-data class HLayout(val top: HTop, val rows: List<HRow>, val bg: HBg = HBg())
+/** rowGap: расстояние между строками «Дома», dp. */
+data class HLayout(val top: HTop, val rows: List<HRow>, val bg: HBg = HBg(), val rowGap: Int = 8)
 
 private fun HItem.toJson() = JSONObject().put("id", id).put("k", kind).put("r", ref).put("l", label).put("m", mode)
     .put("i", img).put("rd", radius).put("bg", bg).put("sl", showLabel).put("sh", shadow).put("bw", borderW).put("bc", borderC).put("bh", borderHover)
@@ -117,7 +126,7 @@ private fun JSONObject.toWidget() = HWidget(optString("t", "weather"), optString
 
 private fun HRow.toJson() = JSONObject().put("id", id).put("t", title).put("st", showTitle).put("k", kind)
     .put("it", JSONArray(items.map { it.toJson() })).put("a", auto).put("c", count).put("s", size).put("as", aspect)
-    .put("sl", JSONArray(slots.map { it.toJson() })).put("lb", labels).put("im", itemMode)
+    .put("sl", JSONArray(slots.map { it.toJson() })).put("lb", labels).put("im", itemMode).put("gp", gap).put("ft", fit).put("wr", wrap).put("pl", perLine)
 
 private fun JSONObject.toRow(): HRow {
     val its = optJSONArray("it")?.let { a -> (0 until a.length()).map { a.getJSONObject(it).toItem() } } ?: emptyList()
@@ -125,11 +134,12 @@ private fun JSONObject.toRow(): HRow {
     return HRow(
         getString("id"), optString("t"), optBoolean("st", true), optString("k", "apps"), its, optString("a"),
         optInt("c", 10), optInt("s", 72), optString("as", "16:9"), sl, optBoolean("lb", true), optString("im", "banner"),
+        optInt("gp", 8), optBoolean("ft", true), optBoolean("wr", false), optInt("pl", 0),
     )
 }
 
 private fun HLayout.toJson() = JSONObject()
-    .put("v", 1)
+    .put("v", 1).put("rg", rowGap)
     .put("voice", top.voice).put("big", top.big).put("search", top.search).put("menu", top.menu).put("recent", top.recent).put("hdmi", top.hdmi)
     .put("bg", JSONObject().put("t", bg.type).put("c", bg.color).put("f", bg.fit).put("d", bg.dim))
     .put("st", JSONArray(top.status.map { JSONObject().put("id", it.id).put("v", it.visible).put("o", it.opt) }))
@@ -152,7 +162,7 @@ private fun parseLayout(s: String): HLayout? = runCatching {
     val stFull = if (newNotif.isEmpty()) st1 else newNotif + st1
     val b = j.optJSONObject("bg")
     val bg = if (b == null) HBg() else HBg(b.optString("t", "none"), b.optLong("c", 0xFF0B0B10), b.optString("f", "crop"), b.optInt("d"))
-    HLayout(HTop(j.optBoolean("voice", true), stFull, j.optBoolean("big", true), j.optBoolean("search", true), true, j.optBoolean("recent", true), j.optBoolean("hdmi", true)), rows, bg)
+    HLayout(HTop(j.optBoolean("voice", true), stFull, j.optBoolean("big", true), j.optBoolean("search", true), true, j.optBoolean("recent", true), j.optBoolean("hdmi", true)), rows, bg, j.optInt("rg", 8))
 }.getOrNull()
 
 internal val STATUS_IDS = listOf("notif", "bt", "net", "usb", "gear", "date", "time")
@@ -285,6 +295,23 @@ object HomeStore {
         set(layout.copy(rows = layout.rows.map {
             when (it.id) { src.id -> it.copy(items = it.items.filter { i -> i.id != itemId }); rowId -> it.copy(items = it.items + item); else -> it }
         }))
+    }
+
+    /** Перетаскивание: ставит плитку в строку rowId на место index (внутри строки или в другую строку значков). */
+    fun moveItemTo(itemId: String, rowId: String, index: Int) {
+        val rows = layout.rows.toMutableList()
+        val si = rows.indexOfFirst { r -> r.items.any { it.id == itemId } }
+        val ti = rows.indexOfFirst { it.id == rowId }
+        if (si < 0 || ti < 0 || rows[ti].kind != "apps") return
+        val item = rows[si].items.first { it.id == itemId }
+        val srcList = rows[si].items.filter { it.id != itemId }
+        if (si == ti) {
+            rows[si] = rows[si].copy(items = srcList.toMutableList().also { it.add(index.coerceIn(0, it.size), item) })
+        } else {
+            rows[si] = rows[si].copy(items = srcList)
+            rows[ti] = rows[ti].copy(items = rows[ti].items.toMutableList().also { it.add(index.coerceIn(0, it.size), item) })
+        }
+        set(layout.copy(rows = rows))
     }
 
     /** Возвращает раскладку «Дома» по умолчанию (фон и верхняя полоска тоже). */
