@@ -32,7 +32,6 @@ SHA-256: `c70cc37f4f9542b031004020659fa81d5e2fe2656dee74ab0969f7f5efd715c4`
 - Status bar and navigation bar: On/Off switches (hidden by default on TV)
 - Phone: compact top bar, swipe up opens the menu
 - Iron mode: switches off the stock home screen so Home leads only to Home (ADB or root); “Restore the stock home screen” button, automatic rollback on crash loops
-- Copy signature check, code obfuscation
 - Russian, Ukrainian, English
 
 ## Features
