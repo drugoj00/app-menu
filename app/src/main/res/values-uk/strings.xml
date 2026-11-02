@@ -665,4 +665,18 @@
     <string name="yt_music">YouTube: музика</string>
     <string name="home_apps_row">Застосунки</string>
     <string name="home_more_apps">Ще застосунки</string>
+    <string name="row_fit">Підганяти за шириною екрана</string>
+    <string name="row_gap">Відстань між плитками</string>
+    <string name="row_width">Ширина рядка</string>
+    <string name="screen_row_gap">Відстань між рядками</string>
+    <string name="top_voice_btn">Кнопка «Голос» (коли пошук вимкнено)</string>
+    <string name="row_wrap">Переносити значки на наступну лінію</string>
+    <string name="rc_clear_all">Очистити все</string>
+    <string name="row_perline">Плиток у лінії</string>
+    <string name="perline_auto">авто</string>
+    <string name="look_scope">Змінювати</string>
+    <string name="look_scope_one">лише цей значок</string>
+    <string name="look_scope_all">усі значки рядка</string>
+    <string name="look_size">Розмір значка</string>
+    <string name="look_size_reset">Розмір як у рядка</string>
 </resources>
