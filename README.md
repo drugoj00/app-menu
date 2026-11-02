@@ -14,18 +14,30 @@ App Menu replaces the stock app list with a big grid made for a remote and for t
 
 ## Download
 
-**Version 1.2.** [AppMenu-1.2.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
+**Version 2.0.** [AppMenu-2.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `35bb89b9770804a1646ff5cc0b5ae7d1fa0758ccf1120ef39ea7055e990868b3`
+SHA-256: `c70cc37f4f9542b031004020659fa81d5e2fe2656dee74ab0969f7f5efd715c4`
 
-## What's new in 1.2
+## What's new in 2.0
 
-- App updates: an “Updates” button on an icon card (versions by source, newer, same or older, “Install”) and in the header (a check of all your apps with “Update” and “Update all”, which needs root or ADB). Sources: F-Droid, IzzyOnDroid, Aptoide, GitHub Releases and Codeberg; AppGallery (Huawei) and RuStore can be turned on in “Sources”. Before installing, the downloaded APK is checked: package, CPU, minimum Android version, a higher version code and the same signature as the installed app. The previous version is saved as a copy. Split packages (APKS, XAPK) and apps with OBB are not updated by themselves.
-- A scheduled check (off by default): “Updates” → “Auto-check…”, every 6 hours, day or 3 days, with a notification; automatic installation is a separate switch (off by default).
-- Fixed: a long press of OK on the remote and a long tap launched the app instead of opening the menu. The long OK is now recognised by time (half a second) and the repeats and the release of the button no longer press the first item of the menu.
+- Home screen: rows of widgets, apps and cards; turned on in Settings
+- Widgets: 5-day weather, clock with seconds, date, memory, Android widgets; own font scale and width
+- Cards from Android TV channels and from the catalogue of any app (SmartTube, MEGOGO, HD VideoBox, Seena) by query
+- Favourite cards and history: hold OK on any card
+- Banners: made from the icon for apps without one, 4 styles
+- Tile look: outline (colour, thickness, on hover only), corners, shadow, background
+- Top bar: search, voice, notifications, recents, HDMI, Bluetooth, network, date, clock
+- Voice search: any remote key can be bound to the microphone
+- Search over app catalogues with posters, the item opens right in the app
+- Status bar and navigation bar: On/Off switches (hidden by default on TV)
+- Phone: compact top bar, swipe up opens the menu
+- Iron mode: switches off the stock home screen so Home leads only to Home (ADB or root); “Restore the stock home screen” button, automatic rollback on crash loops
+- Copy signature check, code obfuscation
+- Russian, Ukrainian, English
 
 ## Features
 
+- **Home screen.** A separate screen of rows: widgets (weather, clock, date, memory, Android widgets), app banners and icons, cards from Android TV channels and from the catalogue of any app (SmartTube, MEGOGO, HD VideoBox, Seena), favourites and history. Banners are made from the icon when an app has none. Optional: turn it on in Settings. Iron mode switches off the stock home screen (ADB or root), one button brings it back.
 - **Menu for remote, touch, mouse and air mouse.** A full-screen grid: OK opens, holding OK or the Menu key shows actions, touch and mouse work as usual (left button opens, right button shows actions, wheel scrolls). Columns, icon size down to tiny (5 columns on a phone), labels, sorting (name, new, old, most used, your own), search, hiding, list mode.
 - **Action card on every icon.** Like in One UI: stop, clear cache, clear data, permissions, special access (with automatic restore after a reboot), battery, hide, uninstall, icon, folder, versions. Needs ADB of the same device (see below).
 - **Folders.** Drag one icon onto another to make a folder, drag icons into it or add them from inside; rename and delete. The folder window is a 5×5 grid.
@@ -38,6 +50,16 @@ SHA-256: `35bb89b9770804a1646ff5cc0b5ae7d1fa0758ccf1120ef39ea7055e990868b3`
 - **Free.** No ads, open source.
 
 ## Screenshots
+
+![Home on a TV box: widgets, cards from SmartTube and Seena, app banners.](screenshots/en/h1-home.png)
+
+![A row of cards from the catalogue of any app: source, query, count, shape.](screenshots/en/h2-cards.png)
+
+![A banner made from the app icon: four styles.](screenshots/en/h3-banner.png)
+
+![Tile look: outline (colour, thickness, on hover only), corners, shadow, background.](screenshots/en/h4-look.png)
+
+![Card sources: favourites, history, channels and catalogues of any app.](screenshots/en/h5-sources.png)
 
 ![The menu on a TV box: a big grid made for a remote.](screenshots/en/01-menu.png)
 
@@ -59,7 +81,7 @@ SHA-256: `35bb89b9770804a1646ff5cc0b5ae7d1fa0758ccf1120ef39ea7055e990868b3`
 
 ## Quick start
 
-1. Download AppMenu-1.1.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
+1. Download AppMenu-2.0.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
 2. Open it: apps are launched with OK or a tap, a long press (or holding OK, or the Menu key) opens the action card. To use it instead of the stock menu turn on “Launcher mode” in Settings.
 3. To act on other apps connect ADB: Settings → “Connect ADB”. Android 9 and older TV boxes with network ADB connect by themselves. Android 11+: turn on the “App Menu” service in Accessibility once, press “Connect automatically”. Android 10 and older: run adb tcpip 5555 once from a computer (repeat after a reboot). With root (Magisk) none of this is needed: allow root for the app once and it connects by itself.
 
