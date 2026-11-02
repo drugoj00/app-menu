@@ -679,4 +679,20 @@
     <string name="look_scope_all">усі значки рядка</string>
     <string name="look_size">Розмір значка</string>
     <string name="look_size_reset">Розмір як у рядка</string>
+    <string name="wgl_scope">Змінювати</string>
+    <string name="wgl_one">лише цей віджет</string>
+    <string name="wgl_all">усі віджети рядка</string>
+    <string name="wg_empty">Порожнє місце</string>
+    <string name="wg_delete">Видалити віджет</string>
+    <string name="wg_delete_sure">Натисни ще раз: віджет видалиться, місце залишиться порожнім</string>
+    <string name="auto_new">Нові встановлені</string>
+    <string name="bn_s4">Дві фарби</string>
+    <string name="bn_s5">Крапки</string>
+    <string name="bn_s6">Рамка</string>
+    <string name="bn_s7">Коло</string>
+    <string name="bn_color">Колір банера</string>
+    <string name="bn_color_icon">за значком</string>
+    <string name="bn_color_own">власний колір</string>
+    <string name="bn_color_hex">Власний колір (код #RRGGBB)...</string>
+    <string name="bn_color_hint">Шість шістнадцяткових цифр, наприклад 1E88E5</string>
 </resources>
