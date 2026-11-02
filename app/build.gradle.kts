@@ -14,8 +14,8 @@ android {
         applicationId = "app.tvapps"
         minSdk = 23
         targetSdk = 34
-        versionCode = 4
-        versionName = "2.0"
+        versionCode = 5
+        versionName = "2.1"
     }
 
     // ключ подписи лежит в keystore/ (не публикуется, копия в C:\DIMIDIYA\ключі\TVApps); без него release собирается неподписанным
