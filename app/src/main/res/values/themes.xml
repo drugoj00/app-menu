@@ -5,4 +5,8 @@
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowBackground">@android:color/black</item>
     </style>
+    <!-- переходы между «Домом» и меню без анимации окон: открываются мгновенно -->
+    <style name="Theme.TVApps.Fast" parent="Theme.TVApps">
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
 </resources>
