@@ -665,4 +665,18 @@
     <string name="yt_music">YouTube: music</string>
     <string name="home_apps_row">Apps</string>
     <string name="home_more_apps">More apps</string>
+    <string name="row_fit">Fit tiles to screen width</string>
+    <string name="row_gap">Gap between tiles</string>
+    <string name="row_width">Row width</string>
+    <string name="screen_row_gap">Gap between rows</string>
+    <string name="top_voice_btn">Voice button (when search is off)</string>
+    <string name="row_wrap">Wrap tiles onto the next line</string>
+    <string name="rc_clear_all">Clear all</string>
+    <string name="row_perline">Tiles per line</string>
+    <string name="perline_auto">auto</string>
+    <string name="look_scope">Change</string>
+    <string name="look_scope_one">this icon only</string>
+    <string name="look_scope_all">all icons in the row</string>
+    <string name="look_size">Icon size</string>
+    <string name="look_size_reset">Size as in the row</string>
 </resources>
