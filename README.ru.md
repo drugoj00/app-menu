@@ -16,7 +16,7 @@
 
 **Версия 2.1.** [AppMenu-2.1.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `5adb72f1cc026f4fccdd573a19f82be343ec49b60b14b870206c54ec206fd8fa`
+SHA-256: `c12f70c0c13761aa3d4fce4908172d4cd0a6c5a8cf45bdd2bd1a27f82cf0c710`
 
 ## Что нового в 2.1
 
