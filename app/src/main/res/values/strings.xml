@@ -679,4 +679,20 @@
     <string name="look_scope_all">all icons in the row</string>
     <string name="look_size">Icon size</string>
     <string name="look_size_reset">Size as in the row</string>
+    <string name="wgl_scope">Change</string>
+    <string name="wgl_one">this widget only</string>
+    <string name="wgl_all">all widgets in the row</string>
+    <string name="wg_empty">Empty place</string>
+    <string name="wg_delete">Delete widget</string>
+    <string name="wg_delete_sure">Press again to delete the widget (the place stays empty)</string>
+    <string name="auto_new">New installed apps</string>
+    <string name="bn_s4">Two colours</string>
+    <string name="bn_s5">Dots</string>
+    <string name="bn_s6">Frame</string>
+    <string name="bn_s7">Circle</string>
+    <string name="bn_color">Banner colour</string>
+    <string name="bn_color_icon">from the icon</string>
+    <string name="bn_color_own">own colour</string>
+    <string name="bn_color_hex">Own colour (code #RRGGBB)...</string>
+    <string name="bn_color_hint">Six hexadecimal digits, for example 1E88E5</string>
 </resources>
