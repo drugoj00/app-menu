@@ -14,25 +14,13 @@ App Menu replaces the stock app list with a big grid made for a remote and for t
 
 ## Download
 
-**Version 2.0.** [AppMenu-2.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
+**Version 2.1.** [AppMenu-2.1.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `c70cc37f4f9542b031004020659fa81d5e2fe2656dee74ab0969f7f5efd715c4`
+SHA-256: `5adb72f1cc026f4fccdd573a19f82be343ec49b60b14b870206c54ec206fd8fa`
 
-## What's new in 2.0
+## What's new in 2.1
 
-- Home screen: rows of widgets, apps and cards; turned on in Settings
-- Widgets: 5-day weather, clock with seconds, date, memory, Android widgets; own font scale and width
-- Cards from Android TV channels and from the catalogue of any app (SmartTube, MEGOGO, HD VideoBox, Seena) by query
-- Favourite cards and history: hold OK on any card
-- Banners: made from the icon for apps without one, 4 styles
-- Tile look: outline (colour, thickness, on hover only), corners, shadow, background
-- Top bar: search, voice, notifications, recents, HDMI, Bluetooth, network, date, clock
-- Voice search: any remote key can be bound to the microphone
-- Search over app catalogues with posters, the item opens right in the app
-- Status bar and navigation bar: On/Off switches (hidden by default on TV)
-- Phone: compact top bar, swipe up opens the menu
-- Iron mode: switches off the stock home screen so Home leads only to Home (ADB or root); “Restore the stock home screen” button, automatic rollback on crash loops
-- Russian, Ukrainian, English
+- Interface rework and bug fixes
 
 ## Features
 
