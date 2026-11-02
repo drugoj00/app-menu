@@ -679,4 +679,20 @@
     <string name="look_scope_all">все значки строки</string>
     <string name="look_size">Размер значка</string>
     <string name="look_size_reset">Размер как у строки</string>
+    <string name="wgl_scope">Менять</string>
+    <string name="wgl_one">только этот виджет</string>
+    <string name="wgl_all">все виджеты строки</string>
+    <string name="wg_empty">Пустое место</string>
+    <string name="wg_delete">Удалить виджет</string>
+    <string name="wg_delete_sure">Нажми ещё раз: виджет удалится, место останется пустым</string>
+    <string name="auto_new">Новые установленные</string>
+    <string name="bn_s4">Две краски</string>
+    <string name="bn_s5">Точки</string>
+    <string name="bn_s6">Рамка</string>
+    <string name="bn_s7">Круг</string>
+    <string name="bn_color">Цвет баннера</string>
+    <string name="bn_color_icon">по значку</string>
+    <string name="bn_color_own">свой цвет</string>
+    <string name="bn_color_hex">Свой цвет (код #RRGGBB)...</string>
+    <string name="bn_color_hint">Шесть шестнадцатеричных цифр, например 1E88E5</string>
 </resources>
