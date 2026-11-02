@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -42,6 +43,7 @@ internal fun HomeDialogs(
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     // «Оформление»: менять только этот значок или все значки строки
     var lookAll by remember { mutableStateOf(false) }
+    var wgAll by remember { mutableStateOf(false) }
     val close = { setDlg(null) }
     val on = stringResource(R.string.on)
     val off = stringResource(R.string.off)
@@ -72,7 +74,6 @@ internal fun HomeDialogs(
                         ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:" + entry.pkg)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
                     }.onFailure { Toast.makeText(ctx, ctx.getString(R.string.no_settings_page), Toast.LENGTH_SHORT).show() }
                 })
-                if (entry != null) add(Opt(stringResource(if (Cfg.isHidden(entry.pkg)) R.string.d_unhide else R.string.d_hide)) { Cfg.toggleHidden(entry.pkg); close() })
                 if (!auto) add(Opt(stringResource(R.string.d_remove), danger = true) { HomeStore.removeItem(dlg.rowId, dlg.itemId); close() })
                 add(Opt(stringResource(R.string.d_add_here)) { setDlg(Dlg.AddItem(dlg.rowId)) })
                 add(Opt(stringResource(R.string.row_add_below)) { setDlg(Dlg.AddRow(dlg.rowId)) })
@@ -89,6 +90,12 @@ internal fun HomeDialogs(
             val set = { f: (HItem) -> HItem ->
                 if (lookAll) HomeStore.updateRow(dlg.rowId) { r -> r.copy(items = r.items.map(f)) } else HomeStore.updateItem(dlg.rowId, dlg.itemId, f)
             }
+            // режим «все значки строки»: оформление всех значков сразу выравнивается по значку, на котором открыто окно (чтобы подписи не врали)
+            LaunchedEffect(dlg.itemId, lookAll) {
+                if (lookAll) HomeStore.updateRow(dlg.rowId) { r ->
+                    r.copy(items = r.items.map { it.copy(radius = item.radius, bg = item.bg, shadow = item.shadow, borderW = item.borderW, borderC = item.borderC, borderHover = item.borderHover) })
+                }
+            }
             val accent = LocalTh.current.accent
             val ci = BORDER_COLORS.indexOf(item.borderC).coerceAtLeast(0)
             val swatch = remember(ci, accent) {
@@ -99,27 +106,28 @@ internal fun HomeDialogs(
             val opts = listOf(
                 Opt(stringResource(R.string.look_scope), if (lookAll) stringResource(R.string.look_scope_all) else stringResource(R.string.look_scope_one), onClick = { lookAll = !lookAll }),
                 Opt(stringResource(R.string.look_view), if (item.mode == "banner") stringResource(R.string.look_banner) else stringResource(R.string.look_icon), onClick = {
-                    set { it.copy(mode = if (it.mode == "banner") "icon" else "banner", showLabel = it.mode == "banner") }
+                    val m = if (item.mode == "banner") "icon" else "banner"
+                    set { it.copy(mode = m) }
                 }),
                 Opt(stringResource(R.string.look_img), onOff(item.img, stringResource(R.string.look_img_set), stringResource(R.string.look_img_none)), onClick = { pickImage(item.id) }),
                 Opt(stringResource(R.string.bn_make), onClick = { setDlg(Dlg.BannerStyle(dlg.rowId, dlg.itemId)) }),
                 Opt(stringResource(R.string.look_img_clear), onClick = { HomeImg.delete(item.id); set { it.copy(img = false) } }),
-                Opt(stringResource(R.string.look_radius), "${item.radius}", { set { it.copy(radius = (it.radius - 1).coerceAtLeast(0)) } }, { set { it.copy(radius = (it.radius + 1).coerceAtMost(48)) } }),
+                Opt(stringResource(R.string.look_radius), "${item.radius}", { val v = (item.radius - 1).coerceAtLeast(0); set { it.copy(radius = v) } }, { val v = (item.radius + 1).coerceAtMost(48); set { it.copy(radius = v) } }),
                 Opt(
                     stringResource(R.string.look_bg),
                     when (item.bg) { 1 -> stringResource(R.string.look_bg_clear); 2 -> stringResource(R.string.look_bg_card); else -> stringResource(R.string.look_bg_auto) },
-                    onClick = { set { it.copy(bg = (it.bg + 1) % 3) } },
+                    onClick = { val v = (item.bg + 1) % 3; set { it.copy(bg = v) } },
                 ),
-                Opt(stringResource(R.string.look_shadow), onOff(item.shadow, on, off), onClick = { set { it.copy(shadow = !it.shadow) } }),
+                Opt(stringResource(R.string.look_shadow), onOff(item.shadow, on, off), onClick = { val v = !item.shadow; set { it.copy(shadow = v) } }),
                 Opt(
                     stringResource(R.string.bd_width), if (item.borderW == 0) off else "${item.borderW}",
-                    { set { it.copy(borderW = (it.borderW - 1).coerceAtLeast(0)) } }, { set { it.copy(borderW = (it.borderW + 1).coerceAtMost(12)) } },
+                    { val v = (item.borderW - 1).coerceAtLeast(0); set { it.copy(borderW = v) } }, { val v = (item.borderW + 1).coerceAtMost(12); set { it.copy(borderW = v) } },
                 ),
-                Opt(stringResource(R.string.bd_when), onOff(item.borderHover, stringResource(R.string.bd_hover), stringResource(R.string.bd_always)), onClick = { set { it.copy(borderHover = !it.borderHover) } }),
+                Opt(stringResource(R.string.bd_when), onOff(item.borderHover, stringResource(R.string.bd_hover), stringResource(R.string.bd_always)), onClick = { val v = !item.borderHover; set { it.copy(borderHover = v) } }),
                 Opt(
                     stringResource(R.string.bd_color), stringResource(BORDER_NAMES[ci]),
-                    { set { it.copy(borderC = BORDER_COLORS[(ci + BORDER_COLORS.size - 1) % BORDER_COLORS.size]) } },
-                    { set { it.copy(borderC = BORDER_COLORS[(ci + 1) % BORDER_COLORS.size]) } },
+                    { val v = BORDER_COLORS[(ci + BORDER_COLORS.size - 1) % BORDER_COLORS.size]; set { it.copy(borderC = v) } },
+                    { val v = BORDER_COLORS[(ci + 1) % BORDER_COLORS.size]; set { it.copy(borderC = v) } },
                     icon = swatch,
                 ),
                 Opt(stringResource(R.string.look_name), item.label, onClick = { setDlg(Dlg.Label(dlg.rowId, dlg.itemId)) }),
@@ -140,7 +148,7 @@ internal fun HomeDialogs(
             if (row == null) { close(); return }
             var sure by remember(dlg.rowId) { mutableStateOf(false) }
             val upd = { f: (HRow) -> HRow -> HomeStore.updateRow(row.id, f) }
-            val autoNames = listOf("" to stringResource(R.string.auto_none), "fav" to stringResource(R.string.auto_fav), "recent" to stringResource(R.string.auto_recent), "hdmi" to stringResource(R.string.auto_hdmi))
+            val autoNames = listOf("" to stringResource(R.string.auto_none), "fav" to stringResource(R.string.auto_fav), "recent" to stringResource(R.string.auto_recent), "hdmi" to stringResource(R.string.auto_hdmi), "new" to stringResource(R.string.auto_new))
             val opts = buildList {
                 add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома» — первым пунктом, чтобы было видно сразу
                 add(Opt(stringResource(R.string.row_title), row.title, onClick = { setDlg(Dlg.Rename(row.id)) }))
@@ -310,6 +318,19 @@ internal fun HomeDialogs(
             val w = row?.slots?.getOrNull(dlg.slot)
             if (row == null || w == null) { close(); return }
             val upd = { f: (HWidget) -> HWidget -> HomeStore.updateSlot(row.id, dlg.slot, f) }
+            // «Менять: только этот виджет / все виджеты строки»: новое значение считается один раз и ставится всем одинаковое
+            var sureWgDel by remember(dlg.rowId, dlg.slot) { mutableStateOf(false) }
+            val updLook = { f: (HWidget) -> HWidget -> if (wgAll) HomeStore.updateRow(row.id) { r -> r.copy(slots = r.slots.map(f)) } else upd(f) }
+            LaunchedEffect(dlg.rowId, dlg.slot, wgAll) {
+                if (wgAll) HomeStore.updateRow(row.id) { r -> r.copy(slots = r.slots.map { it.copy(radius = w.radius, borderW = w.borderW, borderC = w.borderC, borderHover = w.borderHover) }) }
+            }
+            val wci = BORDER_COLORS.indexOf(w.borderC).coerceAtLeast(0)
+            val wAccent = LocalTh.current.accent
+            val wsw = remember(wci, wAccent) {
+                val bm = android.graphics.Bitmap.createBitmap(24, 24, android.graphics.Bitmap.Config.ARGB_8888)
+                bm.eraseColor(if (wci == 0) wAccent.toArgb() else BORDER_COLORS[wci].toInt())
+                bm.asImageBitmap()
+            }
             val opts = buildList {
                 add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома» — первым пунктом, чтобы было видно сразу
                 add(Opt(stringResource(R.string.wg_type), widgetName(w.type), onClick = { setDlg(Dlg.WidgetType(row.id, dlg.slot)) }))
@@ -325,11 +346,26 @@ internal fun HomeDialogs(
                         add(Opt(stringResource(R.string.wg_show_date), onOff(w.flag, on, off), onClick = { upd { it.copy(flag = !it.flag) } }))
                     }
                 }
+                if (row.slots.size > 1) add(Opt(stringResource(R.string.wgl_scope), if (wgAll) stringResource(R.string.wgl_all) else stringResource(R.string.wgl_one), onClick = { wgAll = !wgAll }))
+                add(Opt(stringResource(R.string.look_radius), "${w.radius}", { val v = (w.radius - 1).coerceAtLeast(0); updLook { it.copy(radius = v) } }, { val v = (w.radius + 1).coerceAtMost(60); updLook { it.copy(radius = v) } }))
+                add(Opt(stringResource(R.string.bd_width), if (w.borderW == 0) off else "${w.borderW}", { val v = (w.borderW - 1).coerceAtLeast(0); updLook { it.copy(borderW = v) } }, { val v = (w.borderW + 1).coerceAtMost(12); updLook { it.copy(borderW = v) } }))
+                add(Opt(stringResource(R.string.bd_when), onOff(w.borderHover, stringResource(R.string.bd_hover), stringResource(R.string.bd_always)), onClick = { val v = !w.borderHover; updLook { it.copy(borderHover = v) } }))
+                add(Opt(stringResource(R.string.bd_color), stringResource(BORDER_NAMES[wci]),
+                    { val v = BORDER_COLORS[(wci + BORDER_COLORS.size - 1) % BORDER_COLORS.size]; updLook { it.copy(borderC = v) } },
+                    { val v = BORDER_COLORS[(wci + 1) % BORDER_COLORS.size]; updLook { it.copy(borderC = v) } }, icon = wsw))
                 add(Opt(stringResource(R.string.wg_font), "${w.fs}%", { upd { it.copy(fs = (it.fs - 1).coerceAtLeast(50)) } }, { upd { it.copy(fs = (it.fs + 1).coerceAtMost(250)) } }))
                 if (row.slots.size > 1) {
                     val total = row.slots.sumOf { it.wt.coerceIn(30, 300) }.coerceAtLeast(1)
-                    add(Opt(stringResource(R.string.wg_width), "${w.wt.coerceIn(30, 300) * 100 / total}%", { upd { it.copy(wt = (it.wt - 1).coerceAtLeast(30)) } }, { upd { it.copy(wt = (it.wt + 1).coerceAtMost(300)) } }))
+                    add(Opt(stringResource(R.string.wg_width), "${HomeStore.widgetShare(row, dlg.slot)}%", { HomeStore.setWidgetShare(row.id, dlg.slot, HomeStore.widgetShare(row, dlg.slot) - 1) }, { HomeStore.setWidgetShare(row.id, dlg.slot, HomeStore.widgetShare(row, dlg.slot) + 1) }))
                 }
+                if (w.type != WIDGET_EMPTY) add(Opt(if (sureWgDel) stringResource(R.string.wg_delete_sure) else stringResource(R.string.wg_delete), danger = true) {
+                    if (sureWgDel) {
+                        if (w.type == "appwidget") AppWidgets.release(ctx, w.ref)
+                        // место остаётся пустым: потом в него можно поставить любой виджет («Вид виджета»)
+                        HomeStore.updateSlot(row.id, dlg.slot) { HWidget(WIDGET_EMPTY, n = 0, radius = it.radius, borderW = it.borderW, borderC = it.borderC, borderHover = it.borderHover, wt = it.wt) }
+                        close()
+                    } else sureWgDel = true
+                })
                 add(Opt(stringResource(R.string.row_slots), "${row.slots.size}", { HomeStore.setSlotCount(row.id, row.slots.size - 1) }, { HomeStore.setSlotCount(row.id, row.slots.size + 1) }))
                 add(Opt(stringResource(R.string.d_row_settings)) { setDlg(Dlg.RowD(row.id)) })
             }
@@ -355,9 +391,13 @@ internal fun HomeDialogs(
             val list = remember { AppWidgets.providers(ctx).sortedBy { runCatching { it.loadLabel(ctx.packageManager) }.getOrDefault("").lowercase() } }
             val opts = if (list.isEmpty()) listOf(Opt(stringResource(R.string.wg_none)) { close() })
             else list.map { p ->
+                val appName = runCatching { ctx.packageManager.getApplicationLabel(ctx.packageManager.getApplicationInfo(p.provider.packageName, 0)).toString() }.getOrDefault("")
+                val dens = ctx.resources.displayMetrics.density
+                // размер в ячейках (≈ 70 dp на ячейку): виджеты одного приложения с одним названием различаются размером
+                val cells = "${((p.minWidth / dens + 30) / 70).toInt().coerceAtLeast(1)}x${((p.minHeight / dens + 30) / 70).toInt().coerceAtLeast(1)}"
                 Opt(
                     runCatching { p.loadLabel(ctx.packageManager) }.getOrDefault(p.provider.packageName),
-                    runCatching { ctx.packageManager.getApplicationLabel(ctx.packageManager.getApplicationInfo(p.provider.packageName, 0)).toString() }.getOrDefault(""),
+                    (if (appName.isNotBlank()) "$appName · " else "") + cells,
                     icon = runCatching { p.loadIcon(ctx, 0)?.toBitmap(64, 64)?.asImageBitmap() }.getOrNull(),
                 ) { close(); addAppWidget(dlg.rowId, dlg.slot, p) }
             }
@@ -482,18 +522,38 @@ internal fun HomeDialogs(
             val entry = apps.firstOrNull { it.pkg == item?.ref }
             val back = { setDlg(Dlg.Look(dlg.rowId, dlg.itemId)) }
             if (item == null || entry == null) { close(); return }
-            val previews by produceState<List<androidx.compose.ui.graphics.ImageBitmap>>(emptyList(), item.id) {
-                value = withContext(Dispatchers.Default) { (0 until BannerGen.STYLES).map { BannerGen.make(ctx, entry, it).asImageBitmap() } }
+            // цвет баннера: 0 по значку, 1..10 готовые цвета, последний свой (код #RRGGBB)
+            var bci by remember(item.id) { mutableStateOf(0) }
+            var bcCustom by remember(item.id) { mutableStateOf<Int?>(null) }
+            var askHex by remember(item.id) { mutableStateOf(false) }
+            val color: Int? = if (bci == BORDER_COLORS.size) bcCustom else if (bci == 0) null else BORDER_COLORS[bci].toInt()
+            val previews by produceState<List<androidx.compose.ui.graphics.ImageBitmap>>(emptyList(), item.id, color) {
+                value = withContext(Dispatchers.Default) { (0 until BannerGen.STYLES).map { BannerGen.make(ctx, entry, it, color).asImageBitmap() } }
             }
-            val names = listOf(R.string.bn_s0, R.string.bn_s1, R.string.bn_s2, R.string.bn_s3)
-            val opts = (0 until BannerGen.STYLES).map { s ->
-                Opt(stringResource(names[s]), icon = previews.getOrNull(s), wide = true, onClick = {
-                    val ok = BannerGen.apply(ctx, dlg.rowId, item, entry, s)
-                    Toast.makeText(ctx, ctx.getString(if (ok) R.string.bn_done else R.string.failed), Toast.LENGTH_SHORT).show()
-                    back()
-                })
+            val names = listOf(R.string.bn_s0, R.string.bn_s1, R.string.bn_s2, R.string.bn_s3, R.string.bn_s4, R.string.bn_s5, R.string.bn_s6, R.string.bn_s7)
+            val total = BORDER_COLORS.size + 1
+            val colorName = when (bci) { 0 -> stringResource(R.string.bn_color_icon); BORDER_COLORS.size -> stringResource(R.string.bn_color_own); else -> stringResource(BORDER_NAMES[bci]) }
+            val opts = buildList {
+                add(Opt(stringResource(R.string.bn_color), colorName,
+                    { bci = (bci + total - 1) % total; if (bci == BORDER_COLORS.size && bcCustom == null) bci = BORDER_COLORS.size - 1 },
+                    { bci = (bci + 1) % total; if (bci == BORDER_COLORS.size && bcCustom == null) bci = 0 }))
+                add(Opt(stringResource(R.string.bn_color_hex), onClick = { askHex = true }))
+                for (s in 0 until BannerGen.STYLES) {
+                    add(Opt(stringResource(names[s]), icon = previews.getOrNull(s), wide = true, onClick = {
+                        val ok = BannerGen.apply(ctx, dlg.rowId, item, entry, s, color)
+                        Toast.makeText(ctx, ctx.getString(if (ok) R.string.bn_done else R.string.failed), Toast.LENGTH_SHORT).show()
+                        back()
+                    }))
+                }
             }
             ListDialog(stringResource(R.string.bn_pick), opts, back)
+            if (askHex) TextDialog(stringResource(R.string.bn_color_hex), "", stringResource(R.string.bn_color_hint), { v ->
+                val hx = v.trim().removePrefix("#")
+                val parsed = runCatching { (0xFF000000L or hx.toLong(16)).toInt() }.getOrNull()
+                if (parsed != null && hx.length == 6) { bcCustom = parsed; bci = BORDER_COLORS.size }
+                else Toast.makeText(ctx, ctx.getString(R.string.failed), Toast.LENGTH_SHORT).show()
+                askHex = false
+            }, { askHex = false })
         }
 
         // предложение: у приложений на «Доме» нет баннера — создать красивые

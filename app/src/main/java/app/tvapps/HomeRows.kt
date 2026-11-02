@@ -111,7 +111,14 @@ internal fun fitScale(avail: Float, base: Float, gap: Float): Float = fitGrid(av
 
 /** Масштаб карточек: при заданном числе в линии (perLine > 0) точно по нему, иначе по ширине плитки. */
 internal fun fitScaleN(avail: Float, base: Float, gap: Float, perLine: Int): Float =
-    if (perLine > 0 && base > 0f) ((avail - gap * (perLine - 1)) / (perLine * base)).coerceIn(0.4f, 2.5f) else fitScale(avail, base, gap)
+    if (perLine > 0 && base > 0f) ((avail - gap * (perLine - 1)) / (perLine * base)).coerceIn(0.4f, 2.5f) else 1f
+
+/** Промежуток между плитками, чтобы линия точно заполнила ширину при точном размере плиток (n плиток помещается, остаток делится между промежутками). */
+internal fun spreadGap(avail: Float, tileW: Float, gap: Float, perLine: Int): Float {
+    if (perLine > 0 || tileW <= 0f) return gap
+    val n = kotlin.math.floor((avail + gap) / (tileW + gap)).toInt().coerceAtLeast(1)
+    return if (n > 1) ((avail - n * tileW) / (n - 1)).coerceAtLeast(gap) else gap
+}
 
 /** Сколько плиток помещается в линию и во сколько раз их растянуть, чтобы линия заполнилась от края до края. */
 internal fun fitGrid(avail: Float, base: Float, gap: Float): Pair<Int, Float> {
@@ -221,6 +228,8 @@ private fun AppsRow(
             .map { El(HItem("a:" + it.pkg, "app", it.pkg, mode = row.itemMode, showLabel = row.itemMode == "icon"), it, null, true) }
         "recent" -> byPkg.values.filter { Cfg.lastLaunch(it.pkg) > 0L && !Cfg.isHidden(it.pkg) && it.pkg !in taken }
             .sortedByDescending { Cfg.lastLaunch(it.pkg) }.take(row.count).map { El(HItem("a:" + it.pkg, "app", it.pkg, mode = row.itemMode, showLabel = row.itemMode == "icon"), it, null, true) }
+        "new" -> byPkg.values.filter { !it.system && it.pkg != ctx.packageName && !Cfg.isHidden(it.pkg) && it.pkg !in taken }
+            .sortedByDescending { it.installed }.take(row.count).map { El(HItem("a:" + it.pkg, "app", it.pkg, mode = row.itemMode, showLabel = row.itemMode == "icon"), it, null, true) }
         "hdmi" -> inputs.take(row.count).map { El(HItem("a:" + it.id, "hdmi", it.id, mode = row.itemMode, showLabel = row.itemMode == "icon"), null, it, true) }
         else -> emptyList()
     }
@@ -275,9 +284,16 @@ private fun AppsRow(
     }
     fun lineK(l: List<Int>): Float = ((availW - gapF * (l.size - 1)) / l.sumOf { slotW[it].toDouble() }.toFloat()).coerceIn(0.4f, 2.5f)
     // масштаб каждой линии: заполненные линии растягиваются точно до краёв, последняя берёт масштаб предыдущей (или не больше 1,5)
+    // «Выровнять» без числа плиток в линии: размер плиток точный (задаётся размером строки), остаток ширины делится между промежутками;
+    // с заданным числом плиток в линии: плитки растягиваются до краёв
+    val scaleMode = row.fit && row.perLine > 0
     val ks = FloatArray(lines.size)
-    for (li in lines.indices) ks[li] = if (!row.fit) 1f else if (li < lines.lastIndex) lineK(lines[li]) else if (li > 0) ks[li - 1] else lineK(lines[li]).coerceAtMost(1.5f)
+    for (li in lines.indices) ks[li] = if (!scaleMode) 1f else if (li < lines.lastIndex) lineK(lines[li]) else if (li > 0) ks[li - 1] else lineK(lines[li]).coerceAtMost(1.5f)
     val kFirst = if (lines.isEmpty()) 1f else ks[0]
+    val lineGap = FloatArray(lines.size)
+    for (li in lines.indices) lineGap[li] = if (!row.fit || scaleMode) gapF
+        else if (li < lines.lastIndex && lines[li].size > 1) ((availW - lines[li].sumOf { slotW[it].toDouble() }.toFloat()) / (lines[li].size - 1)).coerceAtLeast(gapF)
+        else if (li > 0) lineGap[li - 1] else gapF
     val tile: @Composable (El, Float) -> Unit = { el, k ->
             val isMoving = movingItem == el.item.id
             val bring = remember { BringIntoViewRequester() }
@@ -314,7 +330,7 @@ private fun AppsRow(
     if (row.wrap && row.fit) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(row.gap.dp)) {
             lines.forEachIndexed { li, line ->
-                Row(horizontalArrangement = Arrangement.spacedBy(row.gap.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(lineGap[li].dp)) {
                     line.forEach { i -> val el = els[i]; androidx.compose.runtime.key(el.item.id) { tile(el, ks[li]) } }
                 }
             }
@@ -325,7 +341,7 @@ private fun AppsRow(
             horizontalArrangement = Arrangement.spacedBy(row.gap.dp), verticalArrangement = Arrangement.spacedBy(row.gap.dp),
         ) { els.forEach { el -> androidx.compose.runtime.key(el.item.id) { tile(el, 1f) } } }
     } else {
-        LazyRow(state = state, horizontalArrangement = Arrangement.spacedBy(row.gap.dp), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)) {
+        LazyRow(state = state, horizontalArrangement = Arrangement.spacedBy((lineGap.firstOrNull() ?: gapF).dp), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)) {
             items(els, key = { it.item.id }) { el -> tile(el, kFirst) }
         }
     }
@@ -453,7 +469,8 @@ private fun CardsRow(
     }
     androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
     val k = if (row.fit) fitScaleN(maxWidth.value - 8f, h * ratio(row.aspect), row.gap.toFloat(), row.perLine) else 1f
-    LazyRow(state = state, horizontalArrangement = Arrangement.spacedBy(row.gap.dp), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)) {
+    val cg = if (row.fit) spreadGap(maxWidth.value - 8f - 0.5f, h * ratio(row.aspect), row.gap.toFloat(), row.perLine) else row.gap.toFloat()
+    LazyRow(state = state, horizontalArrangement = Arrangement.spacedBy(cg.dp), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)) {
         items(programs, key = { it.kind.toString() + "|" + it.id }) { p ->
             val pk = p.kind.toString() + "|" + p.id
             ProgramTile(p, w * k, h * k, if (p === programs.first()) firstReq else if (HomeFocus.key == pk && HomeFocus.rowId == row.id) lastReq else null, row.auto, { onDlg(Dlg.RowD(row.id)) }, { HomeFocus.mark(row.id, pk) })
@@ -500,8 +517,11 @@ private fun WidgetsRow(row: HRow, tick: Int, refreshTick: Int, firstReq: FocusRe
     Row(Modifier.fillMaxWidth().height(rowH.dp).padding(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(row.gap.dp)) {
         row.slots.forEachIndexed { i, w ->
             androidx.compose.runtime.key(i) {
+                val wShape = RoundedCornerShape(w.radius.coerceIn(0, 60).dp)
+                val wRing = if (w.borderC == 0L) t.accent else Color(w.borderC.toInt())
                 HomeBox(
-                    Modifier.weight(w.wt.coerceIn(30, 300) / 100f).fillMaxHeight(), RoundedCornerShape(16.dp), if (w.type == "appwidget") Color.Transparent else t.tile, focusReq = if (i == 0) firstReq else null, memKey = row.id + "|w" + i,
+                    Modifier.weight(w.wt.coerceAtLeast(1).toFloat()).fillMaxHeight(), wShape, if (w.type == "appwidget" || w.type == WIDGET_EMPTY) Color.Transparent else t.tile, focusReq = if (i == 0) firstReq else null, memKey = row.id + "|w" + i,
+                    ringColor = if (w.borderW > 0 && w.borderHover) wRing else null, ringWidth = if (w.borderHover) w.borderW else 0,
                     onClick = { widgetClick(ctx, w) { refresh++ } },
                     onLong = { onDlg(Dlg.WidgetD(row.id, i)) },
                 ) {
@@ -509,7 +529,11 @@ private fun WidgetsRow(row: HRow, tick: Int, refreshTick: Int, firstReq: FocusRe
                     val d0 = androidx.compose.ui.platform.LocalDensity.current
                     androidx.compose.runtime.CompositionLocalProvider(
                         androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(d0.density, d0.fontScale * w.fs.coerceIn(50, 250) / 100f),
-                    ) { WidgetBody(w, tick, refreshTick + refresh) }
+                    ) {
+                        Box(Modifier.fillMaxSize().then(if (w.borderW > 0 && !w.borderHover) Modifier.border(w.borderW.dp, wRing, wShape) else Modifier)) {
+                            WidgetBody(w, tick, refreshTick + refresh)
+                        }
+                    }
                 }
             }
         }

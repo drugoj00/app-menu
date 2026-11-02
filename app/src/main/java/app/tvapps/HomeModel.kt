@@ -50,7 +50,13 @@ data class HItem(
 
 /** Одна ячейка строки виджетов. type: weather, clock, date, storage, ram. */
 /** fs: масштаб шрифта, % (100 по умолчанию); wt: доля ширины в строке (100 у всех: поровну). */
-data class HWidget(val type: String = "weather", val city: String = "", val n: Int = 5, val flag: Boolean = true, val ref: String = "", val fs: Int = 100, val wt: Int = 100)
+data class HWidget(
+    val type: String = "weather", val city: String = "", val n: Int = 5, val flag: Boolean = true, val ref: String = "", val fs: Int = 100, val wt: Int = 100,
+    /** скругление углов, dp */
+    val radius: Int = 16,
+    /** обводка: толщина, dp (0: без обводки), цвет ARGB (0: цвет программы), только при наведении */
+    val borderW: Int = 0, val borderC: Long = 0L, val borderHover: Boolean = false,
+)
 
 data class HRow(
     val id: String,
@@ -80,6 +86,8 @@ data class HRow(
     val wrap: Boolean = false,
     /** при подгонке по ширине: сколько плиток в линии (0: считается по размеру значков) */
     val perLine: Int = 0,
+    /** убранные при уменьшении числа виджетов: возвращаются, когда число увеличивают */
+    val spare: List<HWidget> = emptyList(),
 )
 
 /** Значок состояния в верхней полоске: bt, net, usb, time, date. */
@@ -121,12 +129,12 @@ private fun JSONObject.toItem() = HItem(
     optInt("bw"), optLong("bc"), optBoolean("bh"),
 )
 
-private fun HWidget.toJson() = JSONObject().put("t", type).put("c", city).put("n", n).put("f", flag).put("r", ref).put("fs", fs).put("wt", wt)
-private fun JSONObject.toWidget() = HWidget(optString("t", "weather"), optString("c"), optInt("n", 5), optBoolean("f", true), optString("r"), optInt("fs", 100), optInt("wt", 100))
+private fun HWidget.toJson() = JSONObject().put("t", type).put("c", city).put("n", n).put("f", flag).put("r", ref).put("fs", fs).put("wt", wt).put("rd", radius).put("bw", borderW).put("bc", borderC).put("bh", borderHover)
+private fun JSONObject.toWidget() = HWidget(optString("t", "weather"), optString("c"), optInt("n", 5), optBoolean("f", true), optString("r"), optInt("fs", 100), optInt("wt", 100), optInt("rd", 16), optInt("bw"), optLong("bc"), optBoolean("bh"))
 
 private fun HRow.toJson() = JSONObject().put("id", id).put("t", title).put("st", showTitle).put("k", kind)
     .put("it", JSONArray(items.map { it.toJson() })).put("a", auto).put("c", count).put("s", size).put("as", aspect)
-    .put("sl", JSONArray(slots.map { it.toJson() })).put("lb", labels).put("im", itemMode).put("gp", gap).put("ft", fit).put("wr", wrap).put("pl", perLine)
+    .put("sl", JSONArray(slots.map { it.toJson() })).put("lb", labels).put("im", itemMode).put("gp", gap).put("ft", fit).put("wr", wrap).put("pl", perLine).put("sp", JSONArray(spare.map { it.toJson() }))
 
 private fun JSONObject.toRow(): HRow {
     val its = optJSONArray("it")?.let { a -> (0 until a.length()).map { a.getJSONObject(it).toItem() } } ?: emptyList()
@@ -135,6 +143,7 @@ private fun JSONObject.toRow(): HRow {
         getString("id"), optString("t"), optBoolean("st", true), optString("k", "apps"), its, optString("a"),
         optInt("c", 10), optInt("s", 72), optString("as", "16:9"), sl, optBoolean("lb", true), optString("im", "banner"),
         optInt("gp", 8), optBoolean("ft", true), optBoolean("wr", false), optInt("pl", 0),
+        optJSONArray("sp")?.let { a -> (0 until a.length()).map { a.getJSONObject(it).toWidget() } } ?: emptyList(),
     )
 }
 
@@ -333,7 +342,15 @@ object HomeStore {
 
     // ------------------------------------------------------------ элементы
 
-    fun addItem(rowId: String, item: HItem) = updateRow(rowId) { it.copy(items = it.items + item) }
+    /** Новый значок получает оформление строки (скругление, фон, тень, обводка, вид), как у уже стоящих там значков. */
+    fun addItem(rowId: String, item: HItem) = updateRow(rowId) { r ->
+        val ref = r.items.firstOrNull { it.id != item.id }
+        val styled = if (ref == null) item else item.copy(
+            mode = ref.mode, radius = ref.radius, bg = ref.bg, shadow = ref.shadow,
+            borderW = ref.borderW, borderC = ref.borderC, borderHover = ref.borderHover,
+        )
+        r.copy(items = r.items + styled)
+    }
 
     fun removeItem(rowId: String, itemId: String) {
         HomeImg.delete(itemId)
@@ -381,10 +398,42 @@ object HomeStore {
     fun updateSlot(rowId: String, slot: Int, f: (HWidget) -> HWidget) =
         updateRow(rowId) { r -> r.copy(slots = r.slots.mapIndexed { i, w -> if (i == slot) f(w) else w }) }
 
+    /** Доля ширины виджета в процентах (целое); у всех виджетов строки в сумме 100. */
+    fun widgetShare(r: HRow, slot: Int): Int {
+        val total = r.slots.sumOf { it.wt.coerceAtLeast(1) }.coerceAtLeast(1)
+        return Math.round(r.slots.getOrNull(slot)?.wt?.coerceAtLeast(1)?.times(100f)?.div(total) ?: 0f)
+    }
+
+    /**
+     * Ставит доле виджета slot значение pct процентов; остальные виджеты делят оставшееся пропорционально прежним долям.
+     * Каждый шаг счётчика (±1) меняет показанное число ровно на 1; два виджета: 50 и 50 это середина.
+     */
+    fun setWidgetShare(rowId: String, slot: Int, pct: Int) = updateRow(rowId) { r ->
+        val n = r.slots.size
+        if (n < 2) return@updateRow r
+        val p = pct.coerceIn(5, 100 - 5 * (n - 1))
+        val others = r.slots.indices.filter { it != slot }
+        val oSum = others.sumOf { r.slots[it].wt.coerceAtLeast(1) }.coerceAtLeast(1)
+        val rest = 100 - p
+        // доли в целых процентах (сумма точно 100): остальным пропорционально, остаток по порядку
+        val sh = IntArray(n)
+        sh[slot] = p
+        var left = rest
+        others.forEachIndexed { k, i ->
+            val v = if (k == others.lastIndex) left else Math.round(rest * r.slots[i].wt.coerceAtLeast(1).toFloat() / oSum).coerceIn(5, left - 5 * (others.size - 1 - k))
+            sh[i] = v; left -= v
+        }
+        r.copy(slots = r.slots.mapIndexed { i, w -> w.copy(wt = sh[i] * 10) })
+    }
+
     fun setSlotCount(rowId: String, n: Int) = updateRow(rowId) { r ->
         val k = n.coerceIn(1, 4)
-        val slots = if (k <= r.slots.size) r.slots.take(k) else r.slots + List(k - r.slots.size) { HWidget("clock", n = 0) }
-        r.copy(slots = slots)
+        if (k <= r.slots.size) r.copy(slots = r.slots.take(k), spare = (r.slots.drop(k) + r.spare).take(8))
+        else {
+            // сначала возвращаются убранные ранее виджеты (в прежнем порядке), недостающие добавляются как часы
+            val back = r.spare.take(k - r.slots.size)
+            r.copy(slots = r.slots + back + List(k - r.slots.size - back.size) { HWidget("clock", n = 0) }, spare = r.spare.drop(back.size))
+        }
     }
 
     // ------------------------------------------------------------ верхняя полоска

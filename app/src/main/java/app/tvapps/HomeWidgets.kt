@@ -45,10 +45,13 @@ import java.util.Locale
 
 internal val WIDGET_TYPES = listOf("weather", "clock", "date", "storage", "ram")
 
+/** Пустое место на месте удалённого виджета: ничего не рисуется, долгое нажатие открывает меню (там можно выбрать вид виджета). */
+const val WIDGET_EMPTY = "empty"
+
 @Composable
 internal fun widgetName(type: String): String = stringResource(
     when (type) {
-        "weather" -> R.string.wg_weather; "clock" -> R.string.wg_clock; "date" -> R.string.wg_date
+        "weather" -> R.string.wg_weather; "clock" -> R.string.wg_clock; "date" -> R.string.wg_date; "empty" -> R.string.wg_empty
         "storage" -> R.string.wg_storage; "appwidget" -> R.string.wg_android; else -> R.string.wg_ram
     },
 )
@@ -68,6 +71,7 @@ internal fun widgetClick(ctx: Context, w: HWidget, refresh: () -> Unit) {
 @Composable
 internal fun WidgetBody(w: HWidget, tick: Int, refreshTick: Int) {
     when (w.type) {
+        "empty" -> {}
         "weather" -> WeatherBody(w, tick, refreshTick)
         "clock" -> ClockBody(w)
         "date" -> DateBody()

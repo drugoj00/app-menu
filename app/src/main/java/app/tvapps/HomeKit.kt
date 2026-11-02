@@ -38,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -425,22 +426,26 @@ private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.tileDrag
 /**
  * Нажал и держишь («‹» или «›» мышью или пальцем): шаг сразу, через 0,4 с повторы с ровным темпом (~14 в секунду), пока не отпустишь.
  */
-private fun Modifier.holdRepeat(action: () -> Unit): Modifier = pointerInput(Unit) {
-    awaitEachGesture {
-        val down = awaitFirstDown(requireUnconsumed = false)
-        down.consume()
-        action()
-        var delayMs = 400L          // первая пауза перед повтором, дальше ровный темп
-        while (true) {
-            val ev = withTimeoutOrNull(delayMs) { awaitPointerEvent() }
-            if (ev == null) {
-                action()
-                delayMs = 70L
-                continue
+private fun Modifier.holdRepeat(action: () -> Unit): Modifier = composed {
+    // действие обновляется при каждой перерисовке: иначе зажатие держит устаревшее значение счётчика и каждый шаг ставит одно и то же число
+    val cur by rememberUpdatedState(action)
+    pointerInput(Unit) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            down.consume()
+            cur()
+            var delayMs = 400L          // первая пауза перед повтором, дальше ровный темп
+            while (true) {
+                val ev = withTimeoutOrNull(delayMs) { awaitPointerEvent() }
+                if (ev == null) {
+                    cur()
+                    delayMs = 70L
+                    continue
+                }
+                val c = ev.changes.firstOrNull { it.id == down.id } ?: break
+                c.consume()
+                if (!c.pressed) break
             }
-            val c = ev.changes.firstOrNull { it.id == down.id } ?: break
-            c.consume()
-            if (!c.pressed) break
         }
     }
 }

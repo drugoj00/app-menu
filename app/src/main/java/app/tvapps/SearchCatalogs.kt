@@ -396,7 +396,8 @@ internal fun CatCardsRow(row: HRow, tick: Int, firstReq: androidx.compose.ui.foc
     }
     androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
     val k = if (row.fit) fitScaleN(maxWidth.value - 8f, w.toFloat(), row.gap.toFloat(), row.perLine) else 1f
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(row.gap.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 4.dp)) {
+    val cg = if (row.fit) spreadGap(maxWidth.value - 8f - 0.5f, w.toFloat(), row.gap.toFloat(), row.perLine) else row.gap.toFloat()
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(cg.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 4.dp)) {
         itemsIndexed(group.items.take(row.count), key = { i, _ -> i }) { i, item ->
             val bmp by produceState<Bitmap?>(null, item.poster) { value = item.poster?.let { withContext(Dispatchers.IO) { Catalogs.poster(it) } } }
             var menu by remember { mutableStateOf(false) }

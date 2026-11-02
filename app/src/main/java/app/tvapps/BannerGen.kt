@@ -24,7 +24,7 @@ import androidx.core.graphics.drawable.toBitmap
 object BannerGen {
     const val W = 640
     const val H = 360
-    const val STYLES = 4
+    const val STYLES = 8
     private const val OFFER_KEY = "banner_offered"
     private const val NEVER_KEY = "banner_never"
 
@@ -73,12 +73,13 @@ object BannerGen {
         return l
     }
 
-    fun make(ctx: Context, e: Entry, style: Int): Bitmap = make(e.icon.toBitmap(256, 256), e.label, style)
+    fun make(ctx: Context, e: Entry, style: Int, color: Int? = null): Bitmap = make(e.icon.toBitmap(256, 256), e.label, style, color)
 
-    fun make(icon: Bitmap, label: String, style: Int): Bitmap {
+    /** color: свой цвет баннера (ARGB); null: цвет берётся из значка. */
+    fun make(icon: Bitmap, label: String, style: Int, color: Int? = null): Bitmap {
         val out = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888)
         val cv = Canvas(out)
-        val c = dominant(icon)
+        val c = color ?: dominant(icon)
         val fill = Paint(Paint.ANTI_ALIAS_FLAG)
         val ip = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
         val full = RectF(0f, 0f, W.toFloat(), H.toFloat())
@@ -124,6 +125,34 @@ object BannerGen {
                 drawIcon(150f, 170f, 170f, shadow = true)
                 drawText(textLayout(label, darken(c, 0.62f), 330, 56f, Layout.Alignment.ALIGN_NORMAL), 266f, 175f)
             }
+            4 -> {                                   // две краски: диагональное деление
+                fill.color = c; cv.drawRect(full, fill)
+                val p = android.graphics.Path().apply { moveTo(W * 0.55f, 0f); lineTo(W.toFloat(), 0f); lineTo(W.toFloat(), H.toFloat()); lineTo(W * 0.35f, H.toFloat()); close() }
+                fill.color = darken(c, 0.45f); cv.drawPath(p, fill)
+                drawIcon(150f, 170f, 175f, shadow = true)
+                drawText(textLayout(label, Color.WHITE, 250, 52f, Layout.Alignment.ALIGN_NORMAL), 262f, 175f)
+            }
+            5 -> {                                   // точки: фон цвета с узором из точек
+                gradient(lighten(c, 0.05f), darken(c, 0.35f))
+                fill.color = ColorUtils.setAlphaComponent(Color.WHITE, 38)
+                var y = 20f; var rw = 0
+                while (y < H) { var x = if (rw % 2 == 0) 20f else 50f; while (x < W) { cv.drawCircle(x, y, 7f, fill); x += 60f }; y += 40f; rw++ }
+                drawIcon(150f, 170f, 175f, shadow = true)
+                drawText(textLayout(label, Color.WHITE, 330, 56f, Layout.Alignment.ALIGN_NORMAL), 266f, 175f)
+            }
+            6 -> {                                   // рамка: белая рамка по краю, цвет внутри
+                gradient(lighten(c, 0.1f), darken(c, 0.4f), angle = false)
+                val st = Paint(Paint.ANTI_ALIAS_FLAG); st.style = Paint.Style.STROKE; st.strokeWidth = 12f; st.color = Color.WHITE
+                cv.drawRoundRect(RectF(14f, 14f, W - 14f, H - 14f), 28f, 28f, st)
+                drawIcon(W / 2f, 135f, 170f, shadow = true)
+                drawText(textLayout(label, Color.WHITE, 520, 48f, Layout.Alignment.ALIGN_CENTER), 60f, 290f)
+            }
+            7 -> {                                   // круг: большой светлый круг справа, значок в нём
+                fill.color = darken(c, 0.35f); cv.drawRect(full, fill)
+                fill.color = lighten(c, 0.15f); cv.drawCircle(W - 120f, H / 2f, 230f, fill)
+                drawIcon(W - 120f, H / 2f, 210f, shadow = true)
+                drawText(textLayout(label, Color.WHITE, 340, 56f, Layout.Alignment.ALIGN_NORMAL), 40f, 180f)
+            }
             else -> {                                // значок по центру, название под ним
                 gradient(lighten(c, 0.1f), darken(c, 0.5f), angle = false)
                 glow(W / 2f, 130f, 300f, Color.WHITE, 90)
@@ -163,8 +192,8 @@ object BannerGen {
     }
 
     /** Создаёт и сохраняет баннер плитки; true — получилось. */
-    fun apply(ctx: Context, rowId: String, item: HItem, e: Entry, style: Int): Boolean {
-        val ok = runCatching { HomeImg.saveBitmap(ctx, item.id, make(ctx, e, style)) }.getOrDefault(false)
+    fun apply(ctx: Context, rowId: String, item: HItem, e: Entry, style: Int, color: Int? = null): Boolean {
+        val ok = runCatching { HomeImg.saveBitmap(ctx, item.id, make(ctx, e, style, color)) }.getOrDefault(false)
         if (ok) HomeStore.updateItem(rowId, item.id) { it.copy(img = true) }
         return ok
     }
