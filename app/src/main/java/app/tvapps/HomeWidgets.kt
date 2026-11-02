@@ -28,6 +28,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -208,13 +211,16 @@ private fun AppWidgetBody(w: HWidget) {
         }
         return
     }
-    BoxWithConstraints(Modifier.fillMaxSize()) {
-        val wd = maxWidth.value.toInt()
-        val hd = maxHeight.value.toInt()
+    BoxWithConstraints(Modifier.fillMaxSize().clipToBounds()) {
+        // «Масштаб шрифта» для чужого виджета: ему даётся площадь в k раз меньше, а нарисованное увеличивается в k раз (текст и значки крупнее, как при большом шрифте)
+        val k = w.fs.coerceIn(50, 250) / 100f
+        val wd = (maxWidth.value / k).toInt()
+        val hd = (maxHeight.value / k).toInt()
         androidx.compose.ui.viewinterop.AndroidView(
             factory = { c -> AppWidgets.host(c).createView(c, id, info).also { it.updateAppWidgetSize(null, wd, hd, wd, hd) } },
             update = { it.updateAppWidgetSize(null, wd, hd, wd, hd) },
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.requiredSize(maxWidth / k, maxHeight / k)
+                .graphicsLayer(scaleX = k, scaleY = k, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)),
         )
     }
 }

@@ -195,6 +195,7 @@ object HomeStore {
 
     fun reload() {
         val s = sp.getString("home_layout", null)
+        val hadSaved = s != null
         layout = (if (s != null) parseLayout(s) else null) ?: defaultLayout().also { save(it) }
         // 02.11.2026: строку «Недавние» убрали (просьба владелицы); из уже сохранённой раскладки удаляем один раз, потом её можно вернуть вручную
         if (!sp.getBoolean("recent_row_removed", false)) {
@@ -211,6 +212,16 @@ object HomeStore {
             if (st.map { it.id } != (head + moved).map { it.id }) set(layout.copy(top = layout.top.copy(status = head + moved)))
         }
         // 02.11.2026: строки «Избранное» (пустая) и «Все приложения» (одна плитка) убраны по просьбе владелицы: меню открывается кнопкой, свайпом вверх и клавишей; один раз удаляем из сохранённой раскладки
+        // 02.11.2026: из-за повторного добавления стартовых строк на «Доме» появлялись одинаковые; оставляем первую из совпадающих (виджеты не трогаем)
+        if (!sp.getBoolean("rows_dedupe_v1", false)) {
+            sp.edit().putBoolean("rows_dedupe_v1", true).apply()
+            if (hadSaved) sp.edit().putBoolean("home_seeded_apps", true).apply()   // у кого раскладка уже есть, стартовые строки приложений заново не добавляем
+            val seen = HashSet<String>()
+            val uniq = layout.rows.filter { r ->
+                r.kind == "widgets" || seen.add(r.kind + "|" + r.auto + "|" + r.title + "|" + r.items.joinToString(",") { it.kind + ":" + it.ref })
+            }
+            if (uniq.size != layout.rows.size) set(layout.copy(rows = uniq))
+        }
         if (!sp.getBoolean("rows_clean_v5", false)) {
             sp.edit().putBoolean("rows_clean_v5", true).apply()
             val keep = layout.rows.filter { r -> !(r.auto == "fav" && r.items.isEmpty()) && !(r.kind == "apps" && r.auto != "recent" && r.items.size == 1 && r.items[0].kind == "menu") }
@@ -279,7 +290,7 @@ object HomeStore {
     /** Возвращает раскладку «Дома» по умолчанию (фон и верхняя полоска тоже). */
     fun resetLayout() {
         layout.rows.forEach { r -> r.items.forEach { HomeImg.delete(it.id) } }
-        sp.edit().putBoolean("home_seeded", false).apply()
+        sp.edit().putBoolean("home_seeded", false).putBoolean("home_seeded_apps", false).apply()
         set(defaultLayout())
     }
 
@@ -373,32 +384,35 @@ object HomeStore {
 
     /** Один раз добавляет строки для каналов приложений и входов HDMI, которые уже есть на устройстве. */
     fun seed(ctx: Context, channels: List<ChRow>, inputs: List<TvIn>, bannerApps: List<String> = emptyList(), otherApps: List<String> = emptyList(), youtube: String? = null) {
-        if (sp.getBoolean("home_seeded", false)) return
+        val chDone = sp.getBoolean("home_seeded", false)
+        val appsDone = sp.getBoolean("home_seeded_apps", false)
+        if (chDone && appsDone) return
         val rows = ArrayList<HRow>()
-        if (inputs.isNotEmpty()) rows += HRow(newId("r"), ctx.getString(R.string.home_inputs), true, "apps", auto = "hdmi", count = 8, size = 56)
-        if (channels.any { it.key == "watch_next" }) rows += HRow(newId("r"), ctx.getString(R.string.home_watch_next), true, "cards", auto = "watch_next", count = 20, size = 100)
+        if (!chDone && inputs.isNotEmpty()) rows += HRow(newId("r"), ctx.getString(R.string.home_inputs), true, "apps", auto = "hdmi", count = 8, size = 56)
+        if (!chDone && channels.any { it.key == "watch_next" }) rows += HRow(newId("r"), ctx.getString(R.string.home_watch_next), true, "cards", auto = "watch_next", count = 20, size = 100)
         // официальный YouTube есть почти у всех: две строки его каналов, «все» и «музыка»
         // строки создаются, только если у YouTube на этом устройстве есть каналы (на мобильной версии их нет)
-        val ytCh = if (youtube != null) channels.filter { it.key != "watch_next" && it.pkg == youtube } else emptyList()
+        val ytCh = if (!chDone && youtube != null) channels.filter { it.key != "watch_next" && it.pkg == youtube } else emptyList()
         if (ytCh.isNotEmpty()) {
             rows += HRow(newId("r"), ctx.getString(R.string.yt_all), true, "cards", auto = "pkg:$youtube", count = 24, size = 100)
             if (ytCh.any { c -> listOf("музык", "music", "музик").any { c.title.lowercase().contains(it) } })
                 rows += HRow(newId("r"), ctx.getString(R.string.yt_music), true, "cards", auto = "chm:$youtube|музык;music;музик", count = 24, size = 100)
         }
-        val byPkg = channels.filter { it.key != "watch_next" && it.pkg.isNotBlank() && (ytCh.isEmpty() || it.pkg != youtube) }.groupBy { it.pkg }
+        val byPkg = if (chDone) emptyMap() else channels.filter { it.key != "watch_next" && it.pkg.isNotBlank() && (ytCh.isEmpty() || it.pkg != youtube) }.groupBy { it.pkg }
         for (pkg in byPkg.keys.take(3)) {
             val label = runCatching { ctx.packageManager.getApplicationLabel(ctx.packageManager.getApplicationInfo(pkg, 0)).toString() }.getOrDefault(pkg)
             rows += HRow(newId("r"), label, true, "cards", auto = "pkg:$pkg", count = 24, size = 100)
         }
         fun appItems(pkgs: List<String>, mode: String) = pkgs.map { HItem(newId("i"), "app", it, mode = mode, showLabel = mode == "icon") }
-        if (bannerApps.isNotEmpty()) rows += HRow(newId("r"), ctx.getString(R.string.home_apps_row), true, "apps", appItems(bannerApps, "banner"), size = 72, itemMode = "banner")
-        if (otherApps.isNotEmpty()) rows += HRow(newId("r"), ctx.getString(R.string.home_more_apps), true, "apps", appItems(otherApps, "icon"), size = 72, itemMode = "icon")
+        if (!appsDone && bannerApps.isNotEmpty()) rows += HRow(newId("r"), ctx.getString(R.string.home_apps_row), true, "apps", appItems(bannerApps, "banner"), size = 72, itemMode = "banner")
+        if (!appsDone && otherApps.isNotEmpty()) rows += HRow(newId("r"), ctx.getString(R.string.home_more_apps), true, "apps", appItems(otherApps, "icon"), size = 72, itemMode = "icon")
         if (rows.isNotEmpty()) {
             val last = layout.rows.lastOrNull()
             val keepLast = last != null && last.kind == "apps" && last.auto.isEmpty() && last.items.size == 1 && last.items[0].kind == "menu"
             set(layout.copy(rows = if (keepLast) layout.rows.dropLast(1) + rows + last!! else layout.rows + rows))
         }
-        // без разрешения на каналы чтение пустое: пробуем снова при следующем запуске
+        // строки приложений добавляются один раз; каналы без разрешения читаются пустыми: для них пробуем снова при следующем запуске
+        if (!appsDone && (bannerApps.isNotEmpty() || otherApps.isNotEmpty())) sp.edit().putBoolean("home_seeded_apps", true).apply()
         if (channels.isNotEmpty() || Channels.granted(ctx)) sp.edit().putBoolean("home_seeded", true).apply()
     }
 }
