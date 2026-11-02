@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- только debug: запуск экрана «Дом» командой оболочки, без подмены главного экрана -->
+        <activity-alias android:name="app.tvapps.HomeDebug" android:targetActivity="app.tvapps.HomeActivity" android:exported="true" />
+        <receiver android:name="app.tvapps.DebugHook" android:exported="true">
+            <intent-filter><action android:name="app.tvapps.DEBUG_HOME" /></intent-filter>
+        </receiver>
+    </application>
+</manifest>
