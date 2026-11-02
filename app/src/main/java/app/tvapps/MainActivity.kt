@@ -105,6 +105,33 @@ data class Entry(
 /** Сколько держать «ОК» на пульте, чтобы это считалось долгим нажатием. */
 internal const val LONG_OK_MS = 500L
 
+/** Запросы к меню от «Дома»: открыть настройки или поиск, а также признак «пришли из Дома» (тогда «Назад» возвращает в Дом). */
+internal object NavReq {
+    var stamp by mutableIntStateOf(0)
+    var screen: String? = null
+    var q: String? = null
+    var fromHome by mutableStateOf(false)
+    var openSearch = false
+    private var lastSave = 0L
+
+    fun read(i: Intent?) {
+        fromHome = i?.getBooleanExtra("from_home", false) == true
+        screen = i?.getStringExtra("screen")
+        q = i?.getStringExtra("q")
+        openSearch = i?.getBooleanExtra("open_search", false) == true
+        stamp++
+    }
+
+    /** Автоматическая копия: не чаще раза в минуту и не в главном потоке, чтобы переходы между экранами оставались мгновенными. */
+    fun saveSoon(ctx: android.content.Context) {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastSave < 60_000L) return
+        lastSave = now
+        val app = ctx.applicationContext
+        Thread { Backup.autoSave(app) }.start()
+    }
+}
+
 internal object OkGuard {
     @Volatile var until = 0L
     fun arm() { until = android.os.SystemClock.elapsedRealtime() + 6000 }
@@ -114,6 +141,12 @@ class MainActivity : ComponentActivity() {
     private val resumeTick = mutableIntStateOf(0)
 
     override fun dispatchKeyEvent(ev: android.view.KeyEvent): Boolean {
+        if (Voice.onKey(this, ev)) return true
+        // «Назад» обрабатываем здесь, до списка: иначе первое нажатие после запуска из «Дома» гасилось списком и меню не закрывалось
+        if (ev.keyCode == android.view.KeyEvent.KEYCODE_BACK) {
+            if (ev.action == android.view.KeyEvent.ACTION_UP && !ev.isCanceled) onBackPressedDispatcher.onBackPressed()
+            return true
+        }
         val ok = ev.keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER || ev.keyCode == android.view.KeyEvent.KEYCODE_ENTER ||
             ev.keyCode == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER
         if (ok && OkGuard.until != 0L) {
@@ -162,14 +195,20 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Cfg.init(this)
+        HomeStore.init(this)
         asHome = intent?.categories?.contains(Intent.CATEGORY_HOME) == true
+        NavReq.read(intent)
         if (intent?.getBooleanExtra(UpdOpen.EXTRA, false) == true) UpdOpen.requested = true
         applyFullscreen()
         setContent {
             val tc = currentTC()
             MaterialTheme(colorScheme = if (tc.dark) darkColorScheme() else lightColorScheme()) {
-                CompositionLocalProvider(LocalTh provides tc) {
-                    AllApps(resumeTick.intValue, asHome, onFullscreenChanged = { applyFullscreen() })
+                val mbg = HomeStore.menuBg
+                CompositionLocalProvider(LocalTh provides adaptTheme(tc, mbg), LocalBaseTh provides tc) {
+                    Box(Modifier.fillMaxSize().background(tc.bg)) {
+                        HomeBackground(mbg, menu = true)
+                        AllApps(resumeTick.intValue, asHome, onFullscreenChanged = { applyFullscreen() })
+                    }
                 }
             }
         }
@@ -189,7 +228,7 @@ class MainActivity : ComponentActivity() {
         super.onStop()
         onScreen = false
         runCatching { unregisterReceiver(homeKeyReceiver) }
-        Backup.autoSave(this)
+        NavReq.saveSoon(this)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -199,23 +238,14 @@ class MainActivity : ComponentActivity() {
         val secondHome = isHome && onScreen
         super.onNewIntent(intent)
         setIntent(intent)
+        NavReq.read(intent)
         if (intent.getBooleanExtra(UpdOpen.EXTRA, false)) UpdOpen.requested = true
         asHome = isHome
         if (secondHome) goNativeHome()
     }
 
     /** Полный экран: строки состояния и навигации скрыты и появляются по свайпу от края. */
-    private fun applyFullscreen() {
-        val c = WindowInsetsControllerCompat(window, window.decorView)
-        if (Cfg.fullscreen) {
-            WindowCompat.setDecorFitsSystemWindows(window, false)
-            c.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            c.hide(WindowInsetsCompat.Type.systemBars())
-        } else {
-            c.show(WindowInsetsCompat.Type.systemBars())
-            WindowCompat.setDecorFitsSystemWindows(window, true)
-        }
-    }
+    private fun applyFullscreen() { SysBars.apply(this) }
 }
 
 internal fun loadApps(ctx: android.content.Context): List<Entry> {
@@ -269,11 +299,12 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
     val ctx = LocalContext.current
     val t = LocalTh.current
     val scope = rememberCoroutineScope()
-    var apps by remember { mutableStateOf<List<Entry>>(emptyList()) }
+    var apps by remember { mutableStateOf<List<Entry>>(AppsMem.list) }
+    var loadedOnce by remember { mutableStateOf(AppsMem.list.isNotEmpty()) }
     var menuFor by remember { mutableStateOf<Entry?>(null) }
-    var screen by remember { mutableStateOf("main") }
-    var searching by remember { mutableStateOf(false) }
-    var query by remember { mutableStateOf("") }
+    var screen by remember { mutableStateOf((ctx as? android.app.Activity)?.intent?.getStringExtra("screen") ?: "main") }
+    var searching by remember { mutableStateOf(!(ctx as? android.app.Activity)?.intent?.getStringExtra("q").isNullOrBlank()) }
+    var query by remember { mutableStateOf((ctx as? android.app.Activity)?.intent?.getStringExtra("q").orEmpty()) }
     var selectMode by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -284,6 +315,18 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
     var versionsFor by remember { mutableStateOf<Entry?>(null) }
     var updatesFor by remember { mutableStateOf<Entry?>(null) }
     var updatesAll by remember { mutableStateOf(false) }
+    // кнопка микрофона: распознанный текст идёт в поиск
+    VoiceHost { txt -> query = txt; searching = true }
+    // «Дом» открывает меню, которое уже живёт в фоне: настройки или поиск приходят запросом
+    LaunchedEffect(NavReq.stamp) {
+        if (NavReq.stamp > 0) {
+            screen = NavReq.screen ?: "main"
+            val q = NavReq.q
+            if (!q.isNullOrBlank()) { query = q; searching = true }
+            else if (NavReq.openSearch) { query = ""; searching = true }
+            else if (NavReq.fromHome) { query = ""; searching = false; selectMode = false; selected = emptySet() }
+        }
+    }
     // нажатие на уведомление «Доступно обновлений»: сразу открываем окно «Обновления»
     LaunchedEffect(UpdOpen.requested) { if (UpdOpen.requested) { updatesAll = true; UpdOpen.requested = false } }
     // перетаскивание: над какой плиткой палец (и в центре ли) и готова ли папка принять значок
@@ -307,6 +350,8 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
             if (cached.isNotEmpty() && apps.isEmpty()) apps = cached
         }
         apps = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { loadApps(ctx).also { AppCache.save(ctx, it, force = Cfg.iconTick > 0) } }
+        AppsMem.list = apps; AppsMem.stamp = System.currentTimeMillis()
+        loadedOnce = true
     }
     LaunchedEffect(Unit) {
         // запоминаем, какие службы спецвозможностей включены (для автоматического восстановления после загрузки)
@@ -322,12 +367,13 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
     }
 
     // «Назад»: из настроек — на главную страницу; из выбора — выйти из выбора; как главный экран — остаёмся на месте
-    BackHandler(enabled = screen != "main" || asHome || searching || selectMode || moving != null) {
+    BackHandler(enabled = screen != "main" || asHome || searching || selectMode || moving != null || (NavReq.fromHome && Cfg.homeModule)) {
         if (moving != null) moving = null
         else if (screen != "main") screen = "main"
         else if (selectMode) { selectMode = false; selected = emptySet() }
         else if (searching) { searching = false; query = "" }
         else if (asHome) runCatching { nativeHomeIntent(ctx)?.let { ctx.startActivity(it) } }
+        else if (NavReq.fromHome && Cfg.homeModule) goHome(ctx)
     }
 
     if (screen != "main") {
@@ -345,6 +391,8 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
     /** Ставит курсор на запомненный значок (прокручивая к нему), а если его нет — на первый. */
     fun restoreFocus() {
         val list = shownRef.value
+        // приложений по запросу нет, но есть карточки каталогов: курсор на первую из них
+        if (list.isEmpty() && CatFocus.focusFirst()) return
         val p = lastFocus?.takeIf { k -> list.any { it.pkg == k } } ?: list.firstOrNull()?.pkg ?: return
         val idx = list.indexOfFirst { it.pkg == p }
         scope.launch {
@@ -481,12 +529,12 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
 
     androidx.compose.runtime.CompositionLocalProvider(LocalHost provides host) {
     Column(
-        Modifier.fillMaxSize().background(t.bg)
+        Modifier.fillMaxSize().background(if (HomeStore.menuBg.type == "none") t.bg else Color.Transparent)
             .focusRequester(rootFocus).focusable()
             .onPreviewKeyEvent { ev ->
                 val nav = ev.key == Key.DirectionDown || ev.key == Key.DirectionUp || ev.key == Key.DirectionLeft || ev.key == Key.DirectionRight ||
                     ev.key == Key.DirectionCenter || ev.key == Key.Enter
-                if (ev.type == KeyEventType.KeyDown && nav && noDialogs && !gridHasFocus &&
+                if (ev.type == KeyEventType.KeyDown && nav && noDialogs && !gridHasFocus && !CatFocus.hasFocus &&
                     (!headerHasFocus || ev.key == Key.DirectionDown)
                 ) { restoreFocus(); true } else false
             }
@@ -494,8 +542,11 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
     ) {
         Column(Modifier.onFocusChanged { headerHasFocus = it.hasFocus }) {
         HalfUi {
+        if (!Integrity.ok()) Text(stringResource(R.string.integrity_warn), color = Color(0xFFF87171), fontSize = 13.sp, modifier = Modifier.padding(bottom = 4.dp))
         val adbText = stringResource(Conn.statusRes)
         val headerButtons: @Composable () -> Unit = {
+            // долгое нажатие «Дом» — уведомления
+            if (Cfg.homeModule) HeaderTextButton(stringResource(R.string.home_btn), onLong = { TopUi.notifs.value = true }) { goHome(ctx) }
             HeaderTextButton(stringResource(R.string.restart)) { restartApp(ctx) }
             HeaderTextButton(stringResource(R.string.reset_icons)) {
                 AppCache.clearIcons(ctx)
@@ -587,8 +638,12 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
             )
         }
         folderOpen?.let { id -> HalfUi { FolderDialog(id, apps, menuFor, { menuFor = it }, openApp) { folderOpen = null; menuFor = null } } }
+        val searchCat = query.trim().length >= 2
+        androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
+        // приложений по запросу нет, а каталоги ищутся: пустую полосу не показываем, карточки занимают весь экран
+        Box(if (searchCat && shown.isEmpty()) Modifier else Modifier.weight(if (searchCat) 0.36f else 1f)) {
         if (shown.isEmpty()) {
-            Text(stringResource(R.string.nothing_found), color = t.sub, fontSize = 16.sp, modifier = Modifier.padding(top = 24.dp))
+            if (!searchCat && (loadedOnce || query.isNotBlank())) Text(stringResource(R.string.nothing_found), color = t.sub, fontSize = 16.sp, modifier = Modifier.padding(top = 24.dp))
         } else if (Cfg.listMode) {
             LazyColumn(Modifier.fillMaxSize().onFocusChanged { gridHasFocus = it.hasFocus }, state = listState, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(shown, key = { it.pkg }) { e -> tileFor(e, true) }
@@ -608,9 +663,14 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
                 items(shown, key = { it.pkg }) { e -> tileFor(e, false) }
             }
         }
+        }
+        if (searchCat) CatalogResults(query, Modifier.weight(0.64f).fillMaxWidth())
+        }
     }
     }
 
+    if (TopUi.notifs.value) NotificationsDialog { TopUi.notifs.value = false }
+    if (TopUi.recents.value) RecentsDialog(apps, { e -> Cfg.countLaunch(e.pkg); runCatching { ctx.startActivity(e.launch) } }) { TopUi.recents.value = false }
     folderRename?.let { HalfUi { RenameFolderDialog(it) { folderRename = null } } }
     folderAdd?.let { HalfUi { AddToFolderDialog(it, apps) { folderAdd = null } } }
     versionsFor?.let { e -> HalfUi { VersionsDialog(e.pkg, e.label) { versionsFor = null } } }
@@ -682,7 +742,7 @@ private fun SearchBox(value: String, wide: Boolean = true, onChange: (String) ->
 /** Кнопка шапки со словом: на телевизоре нет подсказок при наведении, поэтому значков без подписи нет. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun HeaderTextButton(text: String, onClick: () -> Unit) {
+private fun HeaderTextButton(text: String, onLong: (() -> Unit)? = null, onClick: () -> Unit) {
     val t = LocalTh.current
     var focused by remember { mutableStateOf(false) }
     val (hm, hover) = rememberHover()
@@ -694,7 +754,7 @@ private fun HeaderTextButton(text: String, onClick: () -> Unit) {
             .clip(RoundedCornerShape(12.dp))
             .background(if (focused || hover) t.tileFocus else t.tile)
             .border(if (focused) 3.dp else 1.dp, if (focused) t.accent else t.border, RoundedCornerShape(12.dp))
-            .combinedClickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = onLong)
             .padding(horizontal = if (isNarrow()) 11.dp else 16.dp),
         contentAlignment = Alignment.Center,
     ) { Text(text, fontSize = btnSp(16), color = t.text, maxLines = 1) }
@@ -843,6 +903,12 @@ internal fun AppTile(
     }
 }
 
+
+/** Возврат на экран «Дом»: он живёт в своей задаче, поэтому открывается сразу. */
+internal fun goHome(ctx: android.content.Context) {
+    runCatching { ctx.startActivity(Intent(ctx, HomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+    (ctx as? android.app.Activity)?.overridePendingTransition(0, 0)
+}
 
 /** Перезапуск программы: новый запуск назначается через будильник, затем текущий процесс завершается. */
 private fun restartApp(ctx: android.content.Context) {

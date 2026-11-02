@@ -26,7 +26,8 @@ object Adb {
     @Volatile private var rootOn = false
     val isRoot: Boolean get() = rootOn
 
-    val isConnected: Boolean get() = rootOn || (::mgr.isInitialized && mgr.isConnected)
+    /** Подключено ли управление (ADB или root). У копии с чужой подписью всегда нет: см. Integrity. */
+    val isConnected: Boolean get() = Integrity.ok() && (rootOn || (::mgr.isInitialized && mgr.isConnected))
 
     /**
      * Проверяет, дал ли Magisk (или другой su) права root этому приложению. При первом запуске на экране появится запрос Magisk:
@@ -115,6 +116,7 @@ object Adb {
 
     /** Выполнить команду оболочки и вернуть её вывод. */
     suspend fun shell(cmd: String, timeoutMs: Long = 25_000): String = withContext(Dispatchers.IO) {
+        if (!Integrity.ok()) return@withContext ""
         lock.lock()
         Log.i("TVApps", "shell> ${cmd.take(300)}")
         val t0 = System.currentTimeMillis()
@@ -199,6 +201,7 @@ object Adb {
 
     /** Установить APK потоком (cmd package install -S). */
     suspend fun installApk(input: InputStream, size: Long, flags: String = "-r"): String = withContext(Dispatchers.IO) {
+        if (!Integrity.ok()) return@withContext ""
         if (rootOn) {
             val tmp = java.io.File(appCtx.cacheDir, "root-install-" + System.nanoTime() + ".apk")
             try {

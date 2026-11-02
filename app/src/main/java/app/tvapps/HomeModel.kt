@@ -1,0 +1,474 @@
+package app.tvapps
+
+import android.content.Context
+import android.content.SharedPreferences
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.util.LruCache
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
+
+/**
+ * Устройство экрана «Дом»: верхняя полоска (голос и значки состояния) и строки.
+ * Строка бывает трёх видов: apps (значки и баннеры приложений), cards (карточки каналов приложений Android TV), widgets (виджеты).
+ * Всё хранится одной JSON-строкой в общих настройках программы, поэтому резервная копия настроек уносит и «Дом».
+ */
+
+/** Элемент строки значков: приложение, «Все приложения», настройки Android или вход HDMI. */
+data class HItem(
+    val id: String,
+    /** app, menu, settings, hdmi */
+    val kind: String,
+    /** пакет приложения или номер входа */
+    val ref: String = "",
+    /** своя подпись; пусто: родная */
+    val label: String = "",
+    /** icon или banner */
+    val mode: String = "banner",
+    /** есть своя картинка (файл hm_<id>.png) */
+    val img: Boolean = false,
+    /** скругление углов, dp */
+    val radius: Int = 14,
+    /** фон: 0 по виду (у значка прозрачный, у баннера плитка), 1 прозрачный, 2 плитка */
+    val bg: Int = 0,
+    val showLabel: Boolean = false,
+    /** тень сзади */
+    val shadow: Boolean = false,
+    /** обводка: толщина, dp (0 — без обводки) */
+    val borderW: Int = 0,
+    /** цвет обводки ARGB; 0 — цвет программы (акцент темы) */
+    val borderC: Long = 0L,
+    /** обводка видна только при наведении мыши и выборе пультом, а не всегда */
+    val borderHover: Boolean = false,
+)
+
+/** Одна ячейка строки виджетов. type: weather, clock, date, storage, ram. */
+/** fs: масштаб шрифта, % (100 по умолчанию); wt: доля ширины в строке (100 у всех: поровну). */
+data class HWidget(val type: String = "weather", val city: String = "", val n: Int = 5, val flag: Boolean = true, val ref: String = "", val fs: Int = 100, val wt: Int = 100)
+
+data class HRow(
+    val id: String,
+    val title: String = "",
+    val showTitle: Boolean = true,
+    /** apps, cards, widgets */
+    val kind: String = "apps",
+    val items: List<HItem> = emptyList(),
+    /** apps: пусто, fav, recent, hdmi (добавляется к ручным); cards: watch_next, pkg:<пакет>, ch:<ключ канала> */
+    val auto: String = "",
+    /** сколько элементов брать из автоисточника или канала */
+    val count: Int = 10,
+    /** высота: размер значка, высота карточки или высота ряда виджетов, dp */
+    val size: Int = 72,
+    /** форма карточки: 16:9, 1:1, 2:3 */
+    val aspect: String = "16:9",
+    val slots: List<HWidget> = emptyList(),
+    /** подписи под значками */
+    val labels: Boolean = true,
+    /** вид элементов по умолчанию: banner (баннеры) или icon (значки) */
+    val itemMode: String = "banner",
+)
+
+/** Значок состояния в верхней полоске: bt, net, usb, time, date. */
+data class HStatus(val id: String, val visible: Boolean = true, val opt: Int = 0)
+
+/**
+ * Верхняя полоска: значок меню, голос с полем ввода текста и значки состояния.
+ * big: крупные значки, часы и дата (по умолчанию), иначе обычные.
+ */
+data class HTop(
+    val voice: Boolean = true,
+    val status: List<HStatus> = emptyList(),
+    val big: Boolean = true,
+    val search: Boolean = true,
+    val menu: Boolean = true,
+    val recent: Boolean = true,      // кнопка «Недавние» справа от кнопки меню
+    val hdmi: Boolean = true,        // кнопка «Входы HDMI» справа от «Недавних»
+)
+
+/** Фон экрана: none (по теме), color, gradient (живой градиент), image, video, anim (GIF/WebP). */
+data class HBg(
+    val type: String = "none",
+    val color: Long = 0xFF0B0B10,
+    /** crop: обрезать по экрану; stretch: растянуть */
+    val fit: String = "crop",
+    /** затемнение поверх фона, % */
+    val dim: Int = 0,
+)
+
+data class HLayout(val top: HTop, val rows: List<HRow>, val bg: HBg = HBg())
+
+private fun HItem.toJson() = JSONObject().put("id", id).put("k", kind).put("r", ref).put("l", label).put("m", mode)
+    .put("i", img).put("rd", radius).put("bg", bg).put("sl", showLabel).put("sh", shadow).put("bw", borderW).put("bc", borderC).put("bh", borderHover)
+
+private fun JSONObject.toItem() = HItem(
+    getString("id"), getString("k"), optString("r"), optString("l"), optString("m", "banner"),
+    optBoolean("i"), optInt("rd", 14), optInt("bg"), optBoolean("sl", false), optBoolean("sh"),
+    optInt("bw"), optLong("bc"), optBoolean("bh"),
+)
+
+private fun HWidget.toJson() = JSONObject().put("t", type).put("c", city).put("n", n).put("f", flag).put("r", ref).put("fs", fs).put("wt", wt)
+private fun JSONObject.toWidget() = HWidget(optString("t", "weather"), optString("c"), optInt("n", 5), optBoolean("f", true), optString("r"), optInt("fs", 100), optInt("wt", 100))
+
+private fun HRow.toJson() = JSONObject().put("id", id).put("t", title).put("st", showTitle).put("k", kind)
+    .put("it", JSONArray(items.map { it.toJson() })).put("a", auto).put("c", count).put("s", size).put("as", aspect)
+    .put("sl", JSONArray(slots.map { it.toJson() })).put("lb", labels).put("im", itemMode)
+
+private fun JSONObject.toRow(): HRow {
+    val its = optJSONArray("it")?.let { a -> (0 until a.length()).map { a.getJSONObject(it).toItem() } } ?: emptyList()
+    val sl = optJSONArray("sl")?.let { a -> (0 until a.length()).map { a.getJSONObject(it).toWidget() } } ?: emptyList()
+    return HRow(
+        getString("id"), optString("t"), optBoolean("st", true), optString("k", "apps"), its, optString("a"),
+        optInt("c", 10), optInt("s", 72), optString("as", "16:9"), sl, optBoolean("lb", true), optString("im", "banner"),
+    )
+}
+
+private fun HLayout.toJson() = JSONObject()
+    .put("v", 1)
+    .put("voice", top.voice).put("big", top.big).put("search", top.search).put("menu", top.menu).put("recent", top.recent).put("hdmi", top.hdmi)
+    .put("bg", JSONObject().put("t", bg.type).put("c", bg.color).put("f", bg.fit).put("d", bg.dim))
+    .put("st", JSONArray(top.status.map { JSONObject().put("id", it.id).put("v", it.visible).put("o", it.opt) }))
+    .put("rows", JSONArray(rows.map { it.toJson() }))
+
+private fun parseLayout(s: String): HLayout? = runCatching {
+    val j = JSONObject(s)
+    val st = j.optJSONArray("st")?.let { a ->
+        (0 until a.length()).map { val o = a.getJSONObject(it); HStatus(o.getString("id"), o.optBoolean("v", true), o.optInt("o")) }
+    } ?: emptyList()
+    val rows = j.optJSONArray("rows")?.let { a -> (0 until a.length()).map { a.getJSONObject(it).toRow() } } ?: emptyList()
+    // значки состояния, которых нет в сохранённом, добавляются в конец (новые версии)
+    val missing = STATUS_IDS.filter { id -> st.none { it.id == id } }.map { HStatus(it, true) }
+    val ti = st.indexOfFirst { it.id == "date" }.let { if (it >= 0) it else st.indexOfFirst { x -> x.id == "time" } }
+    val all = missing
+    // новые значки встают перед датой; колокольчик уведомлений — первым, слева от Bluetooth
+    val newNotif = missing.filter { it.id == "notif" }
+    val others = missing.filter { it.id != "notif" }
+    val st1 = if (others.isEmpty()) st else if (ti >= 0) st.take(ti) + others + st.drop(ti) else st + others
+    val stFull = if (newNotif.isEmpty()) st1 else newNotif + st1
+    val b = j.optJSONObject("bg")
+    val bg = if (b == null) HBg() else HBg(b.optString("t", "none"), b.optLong("c", 0xFF0B0B10), b.optString("f", "crop"), b.optInt("d"))
+    HLayout(HTop(j.optBoolean("voice", true), stFull, j.optBoolean("big", true), j.optBoolean("search", true), true, j.optBoolean("recent", true), j.optBoolean("hdmi", true)), rows, bg)
+}.getOrNull()
+
+internal val STATUS_IDS = listOf("notif", "bt", "net", "usb", "gear", "date", "time")
+
+object HomeStore {
+    private lateinit var sp: SharedPreferences
+    private lateinit var app: Context
+    private var seq = 0
+
+    var layout by mutableStateOf(HLayout(HTop(true, STATUS_IDS.map { HStatus(it) }), emptyList())); private set
+
+    fun setBg(b: HBg) = set(layout.copy(bg = b))
+
+    /** Фон меню приложений: свой, выбирается так же, как фон «Дома». */
+    var menuBg by mutableStateOf(HBg()); private set
+
+    fun changeMenuBg(b: HBg) {
+        menuBg = b
+        sp.edit().putString("menu_bg", JSONObject().put("t", b.type).put("c", b.color).put("f", b.fit).put("d", b.dim).toString()).apply()
+        dirty = true
+    }
+
+    private fun loadMenuBg() {
+        val j = runCatching { JSONObject(sp.getString("menu_bg", "") ?: "") }.getOrNull()
+        menuBg = if (j == null) HBg() else HBg(j.optString("t", "none"), j.optLong("c", 0xFF0B0B10), j.optString("f", "crop"), j.optInt("d"))
+    }
+
+    /** Растёт, когда меняется своя картинка: плитки перечитывают файл. */
+    var imgTick by mutableIntStateOf(0); private set
+
+    /** Менялось с последней автоматической копии. */
+    @Volatile var dirty = false
+
+    fun init(ctx: Context) {
+        if (::sp.isInitialized) return
+        app = ctx.applicationContext
+        sp = app.getSharedPreferences("tvapps", Context.MODE_PRIVATE)
+        reload()
+    }
+
+    fun reload() {
+        val s = sp.getString("home_layout", null)
+        layout = (if (s != null) parseLayout(s) else null) ?: defaultLayout().also { save(it) }
+        // 02.11.2026: строку «Недавние» убрали (просьба владелицы); из уже сохранённой раскладки удаляем один раз, потом её можно вернуть вручную
+        if (!sp.getBoolean("recent_row_removed", false)) {
+            sp.edit().putBoolean("recent_row_removed", true).apply()
+            if (layout.rows.any { it.auto == "recent" }) set(layout.copy(rows = layout.rows.filter { it.auto != "recent" }))
+        }
+        // 02.11.2026: порядок в конце полоски — шестерёнка, дата, часы (владелица); один раз переставляем в уже сохранённой раскладке
+        if (!sp.getBoolean("status_order_v2", false)) {
+            sp.edit().putBoolean("status_order_v2", true).apply()
+            val st = layout.top.status
+            val tail = listOf("gear", "date", "time")
+            val head = st.filter { it.id !in tail }
+            val moved = tail.mapNotNull { id -> st.firstOrNull { it.id == id } }
+            if (st.map { it.id } != (head + moved).map { it.id }) set(layout.copy(top = layout.top.copy(status = head + moved)))
+        }
+        // 02.11.2026: строки «Избранное» (пустая) и «Все приложения» (одна плитка) убраны по просьбе владелицы: меню открывается кнопкой, свайпом вверх и клавишей; один раз удаляем из сохранённой раскладки
+        if (!sp.getBoolean("rows_clean_v5", false)) {
+            sp.edit().putBoolean("rows_clean_v5", true).apply()
+            val keep = layout.rows.filter { r -> !(r.auto == "fav" && r.items.isEmpty()) && !(r.kind == "apps" && r.auto != "recent" && r.items.size == 1 && r.items[0].kind == "menu") }
+            if (keep.size != layout.rows.size) set(layout.copy(rows = keep))
+        }
+        // 02.11.2026: формат даты как на приставке (две строки: день недели и «Месяц дд.мм.гггг») и на телефоне; один раз переключаем короткие форматы
+        if (!sp.getBoolean("date_fmt_v3", false)) {
+            sp.edit().putBoolean("date_fmt_v3", true).apply()
+            val st = layout.top.status
+            if (st.any { it.id == "date" && it.opt < 3 }) set(layout.copy(top = layout.top.copy(status = st.map { if (it.id == "date" && it.opt < 3) it.copy(opt = 3) else it })))
+        }
+        loadMenuBg()
+    }
+
+    private fun save(l: HLayout) {
+        sp.edit().putString("home_layout", l.toJson().toString()).apply()
+        dirty = true
+    }
+
+    fun set(l: HLayout) { layout = l; save(l) }
+
+    fun bumpImg() { imgTick++; dirty = true }
+
+    fun appContext(): Context? = if (::app.isInitialized) app else null
+
+    fun newId(prefix: String): String = prefix + java.lang.Long.toString(System.currentTimeMillis(), 36) + (seq++ % 36).toString(36)
+
+    private fun defaultLayout(): HLayout {
+        val c = app
+        return HLayout(
+            HTop(true, STATUS_IDS.map { HStatus(it, true, if (it == "date") 3 else 0) }),
+            listOf(
+                HRow(newId("r"), "", true, "widgets", size = 120, slots = listOf(HWidget("weather", n = 5), HWidget("clock", n = 0))),
+            ),
+        )
+    }
+
+    // ------------------------------------------------------------ строки
+
+    fun row(id: String): HRow? = layout.rows.firstOrNull { it.id == id }
+
+    fun updateRow(id: String, f: (HRow) -> HRow) = set(layout.copy(rows = layout.rows.map { if (it.id == id) f(it) else it }))
+
+    fun addRow(r: HRow, afterId: String?) {
+        val i = layout.rows.indexOfFirst { it.id == afterId }
+        val rows = layout.rows.toMutableList()
+        rows.add(if (i < 0) rows.size else i + 1, r)
+        set(layout.copy(rows = rows))
+    }
+
+    fun removeRow(id: String) {
+        layout.rows.firstOrNull { it.id == id }?.items?.forEach { HomeImg.delete(it.id) }
+        set(layout.copy(rows = layout.rows.filter { it.id != id }))
+    }
+
+    /** Переносит значок в другую строку значков (в конец). */
+    fun moveToRow(itemId: String, rowId: String) {
+        val src = rowOfItem(itemId) ?: return
+        if (src.id == rowId) return
+        val item = src.items.first { it.id == itemId }
+        set(layout.copy(rows = layout.rows.map {
+            when (it.id) { src.id -> it.copy(items = it.items.filter { i -> i.id != itemId }); rowId -> it.copy(items = it.items + item); else -> it }
+        }))
+    }
+
+    /** Возвращает раскладку «Дома» по умолчанию (фон и верхняя полоска тоже). */
+    fun resetLayout() {
+        layout.rows.forEach { r -> r.items.forEach { HomeImg.delete(it.id) } }
+        sp.edit().putBoolean("home_seeded", false).apply()
+        set(defaultLayout())
+    }
+
+    fun moveRow(id: String, delta: Int) {
+        val rows = layout.rows.toMutableList()
+        val i = rows.indexOfFirst { it.id == id }
+        val j = i + delta
+        if (i < 0 || j < 0 || j > rows.lastIndex) return
+        val r = rows.removeAt(i)
+        rows.add(j, r)
+        set(layout.copy(rows = rows))
+    }
+
+    // ------------------------------------------------------------ элементы
+
+    fun addItem(rowId: String, item: HItem) = updateRow(rowId) { it.copy(items = it.items + item) }
+
+    fun removeItem(rowId: String, itemId: String) {
+        HomeImg.delete(itemId)
+        updateRow(rowId) { it.copy(items = it.items.filter { i -> i.id != itemId }) }
+    }
+
+    fun updateItem(rowId: String, itemId: String, f: (HItem) -> HItem) =
+        updateRow(rowId) { r -> r.copy(items = r.items.map { if (it.id == itemId) f(it) else it }) }
+
+    /** Ряд, в котором лежит элемент. */
+    fun rowOfItem(itemId: String): HRow? = layout.rows.firstOrNull { r -> r.items.any { it.id == itemId } }
+
+    /** Двигает элемент: dx внутри строки, dy в соседнюю строку значков. Возвращает true, если что-то сдвинулось. */
+    fun moveItem(itemId: String, dx: Int, dy: Int): Boolean {
+        val rows = layout.rows.toMutableList()
+        val ri = rows.indexOfFirst { r -> r.items.any { it.id == itemId } }
+        if (ri < 0) return false
+        val row = rows[ri]
+        val i = row.items.indexOfFirst { it.id == itemId }
+        val item = row.items[i]
+        if (dy != 0) {
+            var t = ri + dy
+            while (t in rows.indices && rows[t].kind != "apps") t += dy
+            if (t !in rows.indices) return false
+            val target = rows[t]
+            val list = row.items.toMutableList().also { it.removeAt(i) }
+            val tl = target.items.toMutableList().also { it.add(i.coerceAtMost(it.size), item) }
+            rows[ri] = row.copy(items = list)
+            rows[t] = target.copy(items = tl)
+            set(layout.copy(rows = rows))
+            return true
+        }
+        val j = i + dx
+        if (j < 0 || j > row.items.lastIndex) return false
+        val list = row.items.toMutableList()
+        list.removeAt(i)
+        list.add(j, item)
+        rows[ri] = row.copy(items = list)
+        set(layout.copy(rows = rows))
+        return true
+    }
+
+    // ------------------------------------------------------------ виджеты
+
+    fun updateSlot(rowId: String, slot: Int, f: (HWidget) -> HWidget) =
+        updateRow(rowId) { r -> r.copy(slots = r.slots.mapIndexed { i, w -> if (i == slot) f(w) else w }) }
+
+    fun setSlotCount(rowId: String, n: Int) = updateRow(rowId) { r ->
+        val k = n.coerceIn(1, 4)
+        val slots = if (k <= r.slots.size) r.slots.take(k) else r.slots + List(k - r.slots.size) { HWidget("clock", n = 0) }
+        r.copy(slots = slots)
+    }
+
+    // ------------------------------------------------------------ верхняя полоска
+
+    fun updateTop(f: (HTop) -> HTop) = set(layout.copy(top = f(layout.top)))
+
+    fun updateStatus(id: String, f: (HStatus) -> HStatus) =
+        updateTop { t -> t.copy(status = t.status.map { if (it.id == id) f(it) else it }) }
+
+    fun moveStatus(id: String, delta: Int): Boolean {
+        val list = layout.top.status.toMutableList()
+        // двигаем среди видимых: прыжок через скрытые
+        val i = list.indexOfFirst { it.id == id }
+        var j = i + delta
+        while (j in list.indices && !list[j].visible) j += delta
+        if (i < 0 || j !in list.indices) return false
+        val s = list.removeAt(i)
+        list.add(j, s)
+        updateTop { it.copy(status = list) }
+        return true
+    }
+
+    // ------------------------------------------------------------ первый запуск: каналы и входы
+
+    /** Один раз добавляет строки для каналов приложений и входов HDMI, которые уже есть на устройстве. */
+    fun seed(ctx: Context, channels: List<ChRow>, inputs: List<TvIn>, bannerApps: List<String> = emptyList(), otherApps: List<String> = emptyList(), youtube: String? = null) {
+        if (sp.getBoolean("home_seeded", false)) return
+        val rows = ArrayList<HRow>()
+        if (inputs.isNotEmpty()) rows += HRow(newId("r"), ctx.getString(R.string.home_inputs), true, "apps", auto = "hdmi", count = 8, size = 56)
+        if (channels.any { it.key == "watch_next" }) rows += HRow(newId("r"), ctx.getString(R.string.home_watch_next), true, "cards", auto = "watch_next", count = 20, size = 100)
+        // официальный YouTube есть почти у всех: две строки его каналов, «все» и «музыка»
+        // строки создаются, только если у YouTube на этом устройстве есть каналы (на мобильной версии их нет)
+        val ytCh = if (youtube != null) channels.filter { it.key != "watch_next" && it.pkg == youtube } else emptyList()
+        if (ytCh.isNotEmpty()) {
+            rows += HRow(newId("r"), ctx.getString(R.string.yt_all), true, "cards", auto = "pkg:$youtube", count = 24, size = 100)
+            if (ytCh.any { c -> listOf("музык", "music", "музик").any { c.title.lowercase().contains(it) } })
+                rows += HRow(newId("r"), ctx.getString(R.string.yt_music), true, "cards", auto = "chm:$youtube|музык;music;музик", count = 24, size = 100)
+        }
+        val byPkg = channels.filter { it.key != "watch_next" && it.pkg.isNotBlank() && (ytCh.isEmpty() || it.pkg != youtube) }.groupBy { it.pkg }
+        for (pkg in byPkg.keys.take(3)) {
+            val label = runCatching { ctx.packageManager.getApplicationLabel(ctx.packageManager.getApplicationInfo(pkg, 0)).toString() }.getOrDefault(pkg)
+            rows += HRow(newId("r"), label, true, "cards", auto = "pkg:$pkg", count = 24, size = 100)
+        }
+        fun appItems(pkgs: List<String>, mode: String) = pkgs.map { HItem(newId("i"), "app", it, mode = mode, showLabel = mode == "icon") }
+        if (bannerApps.isNotEmpty()) rows += HRow(newId("r"), ctx.getString(R.string.home_apps_row), true, "apps", appItems(bannerApps, "banner"), size = 72, itemMode = "banner")
+        if (otherApps.isNotEmpty()) rows += HRow(newId("r"), ctx.getString(R.string.home_more_apps), true, "apps", appItems(otherApps, "icon"), size = 72, itemMode = "icon")
+        if (rows.isNotEmpty()) {
+            val last = layout.rows.lastOrNull()
+            val keepLast = last != null && last.kind == "apps" && last.auto.isEmpty() && last.items.size == 1 && last.items[0].kind == "menu"
+            set(layout.copy(rows = if (keepLast) layout.rows.dropLast(1) + rows + last!! else layout.rows + rows))
+        }
+        // без разрешения на каналы чтение пустое: пробуем снова при следующем запуске
+        if (channels.isNotEmpty() || Channels.granted(ctx)) sp.edit().putBoolean("home_seeded", true).apply()
+    }
+}
+
+/** Свои картинки значков и баннеров: файлы hm_<id>.png рядом с остальными значками (их забирает резервная копия). */
+object HomeImg {
+    private val cache = object : LruCache<String, Bitmap>(24 * 1024 * 1024) { override fun sizeOf(k: String, v: Bitmap) = v.byteCount }
+
+    private fun file(ctx: Context, id: String) = File(File(ctx.filesDir, "icons").apply { mkdirs() }, "hm_$id.png")
+
+    fun load(ctx: Context, id: String): Bitmap? {
+        val f = file(ctx, id)
+        if (!f.exists()) return null
+        val key = id + "|" + f.lastModified()
+        cache.get(key)?.let { return it }
+        val b = runCatching { BitmapFactory.decodeFile(f.path) }.getOrNull() ?: return null
+        cache.put(key, b)
+        return b
+    }
+
+    /** Читает выбранную картинку, уменьшает до 640 по длинной стороне и сохраняет как PNG. */
+    fun save(ctx: Context, id: String, uri: Uri): Boolean = runCatching {
+        fun open() = ctx.contentResolver.openInputStream(uri)!!
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        open().use { BitmapFactory.decodeStream(it, null, bounds) }
+        var s = 1
+        while (maxOf(bounds.outWidth, bounds.outHeight) / (s * 2) >= 640) s *= 2
+        val bmp = open().use { BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = s }) } ?: error("decode")
+        file(ctx, id).outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        HomeStore.bumpImg()
+        true
+    }.getOrDefault(false)
+
+    /** Сохраняет готовую картинку (например, созданный баннер) как свою картинку плитки. */
+    fun saveBitmap(ctx: Context, id: String, bmp: Bitmap): Boolean = runCatching {
+        file(ctx, id).outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        HomeStore.bumpImg()
+        true
+    }.getOrDefault(false)
+
+    fun delete(id: String) {
+        val c = HomeStore.appContext() ?: return
+        if (runCatching { file(c, id).delete() }.getOrDefault(false)) HomeStore.bumpImg()
+    }
+}
+
+/** Файлы фона: картинка лежит рядом со значками (её забирает резервная копия), видео и анимация в папке программы. menu: фон меню. */
+object HomeBgFiles {
+    fun image(ctx: Context, menu: Boolean = false) = File(File(ctx.filesDir, "icons").apply { mkdirs() }, if (menu) "hm_mbg.png" else "hm_bg.png")
+    fun media(ctx: Context, menu: Boolean = false) = File(ctx.filesDir, if (menu) "menu_bg_media" else "home_bg_media")
+
+    fun saveImage(ctx: Context, uri: Uri, menu: Boolean = false): Boolean = runCatching {
+        fun open() = ctx.contentResolver.openInputStream(uri)!!
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        open().use { BitmapFactory.decodeStream(it, null, bounds) }
+        var s = 1
+        while (maxOf(bounds.outWidth, bounds.outHeight) / (s * 2) >= 1920) s *= 2
+        val bmp = open().use { BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = s }) } ?: error("decode")
+        image(ctx, menu).outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        HomeStore.bumpImg()
+        true
+    }.getOrDefault(false)
+
+    fun saveMedia(ctx: Context, uri: Uri, menu: Boolean = false): Boolean = runCatching {
+        val tmp = File(ctx.filesDir, "bg_media.tmp")
+        ctx.contentResolver.openInputStream(uri)!!.use { i -> tmp.outputStream().use { o -> i.copyTo(o) } }
+        val f = media(ctx, menu)
+        f.delete()
+        tmp.renameTo(f)
+        HomeStore.bumpImg()
+        true
+    }.getOrDefault(false)
+}

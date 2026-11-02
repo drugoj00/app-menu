@@ -103,6 +103,7 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
     var net by remember { mutableStateOf(false) }
     var wifi by remember { mutableStateOf(false) }
     var backups by remember { mutableStateOf(false) }
+    var menuBgDlg by remember { mutableStateOf(false) }
     val saveBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         if (uri != null) {
             val ok = runCatching { ctx.contentResolver.openOutputStream(uri)?.use { Backup.write(ctx, it) } != null }.getOrDefault(false)
@@ -175,6 +176,9 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                 Section(stringResource(R.string.set_tilebg)) {
                     Options(listOf(true to stringResource(R.string.tilebg_clear), false to stringResource(R.string.tilebg_card)), Cfg.transparentTiles) { Cfg.changeTransparentTiles(it) }
                 }
+                Section(stringResource(R.string.bg_menu_title)) {
+                    Chip(stringResource(R.string.bg_menu_btn), false) { menuBgDlg = true }
+                }
                 Section(stringResource(R.string.set_view)) {
                     Options(listOf(false to stringResource(R.string.view_grid), true to stringResource(R.string.view_list)), Cfg.listMode) { Cfg.changeListMode(it) }
                 }
@@ -226,7 +230,14 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                     Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.bootWarm) { Cfg.changeBootWarm(it) }
                 }
                 Section(stringResource(R.string.set_fullscreen)) {
-                    Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.fullscreen) { Cfg.changeFullscreen(it); onFullscreenChanged() }
+                    val ctxSb = androidx.compose.ui.platform.LocalContext.current
+                    var sbS by remember { mutableStateOf(!SysBars.hidden(ctxSb, false)) }
+                    var sbN by remember { mutableStateOf(!SysBars.hidden(ctxSb, true)) }
+                    val onOff = listOf(true to stringResource(R.string.on), false to stringResource(R.string.off))
+                    Text(stringResource(R.string.sb_status), color = t.sub, fontSize = 13.sp)
+                    Options(onOff, sbS) { sbS = it; SysBars.set(ctxSb, false, if (it) 1 else 2); onFullscreenChanged() }
+                    Text(stringResource(R.string.sb_nav), color = t.sub, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
+                    Options(onOff, sbN) { sbN = it; SysBars.set(ctxSb, true, if (it) 1 else 2); onFullscreenChanged() }
                 }
                 Section(stringResource(R.string.set_hidden)) {
                     Options(listOf(false to stringResource(R.string.hidden_hide), true to stringResource(R.string.hidden_show)), Cfg.showHidden) { Cfg.changeShowHidden(it) }
@@ -249,6 +260,16 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                 }
                 Section(stringResource(R.string.set_return)) {
                     Options(listOf("menu" to stringResource(R.string.return_menu), "home" to stringResource(R.string.return_home)), Cfg.returnTo) { Cfg.changeReturnTo(it) }
+                }
+                Section(stringResource(R.string.home_module_title)) {
+                    Text(stringResource(R.string.home_module_hint), color = t.hint, fontSize = 12.sp)
+                    Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.homeModule) { v ->
+                        if (v) HomeModule.enable()
+                        else scope.launch {
+                            val r = HomeModule.disable(ctx)
+                            Toast.makeText(ctx, ctx.getString(if (r.isEmpty()) R.string.home_module_off_ok else R.string.home_module_off_fail), Toast.LENGTH_LONG).show()
+                        }
+                    }
                 }
                 Section(stringResource(R.string.set_home)) {
                     Text(stringResource(R.string.set_home_hint), color = t.hint, fontSize = 12.sp)
@@ -285,6 +306,7 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                             }
                         }
                     }
+                    HomeHardBlock()
                 }
                 Section(stringResource(R.string.backup_title)) {
                     Text(stringResource(R.string.backup_hint), color = t.hint, fontSize = 12.sp)
@@ -318,18 +340,47 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                     }
                     Text(stringResource(R.string.root_hint), color = t.hint, fontSize = 12.sp)
                 }
+                Section(stringResource(R.string.about_title)) {
+                    Text(stringResource(R.string.about_version, BuildConfig.VERSION_NAME), color = t.sub, fontSize = 14.sp)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Chip(stringResource(R.string.about_site), false) { openUrl(ctx, "https://drugoj00.github.io/phone-in-window-with-sound/app-menu.html") }
+                        Chip(stringResource(R.string.about_tg), false) { openUrl(ctx, "https://t.me/PhoneInWindowSound") }
+                        Chip(stringResource(R.string.about_gh), false) { openUrl(ctx, "https://github.com/drugoj00/app-menu") }
+                        Chip(stringResource(R.string.about_all), false) { openUrl(ctx, "https://drugoj00.github.io/") }
+                    }
+                    Text(stringResource(R.string.about_support), color = t.sub, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Chip(stringResource(R.string.about_card), false) { openUrl(ctx, "https://secure.wayforpay.com/button/bba92579a4647") }
+                        Chip(stringResource(R.string.about_usdt), false) { copyText(ctx, "TXk32CLkwJryTqhmkw6urcM5CacJgPsSpJ") }
+                    }
+                }
                 Spacer(Modifier.size(24.dp))
             } else {
                 HiddenList(apps)
             }
         }
     }
+    if (menuBgDlg) BgDialogHost(true) { menuBgDlg = false }
     if (adbDialog) AdbConnectDialog(onClose = { adbDialog = false; Conn.refresh() })
     installFiles?.let { files -> InstallDialog(files) { installFiles = null } }
     if (net) NetDialog { net = false }
     if (backups) BackupsDialog { backups = false }
     if (browser) FileBrowser(onApks = { browser = false; installFiles = it }, onClose = { browser = false })
     if (wifi) UploadDialog(onApks = { wifi = false; installFiles = it }, onClose = { wifi = false })
+}
+
+/** Копирует текст в буфер обмена и сообщает об этом. */
+private fun copyText(ctx: android.content.Context, text: String) {
+    runCatching {
+        (ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager)
+            .setPrimaryClip(android.content.ClipData.newPlainText("", text))
+        Toast.makeText(ctx, ctx.getString(R.string.about_copied, text), Toast.LENGTH_SHORT).show()
+    }
+}
+
+private fun openUrl(ctx: android.content.Context, url: String) {
+    runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        .onFailure { Toast.makeText(ctx, ctx.getString(R.string.home_cant_open), Toast.LENGTH_SHORT).show() }
 }
 
 @Composable

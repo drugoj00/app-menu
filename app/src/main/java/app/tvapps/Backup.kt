@@ -11,8 +11,8 @@ import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 /**
- * Резервная копия: все настройки (вид, сортировка, свой порядок значков, скрытые, набор значков, счётчики запусков)
- * и свои картинки значков в одном ZIP-файле. Ключ ADB в копию не входит: на новом устройстве нужно подключиться заново.
+ * Резервная копия: все настройки меню и экрана «Дом» (вид, сортировка, свой порядок значков, скрытые, набор значков, счётчики запусков,
+ * строки, виджеты и верхняя полоска «Дома») и свои картинки значков и баннеров в одном ZIP-файле. Ключ ADB в копию не входит: на новом устройстве нужно подключиться заново.
  */
 object Backup {
     private const val SETTINGS = "settings.json"
@@ -89,6 +89,8 @@ object Backup {
         val dir = File(ctx.filesDir, "icons").apply { mkdirs() }
         icons.forEach { (name, data) -> File(dir, name.replace("/", "_")).writeBytes(data) }
         Cfg.reload()
+        HomeStore.init(ctx)
+        HomeStore.reload()
         Cfg.bumpIcons()
         true
     }.getOrDefault(false)

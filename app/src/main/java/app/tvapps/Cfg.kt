@@ -67,8 +67,20 @@ object Cfg {
     var noRestoreAccess by mutableStateOf<Set<String>>(emptySet()); private set
     /** Пакет родного главного экрана, на который уходит второе нажатие «Домой»; пусто — выбрать самому. */
     var nativeHome by mutableStateOf(""); private set
+    /** Родные главные экраны, отключённые железным режимом «Дом» (для возврата). */
+    var hardOff by mutableStateOf<Set<String>>(emptySet()); private set
+    /** Показывать ряды «Дома» (избранное, недавние) над списком приложений, когда программа работает как главный экран. */
+    var homeRows by mutableStateOf(true); private set
+    /** Скрытые каналы приложений («пакет:номер»). */
+    var hiddenChannels by mutableStateOf<Set<String>>(emptySet()); private set
+    /** Город для карточки погоды в «Доме»; пусто: карточки нет. */
+    var weatherCity by mutableStateOf(""); private set
+    /** Избранные приложения в порядке добавления (пакеты через запятую). */
+    var favorites by mutableStateOf<List<String>>(emptyList()); private set
     /** Куда возвращаться после запущенной программы: menu — в это меню, home — на родной главный экран. */
     var returnTo by mutableStateOf("menu"); private set
+    /** Модуль «Дом» включён: кнопка «Дом» в меню, возврат в «Дом» по «Назад». Выключенный модуль оставляет только меню. */
+    var homeModule by mutableStateOf(true); private set
     /** Меняется при каждом запуске приложения, чтобы пересчитать сортировку «часто запускаемые». */
     var launchTick by mutableIntStateOf(0); private set
 
@@ -110,7 +122,13 @@ object Cfg {
         transparentTiles = sp.getBoolean("tile_transparent", true)
         iconPack = sp.getString("icon_pack", "") ?: ""
         nativeHome = sp.getString("native_home", "") ?: ""
+        hardOff = sp.getStringSet("home_hard_off", emptySet())?.toSet() ?: emptySet()
+        homeRows = sp.getBoolean("home_rows", true)
+        hiddenChannels = sp.getStringSet("hidden_channels", emptySet())?.toSet() ?: emptySet()
+        weatherCity = sp.getString("weather_city", "") ?: ""
+        favorites = (sp.getString("favorites", "") ?: "").split(',').filter { it.isNotBlank() }
         returnTo = sp.getString("return_to", "menu") ?: "menu"
+        homeModule = sp.getBoolean("home_module", true)
         bootWarm = sp.getBoolean("boot_warm", true)
         pinnedAccess = sp.getStringSet("pinned_access", emptySet())?.toSet() ?: emptySet()
         noRestoreAccess = sp.getStringSet("no_restore_access", emptySet())?.toSet() ?: emptySet()
@@ -135,6 +153,20 @@ object Cfg {
         noRestoreAccess = if (c in noRestoreAccess) noRestoreAccess - c else noRestoreAccess + c
         sp.edit().putStringSet("no_restore_access", noRestoreAccess).apply()
     }
+    fun changeHomeModule(v: Boolean) { homeModule = v; sp.edit().putBoolean("home_module", v).apply() }
+    fun changeHomeRows(v: Boolean) { homeRows = v; sp.edit().putBoolean("home_rows", v).apply() }
+    fun changeWeatherCity(v: String) { weatherCity = v.trim(); sp.edit().putString("weather_city", weatherCity).apply() }
+    fun toggleChannel(key: String) {
+        hiddenChannels = if (key in hiddenChannels) hiddenChannels - key else hiddenChannels + key
+        sp.edit().putStringSet("hidden_channels", hiddenChannels).apply()
+    }
+    fun isFavorite(pkg: String) = pkg in favorites
+    fun toggleFavorite(pkg: String) {
+        favorites = if (pkg in favorites) favorites - pkg else favorites + pkg
+        sp.edit().putString("favorites", favorites.joinToString(",")).apply()
+    }
+    fun lastLaunch(pkg: String): Long = sp.getLong("t_$pkg", 0L)
+    fun changeHardOff(v: Set<String>) { hardOff = v; sp.edit().putStringSet("home_hard_off", v).apply() }
     fun changeNativeHome(v: String) { nativeHome = v; sp.edit().putString("native_home", v).apply() }
     fun changeReturnTo(v: String) { returnTo = v; sp.edit().putString("return_to", v).apply() }
     fun changeTheme(v: String) { theme = v; sp.edit().putString("theme", v).apply() }
@@ -197,7 +229,7 @@ object Cfg {
 
     fun launches(pkg: String): Int = sp.getInt("n_$pkg", 0)
     fun countLaunch(pkg: String) {
-        sp.edit().putInt("n_$pkg", launches(pkg) + 1).apply()
+        sp.edit().putInt("n_$pkg", launches(pkg) + 1).putLong("t_$pkg", System.currentTimeMillis()).apply()
         launchTick++
     }
 }

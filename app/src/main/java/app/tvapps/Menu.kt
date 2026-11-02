@@ -1,5 +1,7 @@
 package app.tvapps
 
+import kotlinx.coroutines.sync.withLock
+
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
@@ -34,6 +36,7 @@ import androidx.compose.material.icons.outlined.Create
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
@@ -342,7 +345,8 @@ fun AppMenu(e: Entry, hidden: Boolean, onToggleHide: () -> Unit, onSelect: () ->
                         Row(Modifier.fillMaxWidth()) {
                             ActionCell(IconVersions, stringResource(R.string.versions_cell), Modifier.weight(1f)) { onClose(); host?.openVersions(e) }
                             ActionCell(IconUpdates, stringResource(R.string.upd_cell), Modifier.weight(1f)) { onClose(); host?.openUpdates(e) }
-                            Spacer(Modifier.weight(2f))
+                            ActionCell(Icons.Outlined.Star, stringResource(if (Cfg.isFavorite(e.pkg)) R.string.fav_remove else R.string.fav_add), Modifier.weight(1f)) { Cfg.toggleFavorite(e.pkg); onClose() }
+                            Spacer(Modifier.weight(1f))
                         }
                     }
                     else -> Column(Modifier.fillMaxWidth().background(Pop.band).padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -702,11 +706,14 @@ private fun ConnectPanel(first: FocusRequester, onDone: () -> Unit, onBack: () -
 }
 
 /** Тихая попытка подключиться при запуске: без окон, если не получилось, подключение делается из меню. */
-suspend fun autoConnect(ctx: android.content.Context) {
+private val autoConnectLock = kotlinx.coroutines.sync.Mutex()
+
+suspend fun autoConnect(ctx: android.content.Context) = autoConnectLock.withLock {
+    // вызывают и меню при запуске, и защита «Дома»: по одному, иначе два подключения мешают друг другу
     Adb.awaitReady()
-    if (Adb.isConnected) { Conn.refresh(); return }
+    if (Adb.isConnected) { Conn.refresh(); return@withLock }
     // root (Magisk) важнее ADB: компьютер и отладка по Wi-Fi не нужны (магнитолы, приставки)
-    if (Cfg.useRoot && Adb.tryRoot()) { Conn.refresh(); return }
+    if (Cfg.useRoot && Adb.tryRoot()) { Conn.refresh(); return@withLock }
     val r = Adb.connectWireless(ctx, null)
     if (r.isFailure || !Adb.isConnected) Adb.connectLocal(5555)
     Conn.refresh()
