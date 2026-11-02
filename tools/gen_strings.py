@@ -378,7 +378,48 @@ S = {
     'autopair_run': ('Connect automatically', 'Подключить автоматически', 'Підключити автоматично'),
     'open_wireless_dbg_manual': ('Or by hand: open "Wireless debugging" (code in a notification)', 'Или вручную: открыть «Отладку по Wi‑Fi» (код в уведомлении)', 'Або вручну: відкрити «Налагодження по Wi‑Fi» (код у сповіщенні)'),
     'connect_text_old': ('Stop, cache, data, permissions and battery need ADB debugging on this device. Android 10 and older or a car head unit: turn on ADB over network (port 5555) and press "ADB over network".', 'Для остановки, кэша, данных, разрешений и батареи нужна отладка по ADB на этом устройстве. Android 10 и старше или автомагнитола: включи ADB по сети (порт 5555) и нажми «ADB по сети».', 'Для зупинки, кешу, даних, дозволів і батареї потрібне налагодження по ADB на цьому пристрої. Android 10 і старіші або автомагнітола: увімкни ADB по мережі (порт 5555) і натисни «ADB по мережі».'),
+    'home_hard_hint': ('Iron mode: the built-in home screens, which the firmware starts first and does not let you stop, are switched off for your user. After that the home key and the boot lead only here. Needs ADB or root. You can undo it with the big button below; the commands to undo it from a computer are also saved in the file tvapps_home_restore.txt on the device.',
+                       'Железный режим: родные главные экраны, которые прошивка запускает первыми и не даёт остановить, отключаются для вашего пользователя. После этого кнопка «Домой» и загрузка ведут только сюда. Нужен ADB или root. Вернуть всё можно большой кнопкой ниже; команды возврата с компьютера лежат в файле tvapps_home_restore.txt на устройстве.',
+                       'Залізний режим: рідні головні екрани, які прошивка запускає першими й не дає зупинити, вимикаються для вашого користувача. Після цього кнопка «Додому» і завантаження ведуть лише сюди. Потрібен ADB або root. Повернути все можна великою кнопкою нижче; команди повернення з комп’ютера лежать у файлі tvapps_home_restore.txt на пристрої.'),
+    'home_hard_btn': ('Iron mode: switch off the built-in home screen', 'Железно: отключить родной экран', 'Залізно: вимкнути рідний екран'),
+    'home_hard_confirm': ('Will be switched off: %1$s. Press the button once more within 15 seconds to confirm.', 'Будет отключено: %1$s. Нажмите кнопку ещё раз в течение 15 секунд, чтобы подтвердить.', 'Буде вимкнено: %1$s. Натисніть кнопку ще раз протягом 15 секунд, щоб підтвердити.'),
+    'home_hard_back': ('RESTORE THE BUILT-IN HOME SCREEN', 'ВЕРНУТЬ РОДНОЙ ЭКРАН', 'ПОВЕРНУТИ РІДНИЙ ЕКРАН'),
+    'home_hard_on_ok': ('Done: the built-in home screen is off, the home key leads here.', 'Готово: родной экран отключён, кнопка «Домой» ведёт сюда.', 'Готово: рідний екран вимкнено, кнопка «Додому» веде сюди.'),
+    'home_hard_off_ok': ('The built-in home screen is back.', 'Родной экран возвращён.', 'Рідний екран повернено.'),
+    'home_hard_state': ('Iron mode is ON. Switched off: %1$s', 'Железный режим ВКЛЮЧЁН. Отключено: %1$s', 'Залізний режим УВІМКНЕНО. Вимкнено: %1$s'),
+    'home_hard_no_adb': ('ADB or root is not connected: connect it above first.', 'ADB или root не подключён: сначала подключите его выше.', 'ADB або root не підключено: спершу підключіть його вище.'),
+    'home_hard_no_others': ('No other home screen found, nothing to switch off.', 'Других главных экранов не найдено, отключать нечего.', 'Інших головних екранів не знайдено, вимикати нічого.'),
+    'home_hard_fail': ('Could not switch it off (%1$s). Everything stays as it was.', 'Отключить не удалось (%1$s). Всё осталось как было.', 'Вимкнути не вдалося (%1$s). Усе лишилося як було.'),
+    'home_hard_partial': ('Not everything was restored: connect ADB or root and press again.', 'Вернулось не всё: подключите ADB или root и нажмите ещё раз.', 'Повернулося не все: підключіть ADB або root і натисніть ще раз.'),
+    'home_hard_guard': ('Protection worked: the app restarted too often, so the built-in home screen was returned.', 'Сработала защита: программа слишком часто перезапускалась, поэтому родной экран возвращён.', 'Спрацював захист: програма надто часто перезапускалась, тому рідний екран повернено.'),
+    'home_hard_manual': ('If the app does not open: from a computer run the commands from the file tvapps_home_restore.txt, or in Android settings open Apps, show system apps and enable the disabled launcher.', 'Если программа не открывается: с компьютера выполните команды из файла tvapps_home_restore.txt, либо в настройках Android откройте «Приложения», покажите системные и включите отключённый лаунчер.', 'Якщо програма не відкривається: з комп’ютера виконайте команди з файлу tvapps_home_restore.txt, або в налаштуваннях Android відкрийте «Застосунки», покажіть системні й увімкніть вимкнений лаунчер.'),
+    'fav_add': ('Favourite', 'В избранное', 'В обране'),
+    'fav_remove': ('Unfavourite', 'Из избранного', 'З обраного'),
+    'home_fav': ('Favourites', 'Избранное', 'Обране'),
+    'home_recent': ('Recent', 'Недавние', 'Нещодавні'),
+    'home_all': ('All apps', 'Все приложения', 'Усі застосунки'),
+    'home_rows_sw': ('Show Favourites and Recent rows above the list', 'Показывать ряды «Избранное» и «Недавние» над списком', 'Показувати ряди «Обране» та «Нещодавні» над списком'),
+    'home_voice': ('Voice', 'Голос', 'Голос'),
+    'home_no_voice': ('Voice input is not available on this device', 'Голосовой ввод на этом устройстве недоступен', 'Голосове введення на цьому пристрої недоступне'),
+    'home_channels_on': ('Turn on app channels', 'Включить каналы приложений', 'Увімкнути канали застосунків'),
+    'home_channels_ok': ('App channels are on', 'Каналы приложений включены', 'Канали застосунків увімкнено'),
+    'home_channels_fail': ('Could not turn on channels: connect ADB or root, or allow "TV listings" in the app permissions', 'Не удалось включить каналы: подключите ADB или root либо разрешите «Телепрограммы» в правах приложения', 'Не вдалося увімкнути канали: підключіть ADB або root чи дозвольте «Телепрограми» в правах застосунку'),
+    'home_watch_next': ('Continue watching', 'Продолжить просмотр', 'Продовжити перегляд'),
+    'home_inputs': ('Inputs', 'Входы', 'Входи'),
+    'home_cant_open': ('Could not open', 'Не удалось открыть', 'Не вдалося відкрити'),
+    'home_city': ('City for the weather card (empty: no card)', 'Город для карточки погоды (пусто: карточки нет)', 'Місто для картки погоди (порожньо: картки немає)'),
+    'home_city_save': ('Save', 'Сохранить', 'Зберегти'),
+    'home_acc_warn': ('These accessibility services can intercept the Home key and conflict with the home screen: %1$s', 'Эти службы спецвозможностей могут перехватывать кнопку «Домой» и конфликтовать с главным экраном: %1$s', 'Ці служби спецможливостей можуть перехоплювати кнопку «Додому» і конфліктувати з головним екраном: %1$s'),
+    'home_wind': ('m/s', 'м/с', 'м/с'),
+    'home_all_btn': ('All apps', 'Все приложения', 'Усі застосунки'),
+    'home_refresh': ('Refresh', 'Обновить', 'Оновити'),
+    'home_empty': ('Add apps to Favourites: long press an icon in All apps and choose the star. Set a city for the weather in Settings.', 'Добавьте приложения в избранное: долгое нажатие на значок в «Все приложения», затем звезда. Город для погоды задаётся в настройках.', 'Додайте застосунки до обраного: довге натискання на значок у «Усі застосунки», потім зірка. Місто для погоди задається в налаштуваннях.'),
 }
+
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from gen_strings_home2 import HOME2
+S.update(HOME2)
 
 
 def esc(s):
