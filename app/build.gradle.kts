@@ -14,8 +14,8 @@ android {
         applicationId = "app.tvapps"
         minSdk = 23
         targetSdk = 34
-        versionCode = 3
-        versionName = "1.2"
+        versionCode = 4
+        versionName = "2.0"
     }
 
     // ключ подписи лежит в keystore/ (не публикуется, копия в C:\DIMIDIYA\ключі\TVApps); без него release собирается неподписанным
@@ -30,7 +30,14 @@ android {
         }
     }
     buildTypes {
+        debug {
+            buildConfigField("String", "SIGNER_SHA256", "\"\"")
+            // отладочная сборка подписывается тем же ключом, что и выпуск: ставится поверх установленной на приставках без удаления
+            if (ksFile.exists()) signingConfig = signingConfigs.getByName("release")
+        }
         release {
+            // отпечаток SHA-256 нашего ключа подписи: по нему программа узнаёт, что копия не подделана (проверка только в release)
+            buildConfigField("String", "SIGNER_SHA256", "\"50C8E1ECCCDF018406449C65B9C89F75C602D4B052E559822F6A9157E98178C0\"")
             // сжатие и оптимизация кода заметно ускоряют запуск на слабых приставках
             isMinifyEnabled = true
             isShrinkResources = true
@@ -45,7 +52,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
     packaging { resources.excludes += setOf("META-INF/*") }
 }
 
