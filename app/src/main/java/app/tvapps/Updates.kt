@@ -167,6 +167,11 @@ object Updates {
     private var ghMap: JSONObject? = null
 
     private fun ghKnown(ctx: Context, pkg: String): List<Triple<String, String, String?>> {
+        // собственная программа и наши другие Android-программы: выпуски в наших репозиториях (проверка обновлений самой программы)
+        when (pkg) {
+            "app.tvapps" -> return listOf(Triple("drugoj00", "app-menu", null))
+            "app.adbphon" -> return listOf(Triple("drugoj00", "adb-phon", null))
+        }
         val m = synchronized(this) {
             ghMap ?: runCatching { JSONObject(ctx.assets.open("github_apps.json").bufferedReader().use { it.readText() }) }.getOrDefault(JSONObject()).also { ghMap = it }
         }

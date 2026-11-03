@@ -22,6 +22,14 @@ object Cfg {
     /** name, name_desc, new, old, freq */
     var sort by mutableStateOf("name"); private set
     var showLabels by mutableStateOf(true); private set
+    /** Строка-подсказка под заголовком: убирается нажатием на неё (на магнитоле она занимает много места). */
+    var showHint by mutableStateOf(true); private set
+    /** Масштаб самих значков в процентах (50..200), независимо от числа столбцов и строк. */
+    var iconScale by mutableIntStateOf(100); private set
+    /** Плотность сетки: 0 плотно, 1 обычно, 2 просторно (отступы вокруг значков и зазоры). */
+    var gridGap by mutableIntStateOf(1); private set
+    /** Строк на экране (0 авто): значки подгоняются по высоте, чтобы это число строк помещалось целиком. */
+    var gridRows by mutableIntStateOf(0); private set
     var fullscreen by mutableStateOf(true); private set
     var showHidden by mutableStateOf(false); private set
     var hidden by mutableStateOf<Set<String>>(emptySet()); private set
@@ -97,6 +105,10 @@ object Cfg {
         listMode = sp.getBoolean("list", false)
         sort = sp.getString("sort", "name") ?: "name"
         showLabels = sp.getBoolean("labels", true)
+        showHint = sp.getBoolean("hint", true)
+        iconScale = sp.getInt("iscale", 100).coerceIn(40, 220)
+        gridGap = sp.getInt("gap", 1).coerceIn(0, 2)
+        gridRows = sp.getInt("rows", 0).coerceIn(0, 12)
         fullscreen = sp.getBoolean("fullscreen", true)
         showHidden = sp.getBoolean("show_hidden", false)
         hidden = sp.getStringSet("hidden", emptySet())?.toSet() ?: emptySet()
@@ -139,6 +151,10 @@ object Cfg {
     fun changeIconSize(v: Int) { iconSize = v; sp.edit().putInt("icon", v).apply() }
     fun changeListMode(v: Boolean) { listMode = v; sp.edit().putBoolean("list", v).apply() }
     fun changeSort(v: String) { sort = v; sp.edit().putString("sort", v).apply() }
+    fun changeIconScale(v: Int) { iconScale = v.coerceIn(40, 220); sp.edit().putInt("iscale", iconScale).apply() }
+    fun changeGridGap(v: Int) { gridGap = v.coerceIn(0, 2); sp.edit().putInt("gap", gridGap).apply() }
+    fun changeGridRows(v: Int) { gridRows = v.coerceIn(0, 12); sp.edit().putInt("rows", gridRows).apply() }
+    fun changeShowHint(v: Boolean) { showHint = v; sp.edit().putBoolean("hint", v).apply() }
     fun changeShowLabels(v: Boolean) { showLabels = v; sp.edit().putBoolean("labels", v).apply() }
     fun changeFullscreen(v: Boolean) { fullscreen = v; sp.edit().putBoolean("fullscreen", v).apply() }
     fun changeShowHidden(v: Boolean) { showHidden = v; sp.edit().putBoolean("show_hidden", v).apply() }

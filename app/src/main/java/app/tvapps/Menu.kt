@@ -162,7 +162,15 @@ private fun ActionCell(icon: ImageVector, label: String, modifier: Modifier = Mo
     ) {
         Icon(icon, null, tint = tint, modifier = Modifier.size(26.dp))
         Spacer(Modifier.size(4.dp))
-        Text(label, color = tint, fontSize = btnSp(11), fontWeight = FontWeight.Medium, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Clip, lineHeight = btnSp(13))
+        // слово не рвётся посреди («Остано/вить»): пока перенос режет слово, шрифт подписи уменьшается
+        var k by remember(label) { mutableStateOf(1f) }
+        Text(
+            label, color = tint, fontSize = btnSp(14) * k, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Clip, lineHeight = btnSp(16) * k,
+            onTextLayout = { r ->
+                val cut = (0 until r.lineCount - 1).any { i -> val end = r.getLineEnd(i); end in 1 until label.length && label[end - 1].isLetterOrDigit() && label[end].isLetterOrDigit() }
+                if (cut && k > 0.62f) k -= 0.06f
+            },
+        )
     }
 }
 
@@ -277,7 +285,8 @@ fun AppMenu(e: Entry, hidden: Boolean, onToggleHide: () -> Unit, onSelect: () ->
 
     Popup(popupPositionProvider = provider, onDismissRequest = onClose, properties = PopupProperties(focusable = true)) {
         HalfUi {
-        Column(Modifier.width(minOf(384f, screenDp().first - 16f).dp)) {
+        // на телефоне внутри окна размеры идут в половинном масштабе (HalfUi), поэтому доступная ширина в этих единицах вдвое больше
+        Column(Modifier.width(minOf(if (isNarrow()) 730f else 560f, screenDp().first * (if (isNarrow()) 2f else 1f) - 20f).dp)) {
             if (provider.below) Tail(provider.tailX, up = true, color = Pop.card)
             val cardScroll = rememberScrollState()
             Column(
@@ -285,7 +294,7 @@ fun AppMenu(e: Entry, hidden: Boolean, onToggleHide: () -> Unit, onSelect: () ->
             ) {
                 // шапка: название по центру и кружок «i» справа, как в One UI
                 Box(Modifier.fillMaxWidth().padding(start = 16.dp, end = 10.dp, top = 12.dp, bottom = 6.dp), contentAlignment = Alignment.Center) {
-                    Text(e.label, color = Pop.text, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 44.dp))
+                    Text(e.label, color = Pop.text, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 44.dp))
                     var infoFocused by remember { mutableStateOf(false) }
                     Box(
                         Modifier.align(Alignment.CenterEnd).size(40.dp)

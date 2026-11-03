@@ -12,6 +12,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusable
@@ -39,6 +40,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
@@ -202,6 +204,7 @@ class MainActivity : ComponentActivity() {
         applyFullscreen()
         MouseAsTouch.install(window)
         setContent {
+            UiScaleRoot {
             val tc = currentTC()
             MaterialTheme(colorScheme = if (tc.dark) darkColorScheme() else lightColorScheme()) {
                 val mbg = HomeStore.menuBg
@@ -212,6 +215,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+                    }
         }
     }
 
@@ -299,8 +303,16 @@ private fun arrange(all: List<Entry>, query: String): List<Entry> {
     return if (Cfg.sort == "custom") sorted else sorted.sortedBy { if (it.isFolder) 0 else 1 }
 }
 
-private fun iconDp(): Dp = when (Cfg.iconSize) { 3 -> 34.dp; 0 -> 52.dp; 2 -> 96.dp; else -> 72.dp }
+private fun iconDp(): Dp = (when (Cfg.iconSize) { 3 -> 34f; 0 -> 52f; 2 -> 96f; else -> 72f } * Cfg.iconScale / 100f).dp
+/** Отступ вокруг значка в плитке и зазор между плитками по настройке «Плотность». */
+private fun tilePad(): Float = when (Cfg.gridGap) { 0 -> 2f; 2 -> 14f; else -> if (Cfg.iconSize == 3) 3f else 10f }
+private fun tileGap(narrow: Boolean): Float = when (Cfg.gridGap) { 0 -> 0f; 2 -> if (narrow) 8f else 18f; else -> if (narrow) 3f else 10f }
 private fun labelSp() = when (Cfg.iconSize) { 3 -> 10; 0 -> 12; 2 -> 16; else -> 14 }
+/** Минимальная ширина ячейки на узком экране (телефон) по выбранному размеру значков и масштабу. */
+private fun narrowCell(): Float = ((when (Cfg.iconSize) { 3 -> 48f; 0 -> 62f; 2 -> 96f; else -> 78f }) * Cfg.iconScale / 100f).coerceAtLeast(34f)
+
+/** Предельный размер значка в сетке: на низком широком экране (магнитола 1200x600) значки ужимаются так, чтобы строки помещались целиком, без обрезанной снизу. null = без ограничения. */
+private val LocalIconCap = androidx.compose.runtime.compositionLocalOf<Dp?> { null }
 
 @Composable
 private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit) {
@@ -395,6 +407,10 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
     val shownRef = androidx.compose.runtime.rememberUpdatedState(shown)
     // на узком экране (телефон в портрете) шапка идёт двумя строками, значки мельче
     val narrow = isNarrow()
+    // низкий широкий экран (магнитола 1200x600): отступы шапки меньше, чтобы осталось место под значки
+    // две строки шапки только на телефоне в портрете; на всём остальном шапка одна и ужимается под ширину
+    val twoRow = narrow && androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 420
+    val shortWide = !narrow && androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 640
     val rootView = androidx.compose.ui.platform.LocalView.current
     /** Ставит курсор на запомненный значок (прокручивая к нему), а если его нет — на первый. */
     fun restoreFocus() {
@@ -546,13 +562,15 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
                     (!headerHasFocus || ev.key == Key.DirectionDown)
                 ) { restoreFocus(); true } else false
             }
-            .padding(horizontal = if (narrow) 10.dp else 32.dp, vertical = if (narrow) 10.dp else 16.dp),
+            .padding(
+                horizontal = if (narrow) 10.dp else if (shortWide) 20.dp else 32.dp,
+                vertical = if (narrow) 10.dp else if (shortWide) 6.dp else 16.dp,
+            ),
     ) {
         Column(Modifier.onFocusChanged { headerHasFocus = it.hasFocus }) {
         HalfUi {
         if (!Integrity.ok()) Text(stringResource(R.string.integrity_warn), color = Color(0xFFF87171), fontSize = 13.sp, modifier = Modifier.padding(bottom = 4.dp))
-        val adbText = stringResource(Conn.statusRes)
-        val headerButtons: @Composable () -> Unit = {
+        val leftButtons: @Composable () -> Unit = {
             // долгое нажатие «Дом» — уведомления
             if (Cfg.homeModule) HeaderTextButton(stringResource(R.string.home_btn), onLong = { TopUi.notifs.value = true }) { goHome(ctx) }
             HeaderTextButton(stringResource(R.string.restart)) { restartApp(ctx) }
@@ -563,27 +581,31 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
             }
             if (searching || query.isNotEmpty()) SearchBox(query, wide = !narrow) { query = it }
             else HeaderTextButton(stringResource(R.string.search_hint)) { searching = true }
-            HeaderTextButton(if (Cfg.updFound > 0) stringResource(R.string.upd_badge, Cfg.updFound) else stringResource(R.string.upd_cell)) { updatesAll = true }
-            HeaderTextButton(stringResource(R.string.settings)) { screen = "settings" }
         }
-        if (narrow && androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 720) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(R.string.title), fontSize = 20.sp, color = t.text, maxLines = 1, softWrap = false)
-                Text(stringResource(R.string.count, shown.size), fontSize = 13.sp, color = t.sub, maxLines = 1)
-            }
-            Text(adbText, fontSize = 11.sp, color = if (Conn.connected) t.accent else t.sub, maxLines = 1)
-            @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-            androidx.compose.foundation.layout.FlowRow(
-                Modifier.fillMaxWidth().padding(top = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) { headerButtons() }
-        } else {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(stringResource(R.string.title), fontSize = 24.sp, color = t.text)
-                Text(stringResource(R.string.count, shown.size), fontSize = 15.sp, color = t.sub, modifier = Modifier.padding(start = 6.dp))
+        val rightButtons: @Composable () -> Unit = {
+            HeaderTextButton(if (Cfg.updFound > 0) stringResource(R.string.upd_badge, Cfg.updFound) else stringResource(R.string.upd_cell)) { updatesAll = true }
+            HeaderTextButton(stringResource(R.string.settings), icon = Icons.Outlined.Settings) { screen = "settings" }
+        }
+        val headerButtons: @Composable () -> Unit = { leftButtons(); rightButtons() }
+        if (twoRow) {
+            // портрет: сверху «Приложения 128» и справа «Обновления» с шестерёнкой, под ними остальные кнопки в одну строку
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.title).uppercase(), fontSize = btnSp(19), color = Color(0xFF4ADE80), maxLines = 1, softWrap = false)
+                Text(stringResource(R.string.count, shown.size), fontSize = btnSp(19), color = t.sub, maxLines = 1)
                 Spacer(Modifier.weight(1f))
-                headerButtons()
-                Text(adbText, fontSize = 12.sp, color = if (Conn.connected) t.accent else t.sub)
+                rightButtons()
+            }
+            ShrinkToFit(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) { leftButtons() }
+            }
+        } else {
+            ShrinkToFit(Modifier.fillMaxWidth()) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(stringResource(R.string.title).uppercase(), fontSize = btnSp(19), color = Color(0xFF4ADE80), maxLines = 1, softWrap = false)
+                    Text(stringResource(R.string.count, shown.size), fontSize = btnSp(19), color = t.sub, maxLines = 1, modifier = Modifier.padding(start = 6.dp))
+                        Spacer(Modifier.weight(1f))
+                    headerButtons()
+                }
             }
         }
         if (moving != null) {
@@ -615,7 +637,11 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
                 Chip(stringResource(R.string.sel_done), true) { endSelect() }
             }
         } else {
-            if (!narrow) Text(stringResource(R.string.hint), fontSize = 12.sp, color = t.hint, modifier = Modifier.padding(top = 4.dp, bottom = 10.dp))
+            // подсказка убирается нажатием на неё (возвращается в настройках); состояние Root/ADB в шапке только точкой, текст в настройках
+            if (!narrow && Cfg.showHint) Text(
+                stringResource(R.string.hint), fontSize = 12.sp, color = t.hint,
+                modifier = Modifier.fillMaxWidth().clickable { Cfg.changeShowHint(false) }.padding(top = 4.dp, bottom = if (shortWide) 4.dp else 10.dp),
+            )
             else Spacer(Modifier.height(6.dp))
         }
         }
@@ -656,19 +682,36 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
             LazyColumn(Modifier.fillMaxSize().onFocusChanged { gridHasFocus = it.hasFocus }, state = listState, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(shown, key = { it.pkg }) { e -> tileFor(e, true) }
             }
-        } else {
+        } else androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
+            // Правила сетки (все настройки работают вместе и не отменяют друг друга):
+            //  • «Размер значков» и «Масштаб» задают размер значка (размер x масштаб) и ширину ячейки при авто-столбцах;
+            //  • «Столбцы» задают число столбцов, значок при этом не шире своей ячейки;
+            //  • «Строки» задают число строк, значок такой, чтобы все строки поместились по высоте;
+            //  • «Плотность» меняет только отступы и зазоры.
+            val h = maxHeight.value - 20f
+            val fs = androidx.compose.ui.platform.LocalDensity.current.fontScale
+            val lbEst = if (Cfg.iconSize == 3) 11 else if (narrow) 12 else (labelSp() * 1.15f).toInt()
+            // высота плитки без значка: поля + зазор + две строки подписи
+            val over = 2 * tilePad() + (if (Cfg.showLabels) (if (Cfg.gridGap == 0 || Cfg.iconSize == 3) 2f else 6f) + 2 * lbEst * fs * 1.32f else 0f)
+            val gv = tileGap(narrow)
+            val padH = if (narrow) 2f else 8f
+            val capRows: Float? = if (Cfg.gridRows > 0) ((h - (Cfg.gridRows - 1) * gv) / Cfg.gridRows - over).coerceAtLeast(20f) else null
+            val capCols: Float? = if (Cfg.columns > 0) (((maxWidth.value - 2 * padH - (Cfg.columns - 1) * gv) / Cfg.columns) - 2 * tilePad()).coerceAtLeast(20f) else null
+            val cap: Dp? = listOfNotNull(capRows, capCols).minOrNull()?.dp
+            CompositionLocalProvider(LocalIconCap provides cap) {
             LazyVerticalGrid(
                 columns = if (Cfg.columns > 0) GridCells.Fixed(Cfg.columns) else if (narrow && Cfg.iconSize == 3) GridCells.Fixed(5) else GridCells.Adaptive(
-                    if (narrow) (if (Cfg.iconSize == 3) 48.dp else if (Cfg.iconSize == 0) 62.dp else if (Cfg.iconSize == 2) 96.dp else 78.dp)
-                    else if (Cfg.iconSize == 3) 76.dp else if (Cfg.iconSize == 0) 110.dp else if (Cfg.iconSize == 2) 190.dp else 150.dp,
+                    if (narrow) narrowCell().dp
+                    else ((if (Cfg.iconSize == 3) 76f else if (Cfg.iconSize == 0) 110f else if (Cfg.iconSize == 2) 190f else 150f) * Cfg.iconScale / 100f).coerceAtLeast(34f).dp,
                 ),
                 modifier = Modifier.fillMaxSize().onFocusChanged { gridHasFocus = it.hasFocus },
                 state = gridState,
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = if (narrow) 2.dp else 8.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(if (narrow) 2.dp else 10.dp),
-                verticalArrangement = Arrangement.spacedBy(if (narrow) (if (Cfg.iconSize == 3) 0.dp else 4.dp) else 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(tileGap(narrow).dp),
+                verticalArrangement = Arrangement.spacedBy(tileGap(narrow).dp),
             ) {
                 items(shown, key = { it.pkg }) { e -> tileFor(e, false) }
+            }
             }
         }
         }
@@ -750,7 +793,7 @@ private fun SearchBox(value: String, wide: Boolean = true, onChange: (String) ->
 /** Кнопка шапки со словом: на телевизоре нет подсказок при наведении, поэтому значков без подписи нет. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun HeaderTextButton(text: String, onLong: (() -> Unit)? = null, onClick: () -> Unit) {
+private fun HeaderTextButton(text: String, onLong: (() -> Unit)? = null, icon: androidx.compose.ui.graphics.vector.ImageVector? = null, onClick: () -> Unit) {
     val t = LocalTh.current
     var focused by remember { mutableStateOf(false) }
     val (hm, hover) = rememberHover()
@@ -765,7 +808,10 @@ private fun HeaderTextButton(text: String, onLong: (() -> Unit)? = null, onClick
             .combinedClickable(onClick = onClick, onLongClick = onLong)
             .padding(horizontal = if (isNarrow()) 11.dp else 16.dp),
         contentAlignment = Alignment.Center,
-    ) { Text(text, fontSize = btnSp(16), color = t.text, maxLines = 1) }
+    ) {
+        if (icon != null) androidx.compose.material3.Icon(icon, contentDescription = text, tint = t.text, modifier = Modifier.size(if (isNarrow()) 52.dp else 34.dp))
+        else Text(text, fontSize = btnSp(16), color = t.text, maxLines = 1)
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -781,9 +827,12 @@ internal fun AppTile(
     /** Мелкий значок для окна папки. */
     compact: Boolean = false,
 ) {
-    val icSize = if (compact) 44.dp else if (isNarrow()) iconDp().coerceAtMost(60.dp) else iconDp()
+    val iconCap = LocalIconCap.current
+    val baseIc = if (isNarrow()) iconDp().coerceAtMost((narrowCell() - 2 * tilePad()).coerceAtLeast(24f).dp) else iconDp()
+    val icSize = if (compact) 44.dp else if (iconCap != null) baseIc.coerceAtMost(iconCap) else baseIc
     val narrowScreen = isNarrow()
-    val lbSp = if (Cfg.iconSize == 3) 9 else if (compact || narrowScreen) 9 else labelSp()
+    // подпись крупнее прежнего: на магнитоле (узкий по dp экран) было 9 sp и текст читался плохо
+    val lbSp = if (Cfg.iconSize == 3) 11 else if (compact) 11 else if (narrowScreen) 12 else (labelSp() * 1.15f).toInt()
     val dragBegin by androidx.compose.runtime.rememberUpdatedState(onDragBegin)
     val dragMove by androidx.compose.runtime.rememberUpdatedState(onDragMove)
     val dragEnd by androidx.compose.runtime.rememberUpdatedState(onDragEnd)
@@ -871,7 +920,7 @@ internal fun AppTile(
                     onDragCancel = { if (started) dragEnd() },
                 )
             }
-            .padding(if (Cfg.iconSize == 3) 3.dp else 10.dp)
+            .padding(tilePad().dp)
         if (listRow) {
             Row(base.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 Image(bmp, null, Modifier.size(iconDp().coerceAtMost(64.dp)))
@@ -884,9 +933,19 @@ internal fun AppTile(
             Column(base, horizontalAlignment = Alignment.CenterHorizontally) {
                 Image(bmp, null, Modifier.size(icSize))
                 if (Cfg.showLabels) {
-                    Spacer(Modifier.height(if (Cfg.iconSize == 3) 2.dp else 6.dp))
+                    Spacer(Modifier.height(if (Cfg.gridGap == 0 || Cfg.iconSize == 3) 2.dp else 6.dp))
                     // две строки всегда: иначе плитка с длинным названием выше соседних и фон ряда «ломается»
-                    Text(e.label, fontSize = lbSp.sp, color = t.text, minLines = if (Cfg.iconSize == 3) 1 else 2, maxLines = if (Cfg.iconSize == 3) 1 else 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                    // слово не должно рваться посреди («APKExtract/or»): пока перенос режет слово, шрифт подписи уменьшается
+                    var lblSize by remember(e.label, lbSp) { mutableStateOf(lbSp.toFloat()) }
+                    Text(
+                        e.label, fontSize = lblSize.sp, lineHeight = (lblSize * 1.32f).sp, color = t.text, minLines = if (Cfg.iconSize == 3) 1 else 2, maxLines = if (Cfg.iconSize == 3) 1 else 2,
+                        overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
+                        onTextLayout = { r ->
+                            val s = e.label
+                            val cut = (0 until r.lineCount - 1).any { i -> val end = r.getLineEnd(i); end in 1 until s.length && s[end - 1].isLetterOrDigit() && s[end].isLetterOrDigit() }
+                            if (cut && lblSize > lbSp * 0.6f) lblSize -= 0.5f
+                        },
+                    )
                 }
             }
         }

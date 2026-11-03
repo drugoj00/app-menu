@@ -186,6 +186,24 @@ internal fun HomeDialogs(
                     else -> {
                         add(Opt(stringResource(R.string.row_size_widgets), "${row.size}", { upd { it.copy(size = (it.size - 1).coerceAtLeast(60)) } }, { upd { it.copy(size = (it.size + 1).coerceAtMost(320)) } }))
                         add(Opt(stringResource(R.string.row_slots), "${row.slots.size}", { HomeStore.setSlotCount(row.id, row.slots.size - 1) }, { HomeStore.setSlotCount(row.id, row.slots.size + 1) }))
+                        // оформление виджетов прямо в настройках строки (всем виджетам строки сразу); по одному: долгое нажатие на виджет
+                        val w0 = row.slots.firstOrNull()
+                        if (w0 != null) {
+                            val allW = { f: (HWidget) -> HWidget -> upd { r -> r.copy(slots = r.slots.map(f)) } }
+                            val rci = BORDER_COLORS.indexOf(w0.borderC).coerceAtLeast(0)
+                            val rAccent = LocalTh.current.accent
+                            val rsw = remember(rci, rAccent) {
+                                val bm = android.graphics.Bitmap.createBitmap(24, 24, android.graphics.Bitmap.Config.ARGB_8888)
+                                bm.eraseColor(if (rci == 0) rAccent.toArgb() else BORDER_COLORS[rci].toInt())
+                                bm.asImageBitmap()
+                            }
+                            add(Opt(stringResource(R.string.look_radius), "${w0.radius}", { val v = (w0.radius - 1).coerceAtLeast(0); allW { it.copy(radius = v) } }, { val v = (w0.radius + 1).coerceAtMost(60); allW { it.copy(radius = v) } }))
+                            add(Opt(stringResource(R.string.bd_width), if (w0.borderW == 0) off else "${w0.borderW}", { val v = (w0.borderW - 1).coerceAtLeast(0); allW { it.copy(borderW = v) } }, { val v = (w0.borderW + 1).coerceAtMost(12); allW { it.copy(borderW = v) } }))
+                            add(Opt(stringResource(R.string.bd_when), onOff(w0.borderHover, stringResource(R.string.bd_hover), stringResource(R.string.bd_always)), onClick = { val v = !w0.borderHover; allW { it.copy(borderHover = v) } }))
+                            add(Opt(stringResource(R.string.bd_color), stringResource(BORDER_NAMES[rci]),
+                                { val v = BORDER_COLORS[(rci + BORDER_COLORS.size - 1) % BORDER_COLORS.size]; allW { it.copy(borderC = v) } },
+                                { val v = BORDER_COLORS[(rci + 1) % BORDER_COLORS.size]; allW { it.copy(borderC = v) } }, icon = rsw))
+                        }
                     }
                 }
                 add(Opt(stringResource(R.string.screen_row_gap), "${HomeStore.layout.rowGap}", { HomeStore.set(HomeStore.layout.copy(rowGap = (HomeStore.layout.rowGap - 1).coerceAtLeast(0))) }, { HomeStore.set(HomeStore.layout.copy(rowGap = (HomeStore.layout.rowGap + 1).coerceAtMost(60))) }))

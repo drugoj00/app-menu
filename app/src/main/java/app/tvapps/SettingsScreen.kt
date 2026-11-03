@@ -16,9 +16,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -78,6 +81,49 @@ private fun Section(title: String, content: @Composable () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(title, color = t.sub, fontSize = 13.sp)
         content()
+    }
+}
+
+private val GRID_BTN_H = 76.dp
+private val GRID_NUM_H = 84.dp
+
+/** Кнопка «+» или «−»: знак рисуется линиями ровно по центру (в шрифте знаки сидят выше центра строки). Вид как у Chip. */
+@Composable
+private fun GridBtn(plus: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val t = LocalTh.current
+    var focused by remember { mutableStateOf(false) }
+    val (hm, hover) = rememberHover()
+    Box(
+        modifier
+            .then(hm)
+            .onFocusChanged { focused = it.isFocused }
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (hover) t.tileFocus else t.tile)
+            .border(if (focused) 3.dp else 1.dp, if (focused) t.accent else t.border, RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        androidx.compose.foundation.Canvas(Modifier.size(42.dp)) {
+            val w = size.width
+            val h = size.height
+            val sw = 6.dp.toPx()
+            drawLine(t.text, androidx.compose.ui.geometry.Offset(0f, h / 2), androidx.compose.ui.geometry.Offset(w, h / 2), sw, androidx.compose.ui.graphics.StrokeCap.Round)
+            if (plus) drawLine(t.text, androidx.compose.ui.geometry.Offset(w / 2, 0f), androidx.compose.ui.geometry.Offset(w / 2, h), sw, androidx.compose.ui.graphics.StrokeCap.Round)
+        }
+    }
+}
+
+/** Счётчик: «+» сверху, число в окошке, «−» снизу, подпись под ним. Одно нажатие меняет число на шаг; 0 у строк и столбцов показано как «Авто». */
+@Composable
+private fun GridNum(value: Int, caption: String, min: Int, max: Int, step: Int, show: @Composable (Int) -> String, onChange: (Int) -> Unit) {
+    val t = LocalTh.current
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        GridBtn(true, Modifier.width(150.dp).height(GRID_BTN_H)) { onChange(minOf(value + step, max)) }
+        Box(Modifier.width(150.dp).height(GRID_NUM_H).clip(RoundedCornerShape(12.dp)).background(t.chipSel), contentAlignment = Alignment.Center) {
+            Text(show(value), color = t.text, fontSize = btnSp(17), fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+        }
+        GridBtn(false, Modifier.width(150.dp).height(GRID_BTN_H)) { onChange(maxOf(value - step, min)) }
+        Text(caption, color = t.hint, fontSize = 12.sp)
     }
 }
 
@@ -182,16 +228,21 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                 Section(stringResource(R.string.set_view)) {
                     Options(listOf(false to stringResource(R.string.view_grid), true to stringResource(R.string.view_list)), Cfg.listMode) { Cfg.changeListMode(it) }
                 }
-                if (!Cfg.listMode) Section(stringResource(R.string.set_cols)) {
-                    Options(
-                        listOf(0 to stringResource(R.string.cols_auto)) + listOf(3, 4, 5, 6, 7, 8, 10).map { it to it.toString() },
-                        Cfg.columns,
-                    ) { Cfg.changeColumns(it) }
-                }
-                Section(stringResource(R.string.set_backups)) {
-                    Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.backupOnDelete) { Cfg.changeBackupOnDelete(it) }
-                    Text(stringResource(R.string.backups_hint), color = t.hint, fontSize = 12.sp)
-                    Chip(stringResource(R.string.backups_open), false) { backups = true }
+                Section(stringResource(R.string.set_grid)) {
+                    // три счётчика: строки × столбцы и масштаб значков
+                    Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        if (!Cfg.listMode) {
+                            GridNum(Cfg.gridRows, stringResource(R.string.grid_rows), 0, 12, 1, { if (it == 0) stringResource(R.string.cols_auto) else it.toString() }) { Cfg.changeGridRows(it) }
+                            // «×» по центру окошка с числом: сверху пустое место высотой кнопки «+», затем окошко той же высоты
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Spacer(Modifier.height(GRID_BTN_H))
+                                Box(Modifier.height(GRID_NUM_H), contentAlignment = Alignment.Center) { Text("×", color = t.text, fontSize = btnSp(34), fontWeight = FontWeight.Bold) }
+                            }
+                            GridNum(Cfg.columns, stringResource(R.string.grid_cols), 0, 16, 1, { if (it == 0) stringResource(R.string.cols_auto) else it.toString() }) { Cfg.changeColumns(it) }
+                            Spacer(Modifier.width(28.dp))
+                        }
+                        GridNum(Cfg.iconScale.coerceIn(50, 200), stringResource(R.string.grid_scale), 50, 200, 10, { "$it%" }) { Cfg.changeIconScale(it) }
+                    }
                 }
                 Section(stringResource(R.string.set_iconpack)) {
                     val packs = remember { IconPacks.installed(ctx) }
@@ -212,8 +263,14 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                 Section(stringResource(R.string.set_icon)) {
                     Options(listOf(3 to stringResource(R.string.size_xs), 0 to stringResource(R.string.size_s), 1 to stringResource(R.string.size_m), 2 to stringResource(R.string.size_l)), Cfg.iconSize) { Cfg.changeIconSize(it) }
                 }
+                Section(stringResource(R.string.set_gap)) {
+                    Options(listOf(0 to stringResource(R.string.gap_tight), 1 to stringResource(R.string.gap_normal), 2 to stringResource(R.string.gap_airy)), Cfg.gridGap) { Cfg.changeGridGap(it) }
+                }
                 Section(stringResource(R.string.set_labels)) {
                     Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.showLabels) { Cfg.changeShowLabels(it) }
+                }
+                Section(stringResource(R.string.set_hint)) {
+                    Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.showHint) { Cfg.changeShowHint(it) }
                 }
                 Section(stringResource(R.string.set_sort)) {
                     Options(
@@ -307,6 +364,11 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                         }
                     }
                     HomeHardBlock()
+                }
+                Section(stringResource(R.string.set_backups)) {
+                    Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.backupOnDelete) { Cfg.changeBackupOnDelete(it) }
+                    Text(stringResource(R.string.backups_hint), color = t.hint, fontSize = 12.sp)
+                    Chip(stringResource(R.string.backups_open), false) { backups = true }
                 }
                 Section(stringResource(R.string.backup_title)) {
                     Text(stringResource(R.string.backup_hint), color = t.hint, fontSize = 12.sp)

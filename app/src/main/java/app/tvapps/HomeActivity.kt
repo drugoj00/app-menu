@@ -105,10 +105,12 @@ class HomeActivity : ComponentActivity() {
         SysBars.apply(this)       // по умолчанию скрыты на ТВ/приставке и видны на телефоне; переключатель в настройках
         MouseAsTouch.install(window)
         setContent {
+            UiScaleRoot {
             val tc = currentTC()
             MaterialTheme(colorScheme = if (tc.dark) darkColorScheme() else lightColorScheme()) {
                 CompositionLocalProvider(LocalTh provides tc) { FixedFont { HomeScreen(resumeTick.intValue, againTick.intValue) } }
             }
+                    }
         }
     }
 
