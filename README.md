@@ -14,13 +14,18 @@ App Menu replaces the stock app list with a big grid made for a remote and for t
 
 ## Download
 
-**Version 2.1.** [AppMenu-2.1.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
+**Version 2.2.** [AppMenu-2.2.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `c12f70c0c13761aa3d4fce4908172d4cd0a6c5a8cf45bdd2bd1a27f82cf0c710`
+SHA-256: `287df50e6fddd112d35ecc58a20891c2b867f9428071baeb5f940c3484b7899b`
 
-## What's new in 2.1
+## What's new in 2.2
 
-- Interface rework and bug fixes
+- Improved navigation and interface.
+- Auto scale for different screens: icons and spacing fit the real screen, text keeps the system size.
+- Grid counters: rows, columns and icon scale 50 to 200%, one step per tap on + or −.
+- Header “Apps” with a gear; on a phone the buttons fit without wrapping.
+- The hint hides with a tap.
+- The program checks for its own new version on GitHub too.
 
 ## Features
 
@@ -37,6 +42,16 @@ SHA-256: `c12f70c0c13761aa3d4fce4908172d4cd0a6c5a8cf45bdd2bd1a27f82cf0c710`
 - **Free.** No ads, open source.
 
 ## Screenshots
+
+![Version 2.2 on a wide low screen (car head unit): the header in one line, a gear, larger captions.](screenshots/en/l1-menu.png)
+
+![Long press an icon: the action card with whole-word captions.](screenshots/en/l2-actions.png)
+
+![Settings: theme, accent colour, language.](screenshots/en/l3-settings.png)
+
+![Counters for rows, columns and icon scale: tap + or −, one step at a time.](screenshots/en/l4-icons.png)
+
+![Updates: sources and checking for a new version.](screenshots/en/l5-updates.png)
 
 ![Home on a TV box: widgets, cards from SmartTube and Seena, app banners.](screenshots/en/h1-home.png)
 
