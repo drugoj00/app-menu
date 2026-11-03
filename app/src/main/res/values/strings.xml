@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">App Menu</string>
-    <string name="title">App Menu</string>
+    <string name="title">Apps</string>
     <string name="count">%1$d</string>
     <string name="hint">Tap or OK: open · long tap, hold OK, Menu or right mouse button: actions</string>
     <string name="about">App info</string>
@@ -108,7 +108,7 @@
     <string name="root_on">Root (Magisk): connected</string>
     <string name="root_connect_btn">Connect via root (Magisk)</string>
     <string name="root_use_title">Use root (Magisk) instead of ADB</string>
-    <string name="root_hint">If the device has root, ADB and a computer are not needed. On first start allow root for this app in Magisk. The switch decides what is used at start; the ADB connect buttons switch to ADB.</string>
+    <string name="root_hint">With root, ADB and a computer are not needed: allow root for this app in Magisk. The switch picks what is used at start.</string>
     <string name="adb_ok">Connected</string>
     <string name="adb_fail">Could not connect</string>
     <string name="connect_text">Stop, cache, data, permissions and battery need ADB debugging on this device.\nAndroid 11 and newer: Settings → Developer options → Wireless debugging → \"Pair device with pairing code\": enter the pairing port and code here, press \"Pair\".\nAndroid 10 and older or head units: turn on ADB over network (port 5555) and press \"ADB over network\".</string>
@@ -145,7 +145,7 @@
     <string name="hidden_hide">Do not show</string>
     <string name="hidden_show">Show dimmed</string>
     <string name="set_home">Instead of the built-in menu</string>
-    <string name="set_home_hint">The launcher mode is off by default. The button turns it on and, with ADB connected, sets this app as the home screen at once (without ADB the system asks you to choose: press \"Always\"). Then the first press of Home shows this menu and the second press opens the native home screen. \"Turn off\" returns the old launcher.</string>
+    <string name="set_home_hint">Launcher mode is off by default. Turning it on sets this app as the home screen (without ADB the system asks: “Always”). “Turn off” returns the old launcher.</string>
     <string name="set_home_btn">Turn on and choose...</string>
     <string name="adb_title">ADB connection</string>
     <string name="adb_connect_btn">Connect ADB...</string>
@@ -165,9 +165,9 @@
     <string name="icon_manual">Or put a PNG named %2$s.png into the folder %1$s</string>
     <string name="set_iconpack">Icon pack</string>
     <string name="iconpack_native">Original</string>
-    <string name="iconpack_none">No icon packs installed. Install one from the store and it will appear here.</string>
+    <string name="iconpack_none">No icon packs installed.</string>
     <string name="icons_reset_all">Reset all own icons</string>
-    <string name="import_hint">Batch replace: pick a folder or a ZIP with pictures. A file is used when its name equals the package name or the app name (for example com.google.android.youtube.png or YouTube.png).</string>
+    <string name="import_hint">Batch replace: a folder or ZIP of pictures named after the package or app.</string>
     <string name="import_tree">Import from folder...</string>
     <string name="import_zip">Import from ZIP...</string>
     <string name="import_done">Icons replaced: %1$d</string>
@@ -185,13 +185,13 @@
     <string name="del_yes">Uninstall</string>
     <string name="del_result">Removed: %1$d, failed: %2$d</string>
     <string name="set_install">Batch install</string>
-    <string name="install_hint">Pick a folder with APK files or any archive with apps (ZIP, 7z, RAR, TAR, tar.gz...), tick what to install. Bundles with several parts (APKS, APKM, XAPK, ZIP with APK and OBB) are installed as one app: the parts that fit this device are chosen automatically.</string>
+    <string name="install_hint">Pick a folder with APKs or an archive (ZIP, 7z, RAR, TAR) and tick what to install. Split packages (APKS, XAPK) install as one app.</string>
     <string name="install_tree">Install from folder...</string>
     <string name="install_zip">Install from archive...</string>
     <string name="install_title">APK files found: %1$d</string>
     <string name="install_none">No APK files found there.</string>
     <string name="install_silent">They will be installed silently through ADB.</string>
-    <string name="install_dialogs">Without ADB the system installer will ask to confirm each app, one after another.</string>
+    <string name="install_dialogs">Without ADB the system asks to confirm each app.</string>
     <string name="install_go">Install (%1$d)</string>
     <string name="install_result">Installed: %1$d, failed: %2$d</string>
     <string name="set_home_off">Turn off</string>
@@ -200,7 +200,7 @@
     <string name="move">Move</string>
     <string name="move_hint">Move the icon with the arrows (touch: tap the new place). OK or \"Done\" finishes. The order is remembered.</string>
     <string name="backup_title">Backup of settings</string>
-    <string name="backup_hint">The copy has all settings, the order of icons, hidden apps and own icons. The ADB key is not included. A copy is also saved automatically in the program folder every time you leave the program.</string>
+    <string name="backup_hint">The copy has settings, icon order, hidden apps and own icons (no ADB key). It is also saved on every exit.</string>
     <string name="backup_save">Save copy to a file...</string>
     <string name="backup_load">Restore from a file...</string>
     <string name="backup_here">Save copy in the program folder</string>
@@ -214,8 +214,8 @@
     <string name="reset_icons_done">Icon cache reset, reading again</string>
     <string name="pin_boot">Turn on again after boot</string>
     <string name="boot_title">On power-on</string>
-    <string name="boot_hint">The program quietly prepares the list and icons in the background so the menu opens at once, and turns accessibility services back on if the firmware dropped them at boot (it remembers what was on; exclude a service in its Special access menu).</string>
-    <string name="native_home_hint">In launcher mode the first press of Home shows this menu, the second press opens the home screen chosen here.</string>
+    <string name="boot_hint">Prepares the list and icons in the background and re-enables accessibility services after boot.</string>
+    <string name="native_home_hint">First Home press shows the menu, the second opens the home screen chosen here.</string>
     <string name="native_auto">Automatic</string>
     <string name="no_restore">Do not turn on again after boot</string>
     <string name="home_set_ok">Done: the Home button now opens this menu</string>
@@ -279,7 +279,7 @@
     <string name="set_lang">Language</string>
     <string name="lang_system">Like the system</string>
     <string name="set_control">Control</string>
-    <string name="ctl_help">Remote: arrows move, OK opens, hold OK or Menu shows actions. Touch: tap opens, long tap shows actions, then drag to move an icon. Mouse and air mouse: left button opens, right button shows actions, the wheel scrolls, pointing highlights. The pointer itself is drawn by the system or by the air mouse; if it does not appear, switch the air mouse to mouse mode.</string>
+    <string name="ctl_help">Remote: OK opens, hold OK or Menu shows actions. Touch: tap opens, long tap shows actions. Mouse: left button opens, right shows actions.</string>
     <string name="close">Close</string>
     <string name="mb">MB</string>
     <string name="folder_default">Folder %1$d</string>
@@ -300,7 +300,7 @@
     <string name="folder_add_do">Add (%1$d)</string>
     <string name="folder_now_in">now in \"%1$s\"</string>
     <string name="set_backups">Copies and versions</string>
-    <string name="backups_hint">Before an app is deleted its APK is saved, so it can be installed again or rolled back to any saved version. App data is not saved.</string>
+    <string name="backups_hint">Before an app is deleted its APK is saved, any version can be restored. Data is not saved.</string>
     <string name="backups_open">Saved copies and versions...</string>
     <string name="backups_title">Saved copies</string>
     <string name="backups_where">Copies are in: %1$s</string>
@@ -600,7 +600,7 @@
     <string name="screen_off_home">Turn the Home module off</string>
     <string name="screen_off_sure">Press again: only the app menu will remain</string>
     <string name="home_module_title">Home screen module</string>
-    <string name="home_module_hint">Home is a separate screen with rows, widgets and channels. When it is off, only the app menu works: no Home button, Back leaves the menu as usual.</string>
+    <string name="home_module_hint">Home is a separate screen with rows and widgets. When off, only the app menu works.</string>
     <string name="home_module_off_ok">The Home module is off</string>
     <string name="home_module_off_fail">Could not turn Home off: first restore the native home screen (connect ADB or root, then the RESTORE button in the iron mode block).</string>
     <string name="d_info">App info</string>
@@ -695,4 +695,15 @@
     <string name="bn_color_own">own colour</string>
     <string name="bn_color_hex">Own colour (code #RRGGBB)...</string>
     <string name="bn_color_hint">Six hexadecimal digits, for example 1E88E5</string>
+    <string name="set_hint">Hint under the title</string>
+    <string name="set_iscale">Icon scale</string>
+    <string name="set_rows">Rows on screen</string>
+    <string name="set_gap">Icon density</string>
+    <string name="gap_tight">Tight</string>
+    <string name="gap_normal">Normal</string>
+    <string name="gap_airy">Airy</string>
+    <string name="set_grid">Grid and icon scale</string>
+    <string name="grid_rows">rows</string>
+    <string name="grid_cols">columns</string>
+    <string name="grid_scale">scale</string>
 </resources>
