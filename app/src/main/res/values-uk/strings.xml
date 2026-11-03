@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Меню застосунків</string>
-    <string name="title">Меню застосунків</string>
+    <string name="title">Застосунки</string>
     <string name="count">%1$d</string>
     <string name="hint">Дотик або ОК: відкрити · довгий дотик, утримання ОК, «Меню» або права кнопка миші: дії</string>
     <string name="about">Про застосунок</string>
@@ -108,7 +108,7 @@
     <string name="root_on">Root (Magisk): підключено</string>
     <string name="root_connect_btn">Підключити через root (Magisk)</string>
     <string name="root_use_title">Використовувати root (Magisk) замість ADB</string>
-    <string name="root_hint">Якщо на пристрої є root, ADB і комп\'ютер не потрібні. Під час першого запуску дозвольте root цьому застосунку в Magisk. Що використовувати під час запуску, вирішує перемикач; кнопки підключення ADB перемикають на ADB.</string>
+    <string name="root_hint">З root ADB і комп’ютер не потрібні: дозволь root цьому застосунку в Magisk. Перемикач обирає, що використовувати під час запуску.</string>
     <string name="adb_ok">Підключено</string>
     <string name="adb_fail">Не вдалося підключитися</string>
     <string name="connect_text">Для зупинки, кешу, даних, дозволів і батареї потрібне налагодження ADB на цьому пристрої.\nAndroid 11 і новіше: Налаштування → Для розробників → Бездротове налагодження → «Підключення пристрою за кодом»: введи тут порт і код сполучення, натисни «Сполучення».\nAndroid 10 і старше або автомагнітола: увімкни ADB по мережі (порт 5555) і натисни «ADB по мережі».</string>
@@ -145,7 +145,7 @@
     <string name="hidden_hide">Не показувати</string>
     <string name="hidden_show">Показувати напівпрозорими</string>
     <string name="set_home">Замість рідного меню застосунків</string>
-    <string name="set_home_hint">Режим лаунчера за замовчуванням вимкнено. Кнопка вмикає його і, якщо підключено ADB, одразу призначає цю програму головним екраном (без ADB система сама запитає: натисни «Завжди»). Тоді перше «Додому» показує це меню, друге відкриває рідний головний екран. «Вимкнути» повертає попередній лаунчер.</string>
+    <string name="set_home_hint">Режим лаунчера вимкнено за замовчуванням. Увімкнення призначає програму головним екраном (без ADB система запитає: «Завжди»). «Вимкнути» повертає попередній лаунчер.</string>
     <string name="set_home_btn">Увімкнути й обрати...</string>
     <string name="adb_title">Підключення ADB</string>
     <string name="adb_connect_btn">Підключити ADB...</string>
@@ -165,9 +165,9 @@
     <string name="icon_manual">Або поклади PNG з іменем %2$s.png у теку %1$s</string>
     <string name="set_iconpack">Набір значків</string>
     <string name="iconpack_native">Рідні</string>
-    <string name="iconpack_none">Наборів значків не встановлено. Встанови будь-який із магазину, і він з’явиться тут.</string>
+    <string name="iconpack_none">Наборів значків немає.</string>
     <string name="icons_reset_all">Скинути всі свої значки</string>
-    <string name="import_hint">Пакетна заміна: обери теку або ZIP з картинками. Файл підходить, якщо його ім’я збігається з іменем пакета або назвою застосунку (наприклад com.google.android.youtube.png або YouTube.png).</string>
+    <string name="import_hint">Заміна пачкою: тека або ZIP із картинками, ім’я файлу = ім’я пакета або застосунку.</string>
     <string name="import_tree">Імпорт із теки...</string>
     <string name="import_zip">Імпорт із ZIP...</string>
     <string name="import_done">Замінено значків: %1$d</string>
@@ -185,13 +185,13 @@
     <string name="del_yes">Видалити</string>
     <string name="del_result">Видалено: %1$d, не вийшло: %2$d</string>
     <string name="set_install">Пакетне встановлення застосунків</string>
-    <string name="install_hint">Обери теку з файлами APK або будь-який архів із застосунками (ZIP, 7z, RAR, TAR, tar.gz…) та познач, що ставити. Пакети з кількох частин (APKS, APKM, XAPK, ZIP з APK і OBB) ставляться як один застосунок: потрібні цьому пристрою частини обираються самі.</string>
+    <string name="install_hint">Обери теку з APK або архів (ZIP, 7z, RAR, TAR) і познач, що ставити. Пакети з частин (APKS, XAPK) ставляться як один застосунок.</string>
     <string name="install_tree">Встановити з теки...</string>
     <string name="install_zip">Встановити з архіву...</string>
     <string name="install_title">Знайдено файлів APK: %1$d</string>
     <string name="install_none">APK-файлів там немає.</string>
     <string name="install_silent">Їх буде встановлено тихо через ADB.</string>
-    <string name="install_dialogs">Без ADB системний інсталятор запитає підтвердження щодо кожного застосунку по черзі.</string>
+    <string name="install_dialogs">Без ADB система запитає підтвердження щодо кожного застосунку.</string>
     <string name="install_go">Встановити (%1$d)</string>
     <string name="install_result">Встановлено: %1$d, не вийшло: %2$d</string>
     <string name="set_home_off">Вимкнути</string>
@@ -200,7 +200,7 @@
     <string name="move">Перемістити</string>
     <string name="move_hint">Рухай значок стрілками (на сенсорному екрані: торкнись нового місця). «ОК» або «Готово» завершує. Порядок запам’ятовується.</string>
     <string name="backup_title">Резервна копія налаштувань</string>
-    <string name="backup_hint">У копії всі налаштування, порядок значків, приховані застосунки та свої значки. Ключ ADB не входить. Копія також сама зберігається в теку програми під час кожного виходу.</string>
+    <string name="backup_hint">У копії налаштування, порядок значків, приховані застосунки та свої значки (без ключа ADB). Копія також зберігається під час кожного виходу.</string>
     <string name="backup_save">Зберегти копію у файл...</string>
     <string name="backup_load">Відновити з файлу...</string>
     <string name="backup_here">Зберегти копію в теку програми</string>
@@ -214,8 +214,8 @@
     <string name="reset_icons_done">Кеш значків скинуто, читаю заново</string>
     <string name="pin_boot">Вмикати знову після завантаження</string>
     <string name="boot_title">Під час вмикання пристрою</string>
-    <string name="boot_hint">Програма без вікон готує список і значки у фоні, щоб меню відкривалося одразу, і сама вмикає знову служби спецможливостей, якщо прошивка скинула їх під час завантаження (вона запам’ятовує, що було ввімкнено; виключити службу можна в її меню «Спецдоступ»).</string>
-    <string name="native_home_hint">У режимі лаунчера перше натискання «Додому» показує це меню, друге відкриває рідний головний екран, обраний тут.</string>
+    <string name="boot_hint">Готує список і значки у фоні та вмикає служби спецможливостей після завантаження.</string>
+    <string name="native_home_hint">Перше «Додому» показує меню, друге відкриває обраний тут рідний екран.</string>
     <string name="native_auto">Автоматично</string>
     <string name="no_restore">Не вмикати знову після завантаження</string>
     <string name="home_set_ok">Готово: кнопка «Додому» тепер відкриває це меню</string>
@@ -279,7 +279,7 @@
     <string name="set_lang">Мова</string>
     <string name="lang_system">Як у системі</string>
     <string name="set_control">Керування</string>
-    <string name="ctl_help">Пульт: стрілки рухаються, ОК відкриває, утримання ОК або «Меню» показує дії. Дотик: тап відкриває, довгий дотик показує дії, після нього значок можна перетягнути. Миша й аеромиша: ліва кнопка відкриває, права показує дії, колесо прокручує, наведення підсвічує. Вказівник малює система або сама аеромиша; якщо його немає, перемкни аеромишу в режим миші.</string>
+    <string name="ctl_help">Пульт: ОК відкриває, утримання ОК або «Меню» показує дії. Дотик: тап відкриває, довгий дотик показує дії. Миша: ліва кнопка відкриває, права показує дії.</string>
     <string name="close">Закрити</string>
     <string name="mb">МБ</string>
     <string name="folder_default">Тека %1$d</string>
@@ -300,7 +300,7 @@
     <string name="folder_add_do">Додати (%1$d)</string>
     <string name="folder_now_in">зараз у «%1$s»</string>
     <string name="set_backups">Копії та версії</string>
-    <string name="backups_hint">Перед видаленням застосунку його APK зберігається: потім його можна поставити знову або відкотити на будь-яку збережену версію. Дані застосунку не зберігаються.</string>
+    <string name="backups_hint">Перед видаленням застосунку зберігається його APK, можна повернути будь-яку версію. Дані не зберігаються.</string>
     <string name="backups_open">Збережені копії та версії...</string>
     <string name="backups_title">Збережені копії</string>
     <string name="backups_where">Копії лежать у: %1$s</string>
@@ -600,7 +600,7 @@
     <string name="screen_off_home">Вимкнути модуль «Дім»</string>
     <string name="screen_off_sure">Натисни ще раз: залишиться лише меню застосунків</string>
     <string name="home_module_title">Модуль «Дім»</string>
-    <string name="home_module_hint">«Дім» це окремий екран з рядками, віджетами й каналами. Коли він вимкнений, працює лише меню застосунків: кнопки «Дім» немає, «Назад» виходить із меню як зазвичай.</string>
+    <string name="home_module_hint">«Дім»: окремий екран із рядками й віджетами. Вимкнений: лише меню застосунків.</string>
     <string name="home_module_off_ok">Модуль «Дім» вимкнено</string>
     <string name="home_module_off_fail">Не вдалося вимкнути «Дім»: спершу поверни рідний екран (підключи ADB або root і натисни «ПОВЕРНУТИ РІДНИЙ ЕКРАН» у блоці залізного режиму).</string>
     <string name="d_info">Відомості про застосунок</string>
@@ -695,4 +695,15 @@
     <string name="bn_color_own">власний колір</string>
     <string name="bn_color_hex">Власний колір (код #RRGGBB)...</string>
     <string name="bn_color_hint">Шість шістнадцяткових цифр, наприклад 1E88E5</string>
+    <string name="set_hint">Підказка під заголовком</string>
+    <string name="set_iscale">Масштаб значків</string>
+    <string name="set_rows">Рядків на екрані</string>
+    <string name="set_gap">Щільність значків</string>
+    <string name="gap_tight">Щільно</string>
+    <string name="gap_normal">Звичайно</string>
+    <string name="gap_airy">Просторо</string>
+    <string name="set_grid">Сітка та масштаб значків</string>
+    <string name="grid_rows">рядків</string>
+    <string name="grid_cols">стовпців</string>
+    <string name="grid_scale">масштаб</string>
 </resources>
