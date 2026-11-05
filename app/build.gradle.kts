@@ -14,8 +14,8 @@ android {
         applicationId = "app.tvapps"
         minSdk = 23
         targetSdk = 34
-        versionCode = 6
-        versionName = "2.2"
+        versionCode = 14
+        versionName = "3.0"
     }
 
     // ключ подписи лежит в keystore/ (не публикуется, копия в C:\DIMIDIYA\ключі\TVApps); без него release собирается неподписанным
@@ -72,4 +72,5 @@ dependencies {
     implementation("com.github.junrar:junrar:7.5.5")
     implementation("eu.agno3.jcifs:jcifs-ng:2.1.10") { exclude(group = "org.bouncycastle") }
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+    testImplementation("junit:junit:4.13.2")
 }
