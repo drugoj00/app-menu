@@ -706,4 +706,18 @@
     <string name="grid_rows">строк</string>
     <string name="grid_cols">столбцов</string>
     <string name="grid_scale">масштаб</string>
+    <string name="set_lite">Облегчённый режим (слабое железо)</string>
+    <string name="lite_auto">Авто</string>
+    <string name="lite_hint">Упрощённые значки для автомагнитол и слабых приставок: без анимации перестановки при прокрутке, без наведения и волны нажатия, фоновый градиент неподвижный. «Авто» включает его на магнитолах.</string>
+    <string name="compile_status">Ускорение программы (root): %1$s</string>
+    <string name="compile_now">Выполнить компиляцию сейчас</string>
+    <string name="icons_cache_clear">Очистить кэш значков</string>
+    <string name="icons_cache_cleared">Кэш значков очищен, значки перерисовываются</string>
+    <string name="set_dense">Плотность сетки</string>
+    <string name="dense_on">Плотная</string>
+    <string name="dense_off">Обычная</string>
+    <string name="dense_hint">Плотная: много значков на тёмных плашках, столбцы и строки считаются по размеру экрана (1280x720: 13 x 4). «Авто» включает её на магнитолах. «Размер» и «столбцы/строки» ниже по-прежнему меняют сетку.</string>
+    <string name="set_remember">Запоминать положение после выхода</string>
+    <string name="remember_hint">Выключено: меню помнит значок в фокусе и прокрутку при возврате из настроек, окон, папки и запущенного приложения, а после выхода кнопкой «Назад» открывается с начала. Включено: положение сохраняется и после выхода.</string>
+    <string name="set_speed">Ускорение</string>
 </resources>
