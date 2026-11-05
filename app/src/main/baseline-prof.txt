@@ -1,0 +1,20 @@
+# Профиль запуска для «Меню приложений»: классы и методы программы и Compose, которые нужны при запуске, первой раскладке и прокрутке сетки.
+# Они компилируются в машинный код при установке/оптимизации, а не интерпретируются при первом показе (холодный старт: раскладка первого кадра 560 мс на магнитоле).
+Lapp/tvapps/**;
+HSPLapp/tvapps/**;->**(**)**
+Landroidx/compose/foundation/lazy/**;
+HSPLandroidx/compose/foundation/lazy/**;->**(**)**
+Landroidx/compose/foundation/gestures/**;
+HSPLandroidx/compose/foundation/gestures/**;->**(**)**
+Landroidx/compose/foundation/layout/**;
+HSPLandroidx/compose/foundation/layout/**;->**(**)**
+Landroidx/compose/foundation/*;
+HSPLandroidx/compose/foundation/*;->**(**)**
+Landroidx/compose/ui/**;
+HSPLandroidx/compose/ui/**;->**(**)**
+Landroidx/compose/runtime/**;
+HSPLandroidx/compose/runtime/**;->**(**)**
+Landroidx/compose/animation/**;
+HSPLandroidx/compose/animation/**;->**(**)**
+Landroidx/compose/material3/*;
+HSPLandroidx/compose/material3/*;->**(**)**

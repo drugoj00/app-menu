@@ -32,7 +32,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:configChanges="orientation|screenSize|keyboardHidden|uiMode|screenLayout|smallestScreenSize"
+            android:configChanges="orientation|screenSize|keyboardHidden|keyboard|navigation|uiMode|screenLayout|smallestScreenSize|density|fontScale|colorMode"
             android:launchMode="singleTask"
             android:taskAffinity="app.tvapps.menu"
             android:theme="@style/Theme.TVApps.Fast"
@@ -47,7 +47,7 @@
         <activity
             android:name=".HomeActivity"
             android:exported="false"
-            android:configChanges="orientation|screenSize|keyboardHidden|uiMode|screenLayout|smallestScreenSize"
+            android:configChanges="orientation|screenSize|keyboardHidden|keyboard|navigation|uiMode|screenLayout|smallestScreenSize|density|fontScale|colorMode"
             android:launchMode="singleTask"
             android:theme="@style/Theme.TVApps.Fast"
             android:stateNotNeeded="true" />
