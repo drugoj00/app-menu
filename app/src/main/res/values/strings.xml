@@ -706,4 +706,18 @@
     <string name="grid_rows">rows</string>
     <string name="grid_cols">columns</string>
     <string name="grid_scale">scale</string>
+    <string name="set_lite">Light mode (weak devices)</string>
+    <string name="lite_auto">Auto</string>
+    <string name="lite_hint">Simpler icons for car head units and weak boxes: no reorder animation while scrolling, no hover and ripple, static background gradient. Auto turns it on for head units.</string>
+    <string name="compile_status">Speed-up (root): %1$s</string>
+    <string name="compile_now">Compile now</string>
+    <string name="icons_cache_clear">Clear icon cache</string>
+    <string name="icons_cache_cleared">Icon cache cleared, icons are being redrawn</string>
+    <string name="set_dense">Grid density</string>
+    <string name="dense_on">Dense</string>
+    <string name="dense_off">Normal</string>
+    <string name="dense_hint">Dense: many icons on dark plates, columns and rows from the screen size (1280x720: 13 x 4). Auto turns it on for car head units. Size and columns/rows below still change it.</string>
+    <string name="set_remember">Remember position after exit</string>
+    <string name="remember_hint">Off: the menu remembers the focused icon and scroll when you return from settings, windows, folders or an app, and starts from the beginning after exit with Back. On: the position is kept after exit too.</string>
+    <string name="set_speed">Speed-up</string>
 </resources>
