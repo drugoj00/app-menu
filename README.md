@@ -14,18 +14,16 @@ App Menu replaces the stock app list with a big grid made for a remote and for t
 
 ## Download
 
-**Version 2.2.** [AppMenu-2.2.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
+**Version 3.0.** [AppMenu-3.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `287df50e6fddd112d35ecc58a20891c2b867f9428071baeb5f940c3484b7899b`
+SHA-256: `d544235388292cc90e5088fe3ab578bdbe6ded7179627a4136c60894650d073b`
 
-## What's new in 2.2
+## What's new in 3.0
 
-- Improved navigation and interface.
-- Auto scale for different screens: icons and spacing fit the real screen, text keeps the system size.
-- Grid counters: rows, columns and icon scale 50 to 200%, one step per tap on + or −.
-- Header “Apps” with a gear; on a phone the buttons fit without wrapping.
-- The hint hides with a tap.
-- The program checks for its own new version on GitHub too.
+- Dense grid like the system menu.
+- The menu and settings remember their position.
+- No more black icon from an old cache.
+- Improved interface navigation in the app menu.
 
 ## Features
 
@@ -43,43 +41,7 @@ SHA-256: `287df50e6fddd112d35ecc58a20891c2b867f9428071baeb5f940c3484b7899b`
 
 ## Screenshots
 
-![Version 2.2 on a wide low screen (car head unit): the header in one line, a gear, larger captions.](screenshots/en/l1-menu.png)
-
-![Long press an icon: the action card with whole-word captions.](screenshots/en/l2-actions.png)
-
-![Settings: theme, accent colour, language.](screenshots/en/l3-settings.png)
-
-![Counters for rows, columns and icon scale: tap + or −, one step at a time.](screenshots/en/l4-icons.png)
-
-![Updates: sources and checking for a new version.](screenshots/en/l5-updates.png)
-
-![Home on a TV box: widgets, cards from SmartTube and Seena, app banners.](screenshots/en/h1-home.png)
-
-![A row of cards from the catalogue of any app: source, query, count, shape.](screenshots/en/h2-cards.png)
-
-![A banner made from the app icon: four styles.](screenshots/en/h3-banner.png)
-
-![Tile look: outline (colour, thickness, on hover only), corners, shadow, background.](screenshots/en/h4-look.png)
-
-![Card sources: favourites, history, channels and catalogues of any app.](screenshots/en/h5-sources.png)
-
-![The menu on a TV box: a big grid made for a remote.](screenshots/en/01-menu.png)
-
-![Long press an icon: stop, cache, data, permissions, special access, battery, hide, uninstall, icon, folder, versions.](screenshots/en/02-actions.png)
-
-![A folder: drag icons into it or add them from inside.](screenshots/en/03-folder.png)
-
-![Any version of an app: saved copies, the F-Droid catalogue, your own file. An older one too.](screenshots/en/04-versions.png)
-
-![The built-in file manager: this device, USB drives through ADB, network folders.](screenshots/en/05-files.png)
-
-![A split package (APKS, XAPK) installs as one app: the right parts are chosen for the device.](screenshots/en/06-bundle.png)
-
-![Settings: theme, accent colour, language, view, icon size, launcher mode, installing and backups.](screenshots/en/07-settings.png)
-
-![On a phone: the same menu in portrait.](screenshots/en/08-phone.png)
-
-![On a phone: the action card.](screenshots/en/09-phone-actions.png)
+![The menu with the dense grid on a wide screen.](screenshots/en/01-menu.png)
 
 ## Quick start
 
