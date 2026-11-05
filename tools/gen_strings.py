@@ -2,7 +2,7 @@ import os
 import sys
 
 sys.stdout.reconfigure(encoding='utf-8')
-RES = r'C:\Программы\TVApps\app\src\main\res'
+RES = r'C:\Программы\AppMenu\app\src\main\res'
 
 # ключ: (en, ru, uk)
 S = {
