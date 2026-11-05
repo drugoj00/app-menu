@@ -706,4 +706,18 @@
     <string name="grid_rows">рядків</string>
     <string name="grid_cols">стовпців</string>
     <string name="grid_scale">масштаб</string>
+    <string name="set_lite">Полегшений режим (слабке залізо)</string>
+    <string name="lite_auto">Авто</string>
+    <string name="lite_hint">Спрощені значки для автомагнітол і слабких приставок: без анімації перестановки під час прокрутки, без наведення і хвилі натискання, фоновий градієнт нерухомий. «Авто» вмикає його на магнітолах.</string>
+    <string name="compile_status">Прискорення програми (root): %1$s</string>
+    <string name="compile_now">Виконати компіляцію зараз</string>
+    <string name="icons_cache_clear">Очистити кеш значків</string>
+    <string name="icons_cache_cleared">Кеш значків очищено, значки перемальовуються</string>
+    <string name="set_dense">Щільність сітки</string>
+    <string name="dense_on">Щільна</string>
+    <string name="dense_off">Звичайна</string>
+    <string name="dense_hint">Щільна: багато значків на темних плашках, стовпці й рядки рахуються за розміром екрана (1280x720: 13 x 4). «Авто» вмикає її на магнітолах. «Розмір» і «стовпці/рядки» нижче, як і раніше, змінюють сітку.</string>
+    <string name="set_remember">Запам\'ятовувати положення після виходу</string>
+    <string name="remember_hint">Вимкнено: меню пам\'ятає значок у фокусі й прокрутку при поверненні з налаштувань, вікон, папки й запущеного застосунку, а після виходу кнопкою «Назад» відкривається з початку. Увімкнено: положення зберігається і після виходу.</string>
+    <string name="set_speed">Прискорення</string>
 </resources>
