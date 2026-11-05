@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -71,9 +72,18 @@ private fun LiveGradient(base: Color) {
     val first = Color(android.graphics.Color.HSVToColor(hsv))
     val second = Color(android.graphics.Color.HSVToColor(floatArrayOf((hsv[0] + 70f) % 360f, hsv[1], (hsv[2] * 1.5f).coerceAtMost(1f))))
     val third = Color(android.graphics.Color.HSVToColor(floatArrayOf((hsv[0] + 300f) % 360f, hsv[1], hsv[2])))
+    // облегчённый режим (магнитолы): градиент неподвижный. Движущийся градиент заставляет GPU слабой магнитолы перерисовывать весь экран
+    // 60 раз в секунду, даже когда ничего не происходит (в журнале: «команды GPU» ~5,6 мс в среднем в покое).
+    if (Lite.on) {
+        Canvas(Modifier.fillMaxSize()) {
+            drawRect(Brush.linearGradient(listOf(first, second, third), start = Offset(size.width * 0.5f, 0f), end = Offset(size.width * 0.5f, size.height)))
+        }
+        return
+    }
     val t = rememberInfiniteTransition(label = "grad")
     val f by t.animateFloat(0f, 1f, infiniteRepeatable(tween(14000, easing = LinearEasing), RepeatMode.Reverse), label = "gf")
-    Canvas(Modifier.fillMaxSize()) {
+    // свой слой: движение градиента перерисовывает только его, а не весь экран с плитками (на слабых процессорах это давало дёргание)
+    Canvas(Modifier.fillMaxSize().graphicsLayer()) {
         drawRect(
             Brush.linearGradient(
                 listOf(first, second, third),

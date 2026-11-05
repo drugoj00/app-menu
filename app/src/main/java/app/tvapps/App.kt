@@ -12,6 +12,7 @@ class App : Application() {
         instance = this
         // расписание фоновой проверки обновлений (если включено)
         Cfg.init(this)
+        Lite.init(this)
         UpdSched.apply(this)
         // защита главного экрана: частые перезапуски при отключённом родном экране возвращают его
         HomeControl.guardOnProcessStart(this)

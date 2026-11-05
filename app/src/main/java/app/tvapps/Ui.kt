@@ -85,7 +85,12 @@ fun isNarrow(): Boolean = LocalConfiguration.current.smallestScreenWidthDp < 600
 fun HalfUi(content: @Composable () -> Unit) {
     val d = LocalDensity.current
     if (!isNarrow()) content()
-    else CompositionLocalProvider(LocalDensity provides LinearDensity(d.density * 0.5f, d.fontScale * TEXT_BOOST)) { content() }
+    else {
+        // один и тот же объект, пока плотность не изменилась: LocalDensity статический, и новый (не равный) объект при каждой перекомпозиции
+        // заставлял заново собирать всё содержимое под ним
+        val ld = remember(d.density, d.fontScale) { LinearDensity(d.density * 0.5f, d.fontScale * TEXT_BOOST) }
+        CompositionLocalProvider(LocalDensity provides ld) { content() }
+    }
 }
 
 /** Размеры экрана в dp текущей плотности (внутри HalfUi они вдвое больше, чем в настройках системы). */
@@ -101,14 +106,14 @@ fun screenDp(): Pair<Float, Float> {
  */
 @Composable
 fun HDialog(onDismissRequest: () -> Unit, properties: androidx.compose.ui.window.DialogProperties = androidx.compose.ui.window.DialogProperties(), content: @Composable () -> Unit) {
-    androidx.compose.ui.window.Dialog(onDismissRequest = onDismissRequest, properties = properties) { MouseDragInDialog(); HalfUi { content() } }
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismissRequest, properties = properties) { MouseDragInDialog(); CompositionLocalProvider(LocalChipReg provides null) { HalfUi { content() } } }
 }
 
 /**
  * Плотность с линейным масштабом шрифта. Обычная начиная с Android 14 увеличивает крупный шрифт нелинейно, из-за чего размеры текста
  * и кнопок на телефонах с крупным шрифтом расходились; здесь размер текста всегда sp x fontScale.
  */
-private class LinearDensity(override val density: Float, override val fontScale: Float) : Density {
+private data class LinearDensity(override val density: Float, override val fontScale: Float) : Density {
     override fun androidx.compose.ui.unit.TextUnit.toDp(): androidx.compose.ui.unit.Dp {
         check(type == androidx.compose.ui.unit.TextUnitType.Sp) { "Only Sp can convert to Px" }
         return androidx.compose.ui.unit.Dp(value * fontScale)

@@ -229,7 +229,8 @@ private fun HomeScreen(tick: Int, again: Int) {
             if (cached.isNotEmpty() && apps.isEmpty()) { apps = cached; AppsMem.list = cached }
         }
         if (Cfg.iconTick > 0 || System.currentTimeMillis() - AppsMem.stamp > 30_000L || apps.isEmpty()) {
-            val fresh = withContext(Dispatchers.Default) { loadApps(ctx) }
+            val before = apps
+            val fresh = withContext(Dispatchers.Default) { loadApps(ctx, before, reuse = Cfg.iconTick == 0) }
             apps = fresh; AppsMem.list = fresh; AppsMem.stamp = System.currentTimeMillis()
         }
     }

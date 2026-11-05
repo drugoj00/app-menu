@@ -29,17 +29,16 @@ fun rememberHover(): Pair<Modifier, Boolean> {
 }
 
 /** Правая кнопка мыши. Ставится раньше обычных нажатий в цепочке модификаторов, чтобы перехватить событие первой. */
-fun Modifier.mouseSecondary(onSecondary: () -> Unit): Modifier = composed {
-    val cb by rememberUpdatedState(onSecondary)
-    pointerInput(Unit) {
+fun Modifier.mouseSecondary(onSecondary: () -> Unit): Modifier =
+    // не composed (дешевле в создании на каждой плитке): перезапускается, только если сменилась сама функция
+    pointerInput(onSecondary) {
         awaitPointerEventScope {
             while (true) {
                 val ev = awaitPointerEvent(PointerEventPass.Initial)
                 if (ev.type == PointerEventType.Press && ev.buttons.isSecondaryPressed) {
                     ev.changes.forEach { it.consume() }
-                    cb()
+                    onSecondary()
                 }
             }
         }
     }
-}

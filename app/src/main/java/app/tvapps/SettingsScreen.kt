@@ -44,6 +44,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
@@ -56,15 +58,35 @@ import androidx.core.graphics.drawable.toBitmap
 import kotlinx.coroutines.launch
 
 
+/** Кнопки прокручиваемой части настроек: подпись, запрос фокуса и положение. Нужен, чтобы вернуть фокус на ту же кнопку после ухода и возврата. */
+internal class SettingsChipReg {
+    class Item(val text: String, val req: FocusRequester, val contentY: () -> Float)
+    val items = ArrayList<Item>()
+    var mainActive = true
+    fun onFocus(text: String, y: Float) { if (mainActive) MenuMemory.setSettingsFocus(text, y) }
+}
+
+internal val LocalChipReg = androidx.compose.runtime.compositionLocalOf<SettingsChipReg?> { null }
+internal val LocalSettingsScroll = androidx.compose.runtime.compositionLocalOf<androidx.compose.foundation.ScrollState?> { null }
+
 @Composable
 internal fun Chip(text: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val t = LocalTh.current
     var focused by remember { mutableStateOf(false) }
     val (hm, hover) = rememberHover()
+    val reg = LocalChipReg.current
+    val scrollSt = LocalSettingsScroll.current
+    val req = remember { FocusRequester() }
+    val ypos = remember { floatArrayOf(0f) }
+    androidx.compose.runtime.DisposableEffect(reg, text) {
+        val item = reg?.let { r -> SettingsChipReg.Item(text, req) { ypos[0] + (scrollSt?.value ?: 0) }.also { r.items.add(it) } }
+        onDispose { if (item != null) reg.items.remove(item) }
+    }
     Box(
         modifier
+            .then(if (reg != null) Modifier.focusRequester(req).onGloballyPositioned { ypos[0] = it.positionInRoot().y } else Modifier)
             .then(hm)
-            .onFocusChanged { focused = it.isFocused }
+            .onFocusChanged { focused = it.isFocused; if (it.isFocused && reg != null) reg.onFocus(text, ypos[0] + (scrollSt?.value ?: 0)) }
             .clip(RoundedCornerShape(12.dp))
             .background(if (selected) t.chipSel else if (hover) t.tileFocus else t.tile)
             .border(if (focused) 3.dp else 1.dp, if (focused) t.accent else t.border, RoundedCornerShape(12.dp))
@@ -140,16 +162,45 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
     val ctx = LocalContext.current
     val t = LocalTh.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    var sub by remember { mutableStateOf("main") }
+    // положение в настройках помнится: раздел, прокрутка и кнопка в фокусе (MenuMemory); при выходе из меню кнопкой «Назад» сбрасывается
+    var sub by remember { mutableStateOf(MenuMemory.init(ctx).settingsSub) }
     var adbDialog by remember { mutableStateOf(false) }
     val first = remember { FocusRequester() }
-    LaunchedEffect(sub) { runCatching { first.requestFocus() } }
+    val scroll = androidx.compose.foundation.rememberScrollState(if (sub == "main") MenuMemory.settingsScroll else 0)
+    val chipReg = remember { SettingsChipReg() }
+    val firstRun = remember { booleanArrayOf(true) }
+    LaunchedEffect(sub) {
+        val initial = firstRun[0]
+        firstRun[0] = false
+        chipReg.mainActive = sub == "main"
+        MenuMemory.setSettingsSub(sub)
+        if (!initial) runCatching { if (sub == "main") scroll.scrollTo(MenuMemory.settingsScroll) else scroll.scrollTo(0) }
+        // кнопки появились после первой раскладки; на ту же кнопку, что была в фокусе, иначе на «Назад»
+        kotlinx.coroutines.delay(250)
+        val cand = chipReg.items.map { MenuMemoryLogic.Cand(it.text, it.contentY()) }
+        val idx = if (sub == "main") MenuMemoryLogic.pickChip(cand, MenuMemory.settingsFocusText, MenuMemory.settingsFocusY) else null
+        if (idx != null) runCatching { chipReg.items[idx].req.requestFocus() } else runCatching { first.requestFocus() }
+    }
+    LaunchedEffect(scroll) {
+        androidx.compose.runtime.snapshotFlow { scroll.value }.collect { v -> if (sub == "main") MenuMemory.setSettingsScroll(v) }
+    }
     var installFiles by remember { mutableStateOf<List<ApkFile>?>(null) }
     var browser by remember { mutableStateOf(false) }
     var net by remember { mutableStateOf(false) }
     var wifi by remember { mutableStateOf(false) }
     var backups by remember { mutableStateOf(false) }
     var menuBgDlg by remember { mutableStateOf(false) }
+    val anyDialog = adbDialog || installFiles != null || browser || net || wifi || backups || menuBgDlg
+    val dialogWasOpen = remember { booleanArrayOf(false) }
+    LaunchedEffect(anyDialog) {
+        if (!anyDialog && dialogWasOpen[0]) {
+            kotlinx.coroutines.delay(150)
+            val cand = chipReg.items.map { MenuMemoryLogic.Cand(it.text, it.contentY()) }
+            val idx = if (sub == "main") MenuMemoryLogic.pickChip(cand, MenuMemory.settingsFocusText, MenuMemory.settingsFocusY) else null
+            if (idx != null) runCatching { chipReg.items[idx].req.requestFocus() }
+        }
+        dialogWasOpen[0] = anyDialog
+    }
     val saveBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         if (uri != null) {
             val ok = runCatching { ctx.contentResolver.openOutputStream(uri)?.use { Backup.write(ctx, it) } != null }.getOrDefault(false)
@@ -188,7 +239,8 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
             Chip("← " + stringResource(R.string.back_plain), false, Modifier.focusRequester(first)) { if (sub == "main") onBack() else sub = "main" }
             Text(stringResource(if (sub == "main") R.string.settings else R.string.hidden_list), fontSize = 24.sp, color = t.text)
         }
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 8.dp)) {
+        androidx.compose.runtime.CompositionLocalProvider(LocalChipReg provides chipReg, LocalSettingsScroll provides scroll) {
+        Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(top = 8.dp)) {
             if (sub == "main") {
                 Section(stringResource(R.string.set_theme)) {
                     Options(
@@ -259,6 +311,10 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                         }
                     }
                     Chip(stringResource(R.string.icons_reset_all), false) { IconPacks.removeAllOwn(ctx); Cfg.bumpIcons() }
+                    Chip(stringResource(R.string.icons_cache_clear), false) {
+                        AppCache.clearIcons(ctx); Cfg.bumpIcons()
+                        Toast.makeText(ctx, ctx.getString(R.string.icons_cache_cleared), Toast.LENGTH_SHORT).show()
+                    }
                 }
                 Section(stringResource(R.string.set_icon)) {
                     Options(listOf(3 to stringResource(R.string.size_xs), 0 to stringResource(R.string.size_s), 1 to stringResource(R.string.size_m), 2 to stringResource(R.string.size_l)), Cfg.iconSize) { Cfg.changeIconSize(it) }
@@ -272,6 +328,23 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                 Section(stringResource(R.string.set_hint)) {
                     Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.showHint) { Cfg.changeShowHint(it) }
                 }
+                Section(stringResource(R.string.set_remember)) {
+                    Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.rememberPos) { Cfg.changeRememberPos(it) }
+                    Text(stringResource(R.string.remember_hint), color = t.hint, fontSize = 12.sp)
+                }
+                Section(stringResource(R.string.set_dense)) {
+                    Options(
+                        listOf(0 to stringResource(R.string.lite_auto), 1 to stringResource(R.string.dense_on), 2 to stringResource(R.string.dense_off)), DenseGrid.mode,
+                    ) { DenseGrid.change(ctx, it) }
+                    Text(stringResource(R.string.dense_hint), color = t.hint, fontSize = 12.sp)
+                }
+                Section(stringResource(R.string.set_lite)) {
+                    Options(
+                        listOf(0 to stringResource(R.string.lite_auto), 1 to stringResource(R.string.on), 2 to stringResource(R.string.off)), Lite.mode,
+                    ) { Lite.change(ctx, it) }
+                    Text(stringResource(R.string.lite_hint), color = t.hint, fontSize = 12.sp)
+                }
+                Section(stringResource(R.string.set_speed)) { SpeedBlock(ctx, t) }
                 Section(stringResource(R.string.set_sort)) {
                     Options(
                         listOf(
@@ -331,7 +404,10 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                 Section(stringResource(R.string.set_home)) {
                     Text(stringResource(R.string.set_home_hint), color = t.hint, fontSize = 12.sp)
                     Text(stringResource(R.string.native_home_hint), color = t.hint, fontSize = 12.sp)
-                    val natives = remember { nativeHomes(ctx).map { it.activityInfo.packageName to it.loadLabel(ctx.packageManager).toString() } }
+                    // список родных экранов с названиями собирается в фоне: loadLabel обращается к ресурсам и Binder, в главном потоке это до 150 мс (журнал магнитолы)
+                    val natives by androidx.compose.runtime.produceState(emptyList<Pair<String, String>>()) {
+                        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { nativeHomes(ctx).map { it.activityInfo.packageName to it.loadLabel(ctx.packageManager).toString() } }
+                    }
                     if (natives.isNotEmpty()) Options(listOf("" to stringResource(R.string.native_auto)) + natives, Cfg.nativeHome) { Cfg.changeNativeHome(it) }
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Chip(stringResource(R.string.set_home_btn), false) {
@@ -420,6 +496,7 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
             } else {
                 HiddenList(apps)
             }
+        }
         }
     }
     if (menuBgDlg) BgDialogHost(true) { menuBgDlg = false }
@@ -566,4 +643,13 @@ private fun setHomeMode(ctx: android.content.Context, on: Boolean) {
         if (on) android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED else android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
         android.content.pm.PackageManager.DONT_KILL_APP,
     )
+}
+
+
+/** Ускорение программы (root): состояние компиляции в машинный код и кнопка запуска. */
+@Composable
+private fun SpeedBlock(ctx: android.content.Context, t: TC) {
+    val comp = CompileBoost.result.ifEmpty { CompileBoost.status(ctx) }
+    Text(stringResource(R.string.compile_status, comp), color = t.hint, fontSize = 12.sp)
+    if (Adb.isRoot && !CompileBoost.running) Chip(stringResource(R.string.compile_now), false) { CompileBoost.runIfNeeded(ctx, force = true) }
 }
