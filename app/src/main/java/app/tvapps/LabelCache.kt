@@ -50,7 +50,7 @@ object LabelCache {
 
     /** Расчёт всех подписей в порядке сетки с учётом соседей (в фоне): ключ «текст|параметры» -> итог для подписей, получивших выступ. */
     fun solveAll(labels: List<String>, spec: LabelSpec): Map<String, LabelFlow.Resolved> {
-        val paint = TextPaint(Paint.ANTI_ALIAS_FLAG)
+        val paint = AppFont.labelPaint()
         val p = LabelFlow.params(spec.slotPx, spec.padPx, spec.sizePx)
         val res = LabelFlow.solve(labels, spec.cols, spec.slotPx, spec.padPx, spec.sizePx, spec.lines, metricsFor(paint))
         val out = HashMap<String, LabelFlow.Resolved>()
@@ -68,7 +68,7 @@ object LabelCache {
     fun clear() { synchronized(map) { map.clear() }; overrides.clear() }
 
     private fun build(label: String, spec: LabelSpec, ov: LabelFlow.Resolved?): LabelLayout {
-        val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFFFFF.toInt() }
+        val paint = AppFont.labelPaint().apply { color = 0xFFFFFFFF.toInt() }
         val metrics = metricsFor(paint)
         val p = LabelFlow.params(spec.slotPx, spec.padPx, spec.sizePx)
         val r = ov ?: LabelFlow.single(label, metrics, p, spec.lines)

@@ -39,7 +39,7 @@ object MenuMemoryLogic {
     }
 
     /** Раздел настроек, открываемый при возврате: только известные значения. */
-    fun settingsSub(saved: String?): String = if (saved == "hidden") "hidden" else "main"
+    fun settingsSub(saved: String?): String = when (saved) { "hidden" -> "hidden"; "excl" -> "excl"; else -> "main" }
 
     /** Нужно ли восстанавливать прокрутку: есть запомненное место и оно отличается от текущего. */
     fun needsScroll(hasSaved: Boolean, target: Int, current: Int): Boolean = hasSaved && target != current
@@ -78,7 +78,18 @@ object MenuMemory {
         settingsScroll = sp.getInt("mm_set_scroll", 0)
         settingsFocusText = sp.getString("mm_set_ftext", null)
         settingsFocusY = sp.getFloat("mm_set_fy", 0f)
+        // столы: после закрытия программы положение не запоминается, если не включено «Запоминать положение после выхода»
+        if (Desks.on && !Cfg.rememberPos) restore(null)
         return this
+    }
+
+    /** Положение текущего стола: сохраняется при уходе на другой стол. */
+    fun snapshot(): DeskMem = DeskMem(focusPkg, focusIndex, firstPkg, firstIndex, firstOffset)
+
+    /** Возвращает положение стола; null означает «сверху, фокуса нет». */
+    fun restore(m: DeskMem?) {
+        focusPkg = m?.focusPkg; focusIndex = m?.focusIndex ?: 0
+        firstPkg = m?.firstPkg; firstIndex = m?.firstIndex ?: 0; firstOffset = m?.firstOffset ?: 0
     }
 
     fun setFocus(pkg: String, index: Int) { focusPkg = pkg; focusIndex = index.coerceAtLeast(0) }

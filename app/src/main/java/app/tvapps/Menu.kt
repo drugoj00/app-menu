@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -36,6 +37,7 @@ import androidx.compose.material.icons.outlined.Create
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Settings
@@ -43,7 +45,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -57,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -123,6 +125,14 @@ private fun outline(name: String, block: androidx.compose.ui.graphics.vector.Pat
         fill = null, stroke = SolidColor(Color.Black), strokeLineWidth = 1.8f, strokeLineCap = StrokeCap.Round, strokeLineJoin = StrokeJoin.Round, pathBuilder = block,
     ).build()
 
+private val IconDesk: ImageVector by lazy {
+    outline("Desk") {
+        moveTo(4f, 4f); lineTo(10.5f, 4f); lineTo(10.5f, 10.5f); lineTo(4f, 10.5f); close()
+        moveTo(13.5f, 4f); lineTo(20f, 4f); lineTo(20f, 10.5f); lineTo(13.5f, 10.5f); close()
+        moveTo(4f, 13.5f); lineTo(10.5f, 13.5f); lineTo(10.5f, 20f); lineTo(4f, 20f); close()
+        moveTo(13.5f, 13.5f); lineTo(20f, 13.5f); lineTo(20f, 20f); lineTo(13.5f, 20f); close()
+    }
+}
 private val IconStop: ImageVector by lazy {
     outline("Stop") {
         moveTo(8f, 4f); lineTo(16f, 4f); lineTo(20f, 8f); lineTo(20f, 16f); lineTo(16f, 20f); lineTo(8f, 20f); lineTo(4f, 16f); lineTo(4f, 8f); close()
@@ -146,7 +156,7 @@ private val IconSpecial: ImageVector by lazy {
 
 /** Кнопка «значок над подписью» в цветной полосе. */
 @Composable
-private fun ActionCell(icon: ImageVector, label: String, modifier: Modifier = Modifier, tint: Color = Pop.text, onClick: () -> Unit) {
+private fun ActionCell(icon: ImageVector, label: String, modifier: Modifier = Modifier, tint: Color = Pop.text, iconSize: androidx.compose.ui.unit.Dp = 22.dp, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     val (hm, hover) = rememberHover()
     Column(
@@ -157,15 +167,17 @@ private fun ActionCell(icon: ImageVector, label: String, modifier: Modifier = Mo
             .background(if (focused || hover) Pop.focusFill else Color.Transparent)
             .border(if (focused) 2.dp else 0.dp, if (focused) Pop.focusLine else Color.Transparent, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
-            .padding(vertical = 10.dp, horizontal = 2.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .heightIn(min = cellMinHeight())
+            .padding(vertical = 5.dp, horizontal = 2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
     ) {
-        Icon(icon, null, tint = tint, modifier = Modifier.size(26.dp))
-        Spacer(Modifier.size(4.dp))
+        Icon(icon, null, tint = tint, modifier = Modifier.size(iconSize))
+        Spacer(Modifier.size(2.dp))
         // слово не рвётся посреди («Остано/вить»): пока перенос режет слово, шрифт подписи уменьшается
         var k by remember(label) { mutableStateOf(1f) }
+        val fs = shortcutFont()
         Text(
-            label, color = tint, fontSize = btnSp(14) * k, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Clip, lineHeight = btnSp(16) * k,
+            label, color = tint, fontSize = fs * k, fontWeight = FontWeight.Normal, letterSpacing = 0.sp, fontFamily = AppFont.family, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Clip, lineHeight = fs * k * 1.15f,
             onTextLayout = { r ->
                 val cut = (0 until r.lineCount - 1).any { i -> val end = r.getLineEnd(i); end in 1 until label.length && label[end - 1].isLetterOrDigit() && label[end].isLetterOrDigit() }
                 if (cut && k > 0.62f) k -= 0.06f
@@ -187,9 +199,10 @@ private fun PopButton(text: String, modifier: Modifier = Modifier, fill: Color =
             .background(if (!enabled) Color(0x22000000) else if (focused || hover) Pop.focusFill else fill)
             .border(if (focused) 2.dp else 0.dp, if (focused) Pop.focusLine else Color.Transparent, RoundedCornerShape(14.dp))
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .heightIn(min = cellMinHeight())
+            .padding(horizontal = 12.dp, vertical = 6.dp),
         contentAlignment = Alignment.CenterStart,
-    ) { Text(text, color = if (enabled) textColor else Pop.sub, fontSize = btnSp(15), fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+    ) { Text(text, color = if (enabled) textColor else Pop.sub, fontSize = shortcutFont(), fontWeight = FontWeight.Normal, letterSpacing = 0.sp, fontFamily = AppFont.family, maxLines = 2, overflow = TextOverflow.Ellipsis) }
 }
 
 @Composable
@@ -208,7 +221,7 @@ private fun ToggleRow(text: String, checked: Boolean, onChange: (Boolean) -> Uni
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(text, color = Pop.text, fontSize = 14.sp, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(text, color = Pop.text, fontSize = shortcutFont(), letterSpacing = 0.sp, fontFamily = AppFont.family, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
         Switch(checked, null)
     }
 }
@@ -233,7 +246,29 @@ private fun Tail(centerPx: Int, up: Boolean, color: Color) {
 private class TailProvider(private val gap: Int, private val margin: Int) : PopupPositionProvider {
     var tailX by mutableIntStateOf(0)
     var below by mutableStateOf(true)
+    /** Панель ярлыков рядом с карточкой: [panel] есть ли она, [landscape] рядом (иначе над или под), размеры карточки и панели в px. Слева ли панель решает сама раскладка. */
+    var panel = false
+    var landscape = true
+    var cardPx = 0
+    var panelPx = 0
+    var panelGapPx = 0
+    var panelLeft by mutableStateOf(false)
     override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
+        if (panel && landscape) {
+            // справа от карточки; если справа нет места, слева; по верху карточки, в пределах экрана
+            val total = cardPx + panelGapPx + panelPx
+            val cardXd = anchorBounds.center.x - cardPx / 2
+            val right = cardXd + total <= windowSize.width - margin
+            val popupX = if (right) max(margin, cardXd) else (cardXd - panelPx - panelGapPx).coerceIn(margin, max(margin, windowSize.width - margin - total))
+            panelLeft = !right
+            val cardX = if (panelLeft) popupX + panelPx + panelGapPx else popupX
+            val spaceBelow = windowSize.height - anchorBounds.bottom
+            val isBelow = spaceBelow >= popupContentSize.height + gap || anchorBounds.top < popupContentSize.height
+            val y = if (isBelow) anchorBounds.bottom + gap else anchorBounds.top - gap - popupContentSize.height
+            tailX = anchorBounds.center.x - cardX
+            below = isBelow
+            return IntOffset(popupX, y.coerceIn(margin, max(margin, windowSize.height - popupContentSize.height - margin)))
+        }
         val x = (anchorBounds.center.x - popupContentSize.width / 2)
             .coerceIn(margin, max(margin, windowSize.width - popupContentSize.width - margin))
         val spaceBelow = windowSize.height - anchorBounds.bottom
@@ -256,7 +291,8 @@ fun AppMenu(e: Entry, hidden: Boolean, onToggleHide: () -> Unit, onSelect: () ->
     var screen by remember { mutableStateOf("main") }
     var busy by remember { mutableStateOf(false) }
     val first = remember { FocusRequester() }
-    LaunchedEffect(screen) { runCatching { first.requestFocus() } }
+    // фокус на первый пункт: окно только что открылось и ещё не получило фокус ввода, поэтому запрос повторяется (до того, как пользователь успеет нажать стрелку)
+    LaunchedEffect(screen) { runCatching { first.requestFocus() }; kotlinx.coroutines.delay(120); runCatching { first.requestFocus() }; kotlinx.coroutines.delay(250); runCatching { first.requestFocus() } }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
             val ok = IconPacks.saveOwn(ctx, e.pkg, uri)
@@ -286,7 +322,26 @@ fun AppMenu(e: Entry, hidden: Boolean, onToggleHide: () -> Unit, onSelect: () ->
     Popup(popupPositionProvider = provider, onDismissRequest = onClose, properties = PopupProperties(focusable = true)) {
         HalfUi {
         // на телефоне внутри окна размеры идут в половинном масштабе (HalfUi), поэтому доступная ширина в этих единицах вдвое больше
-        Column(Modifier.width(minOf(if (isNarrow()) 730f else 560f, screenDp().first * (if (isNarrow()) 2f else 1f) - 20f).dp)) {
+        val cardMax = minOf(if (isNarrow()) 860f else 560f, screenDp().first * (if (isNarrow()) 2f else 1f) - 20f)
+        val cardMain = actionCardWidth(cardMax)
+        // главная страница карточки ровно по самому длинному названию; подэкраны (разрешения, спецдоступ и т. п.) с длинными строками чуть шире
+        val cardW = if (screen == "main") cardMain else maxOf(cardMain.value, minOf(if (isNarrow()) 520f else 320f, cardMax)).dp
+        // ярлыки приложения: отдельная компактная панель рядом с карточкой (в ландшафте сбоку, в портрете над или под ней)
+        val showPanel = screen == "main" && shortcuts.isNotEmpty()
+        val sd = screenDp()
+        val landscape = sd.first > sd.second
+        val panelW = shortcutPanelWidth(shortcuts, cardW, landscape, sd.first * (if (isNarrow()) 2f else 1f))
+        val gapW = 8.dp
+        val dn = LocalDensity.current
+        provider.panel = showPanel
+        provider.landscape = landscape
+        provider.cardPx = with(dn) { cardW.roundToPx() }
+        provider.panelPx = with(dn) { panelW.roundToPx() }
+        provider.panelGapPx = with(dn) { gapW.roundToPx() }
+        val pickShortcut: (Shortcut) -> Unit = { sc -> onClose(); runCatching { ctx.startActivity(sc.intent) }.onFailure { toast(ctx, ctx.getString(R.string.cant_open)) } }
+        val panel: @Composable () -> Unit = { ShortcutsPanel(shortcuts, e, panelW, pickShortcut) }
+        val cardBody: @Composable () -> Unit = {
+        Column(Modifier.width(cardW)) {
             if (provider.below) Tail(provider.tailX, up = true, color = Pop.card)
             val cardScroll = rememberScrollState()
             Column(
@@ -294,7 +349,7 @@ fun AppMenu(e: Entry, hidden: Boolean, onToggleHide: () -> Unit, onSelect: () ->
             ) {
                 // шапка: название по центру и кружок «i» справа, как в One UI
                 Box(Modifier.fillMaxWidth().padding(start = 16.dp, end = 10.dp, top = 12.dp, bottom = 6.dp), contentAlignment = Alignment.Center) {
-                    Text(e.label, color = Pop.text, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 44.dp))
+                    Text(e.label, color = Pop.text, fontSize = shortcutFont(), letterSpacing = 0.sp, fontFamily = AppFont.family, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 44.dp))
                     var infoFocused by remember { mutableStateOf(false) }
                     Box(
                         Modifier.align(Alignment.CenterEnd).size(40.dp)
@@ -308,13 +363,8 @@ fun AppMenu(e: Entry, hidden: Boolean, onToggleHide: () -> Unit, onSelect: () ->
                 }
                 if (busy) Text(stringResource(R.string.working), color = Pop.accent, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp))
 
-                if (screen == "main" && shortcuts.isNotEmpty()) {
-                    Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp)) {
-                        shortcuts.forEach { sc -> ShortcutRow(sc, e) { onClose(); runCatching { ctx.startActivity(sc.intent) }.onFailure { toast(ctx, ctx.getString(R.string.cant_open)) } } }
-                    }
-                }
                 when (screen) {
-                    "main" -> Column(Modifier.fillMaxWidth().background(Pop.band).padding(horizontal = 8.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    "main" -> Column(Modifier.fillMaxWidth().background(Pop.band).padding(horizontal = (if (isNarrow()) 12 else 6).dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Row(Modifier.fillMaxWidth()) {
                             ActionCell(IconStop, stringResource(R.string.stop), Modifier.weight(1f).focusRequester(first)) {
                                 if (Adb.isConnected) withAdb {
@@ -355,8 +405,18 @@ fun AppMenu(e: Entry, hidden: Boolean, onToggleHide: () -> Unit, onSelect: () ->
                         Row(Modifier.fillMaxWidth()) {
                             ActionCell(IconVersions, stringResource(R.string.versions_cell), Modifier.weight(1f)) { onClose(); host?.openVersions(e) }
                             ActionCell(IconUpdates, stringResource(R.string.upd_cell), Modifier.weight(1f)) { onClose(); host?.openUpdates(e) }
-                            ActionCell(Icons.Outlined.Star, stringResource(if (Cfg.isFavorite(e.pkg)) R.string.fav_remove else R.string.fav_add), Modifier.weight(1f)) { Cfg.toggleFavorite(e.pkg); onClose() }
-                            Spacer(Modifier.weight(1f))
+                            // избранное заметнее: звезда крупнее, при включённом закрашена жёлтым
+                            val isFav = Cfg.isFavorite(e.pkg)
+                            ActionCell(
+                                if (isFav) Icons.Filled.Star else IconStarOutline, stringResource(if (isFav) R.string.fav_remove else R.string.fav_add), Modifier.weight(1f),
+                                tint = if (isFav) Color(0xFFB45309) else Pop.accent, iconSize = 24.dp,
+                            ) { Cfg.toggleFavorite(e.pkg); onClose() }
+                            // ручное включение и выключение режима «Несколько столов»: плитка после «В избранное», как остальные
+                            ActionCell(IconDesk, stringResource(if (Desks.on) R.string.desk_tile_on else R.string.desk_tile_off), Modifier.weight(1f)) { Desks.enable(!Desks.on); onClose() }
+                        }
+                        if (Desks.on && !e.isFolder) Row(Modifier.fillMaxWidth()) {
+                            ActionCell(IconDesk, stringResource(R.string.desk_to), Modifier.weight(1f)) { onClose(); host?.openDeskPick(e) }
+                            Spacer(Modifier.weight(3f))
                         }
                     }
                     else -> Column(Modifier.fillMaxWidth().background(Pop.band).padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -406,31 +466,118 @@ fun AppMenu(e: Entry, hidden: Boolean, onToggleHide: () -> Unit, onSelect: () ->
             if (!provider.below) Tail(provider.tailX, up = false, color = Pop.band)
         }
         }
+        // карточка открылась долгим «ОК», пока кнопка зажата: повторы и отпускание того же нажатия не должны нажать первый пункт («Остановить»)
+        val shownAt = remember { android.os.SystemClock.elapsedRealtime() }
+        Box(Modifier.onPreviewKeyEvent { OkGuard.eats(it, shownAt) }) {
+        if (!showPanel) cardBody()
+        else if (landscape) Row(verticalAlignment = Alignment.Top) {
+            // верх панели на уровне верха самой карточки (над ней может стоять стрелка-указатель высотой 11 dp)
+            val panelTop = if (provider.below) 11.dp else 0.dp
+            if (provider.panelLeft) { Box(Modifier.padding(top = panelTop)) { panel() }; Spacer(Modifier.width(gapW)) }
+            cardBody()
+            if (!provider.panelLeft) { Spacer(Modifier.width(gapW)); Box(Modifier.padding(top = panelTop)) { panel() } }
+        } else Column {
+            // панель с той стороны карточки, где нет значка: значок остаётся виден
+            if (!provider.below) { panel(); Spacer(Modifier.height(gapW)) }
+            cardBody()
+            if (provider.below) { Spacer(Modifier.height(gapW)); panel() }
+        }
+        }
+        }
     }
 }
 
-/** Одна быстрая ссылка: круглый значок и подпись, как в One UI. */
+/** Минимальная высота пункта карточки: цель нажатия не меньше 40 dp (на ТВ 52); в окнах телефона размеры вдвое мельче, поэтому умножается. */
 @Composable
-private fun ShortcutRow(sc: Shortcut, e: Entry, onClick: () -> Unit) {
-    var focused by remember { mutableStateOf(false) }
-    val bmp = remember(sc.id) { runCatching { (sc.icon ?: e.icon).toBitmap(72, 72).asImageBitmap() }.getOrNull() }
-    val (hm, hover) = rememberHover()
-    Row(
-        Modifier.fillMaxWidth()
-            .then(hm)
-            .onFocusChanged { focused = it.isFocused }
-            .clip(RoundedCornerShape(16.dp))
-            .background(if (focused || hover) Pop.focusFill else Color.Transparent)
-            .border(if (focused) 2.dp else 0.dp, if (focused) Pop.focusLine else Color.Transparent, RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+private fun cellMinHeight(): Dp = ((if (TopMode.isTv(LocalContext.current)) 52f else 40f) * (if (isNarrow()) 2f else 1f)).dp
+
+/**
+ * Ширина карточки действий по самому длинному названию пункта: четыре пункта в ряд, у каждого название и боковые отступы 7 dp;
+ * не шире [maxUnits] и не уже, чем нужно подпанелям (разрешения, спецдоступ и т. п.).
+ */
+@Composable
+private fun actionCardWidth(maxUnits: Float): Dp {
+    val d = LocalDensity.current
+    val sizePx = with(d) { shortcutFont().toPx() }
+    val names = listOf(
+        R.string.stop, R.string.clear_cache, R.string.clear_data, R.string.perms, R.string.special, R.string.battery, R.string.hide, R.string.unhide,
+        R.string.uninstall, R.string.icon_cell, R.string.select, R.string.move, R.string.folder_cell, R.string.versions_cell, R.string.upd_cell,
+        R.string.fav_add, R.string.fav_remove, R.string.desk_to,
+    ).map { stringResource(it) }
+    val longest = names.maxOf { Math.ceil(AppFont.measure(it, sizePx).toDouble()).toInt() }
+    val k = if (isNarrow()) 2f else 1f
+    // боковые отступы 6 dp у каждого пункта, без фиксированного минимума
+    // в ячейке по бокам 2 dp отступа (4 единицы окна) и запас на округление: слово «Переместить» не должно сжиматься (иначе буквы мельче, чем у подписи значка)
+    val cell = with(d) { longest.toDp() }.value + (if (k > 1f) 10f else 12f)
+    val w = 4f * cell + 12f * k
+    return w.coerceAtMost(maxUnits).dp
+}
+
+/** Размер шрифта названий ярлыков: как у подписей под значками в сетке (на 1 sp меньше), в единицах окна (на телефоне окно вдвое мельче). */
+@Composable
+private fun shortcutFont(): androidx.compose.ui.unit.TextUnit {
+    return Typo.labelSp()
+}
+
+/**
+ * Ширина панели ярлыков: по самому длинному названию с запасом, от 220 до 320 dp на телефоне и от 320 до 440 dp на ТВ; не шире свободного места
+ * (в ландшафте рядом с карточкой в пределах экрана, в портрете не шире карточки).
+ */
+@Composable
+private fun shortcutPanelWidth(list: List<Shortcut>, cardW: Dp, landscape: Boolean, screenUnits: Float): Dp {
+    val tv = TopMode.isTv(LocalContext.current)
+    val k = if (isNarrow()) 2f else 1f
+    val d = LocalDensity.current
+    val sizePx = with(d) { shortcutFont().toPx() }
+    val textPx = list.maxOfOrNull { Math.ceil(AppFont.measure(it.label, sizePx).toDouble()).toInt() } ?: 0
+    val rowH = (if (tv) 52f else 40f) * k
+    // значок + отступы 7 dp с боков + запас на фокус и округление (без запаса название сжималось и становилось мельче подписи значка)
+    var w = with(d) { textPx.toDp() }.value + rowH * 0.6f + (6f * 2f + 6f + 4f + 8f + 8f) * k
+    val maxW = (if (tv) 440f else 320f) * k
+    w = w.coerceAtMost(maxW)
+    val free = if (landscape) screenUnits - cardW.value - 8f - 24f * k else cardW.value
+    return minOf(w, maxOf(free, 120f * k)).dp
+}
+
+/** Панель ярлыков приложения (статические shortcuts): невысокие строки, до 5 видимых, дальше прокрутка с общей полосой. */
+@Composable
+private fun ShortcutsPanel(list: List<Shortcut>, e: Entry, width: Dp, onPick: (Shortcut) -> Unit) {
+    val tv = TopMode.isTv(LocalContext.current)
+    val k = if (isNarrow()) 2f else 1f   // в окнах телефона размеры вдвое мельче (HalfUi)
+    val rowH = ((if (tv) 52f else 40f) * k).dp
+    val st = rememberScrollState()
+    val baseFs = shortcutFont()
+    Column(
+        Modifier.width(width).heightIn(max = rowH * 5).clip(RoundedCornerShape(20.dp)).background(Pop.card)
+            .verticalScrollbar(st).verticalScroll(st).padding(vertical = 4.dp * k),
     ) {
-        Box(Modifier.size(38.dp).clip(CircleShape).background(Color(0xFFFFFFFF)), contentAlignment = Alignment.Center) {
-            if (bmp != null) Image(bmp, null, Modifier.size(24.dp))
+        list.forEach { sc ->
+            var focused by remember { mutableStateOf(false) }
+            val bmp = remember(sc.id) { runCatching { (sc.icon ?: e.icon).toBitmap(72, 72).asImageBitmap() }.getOrNull() }
+            val (hm, hover) = rememberHover()
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = rowH).padding(horizontal = 4.dp * k)
+                    .then(hm)
+                    .onFocusChanged { focused = it.isFocused }
+                    .clip(RoundedCornerShape(14.dp * k))
+                    .background(if (focused || hover) Pop.focusFill else Color.Transparent)
+                    .border(if (focused) 2.dp else 0.dp, if (focused) Pop.focusLine else Color.Transparent, RoundedCornerShape(14.dp * k))
+                    .clickable { onPick(sc) }
+                    .padding(horizontal = 7.dp * k),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp * k),
+            ) {
+                Box(Modifier.size(rowH * 0.6f).clip(CircleShape).background(Color(0xFFFFFFFF)), contentAlignment = Alignment.Center) {
+                    if (bmp != null) Image(bmp, null, Modifier.size(rowH * 0.4f))
+                }
+                // название как подпись под значком: в одну строку, а если не влезает, сначала сжимается (до 70%), потом переносится на 2 строки
+                var shrink by remember(sc.label, width) { mutableStateOf(1f) }
+                Text(
+                    sc.label, color = Pop.text, fontSize = baseFs * shrink, lineHeight = baseFs * shrink * 1.15f, letterSpacing = 0.sp, fontFamily = AppFont.family, fontWeight = FontWeight.Normal, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).padding(vertical = 3.dp * k),
+                    onTextLayout = { r -> if ((r.hasVisualOverflow || r.lineCount > 1 && shrink > 0.8f) && shrink > 0.7f) shrink -= 0.05f },
+                )
+            }
         }
-        Text(sc.label, color = Pop.text, fontSize = 17.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
     }
 }
 

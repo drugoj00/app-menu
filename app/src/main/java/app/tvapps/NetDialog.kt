@@ -17,7 +17,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -120,7 +119,7 @@ fun NetDialog(onClose: () -> Unit) {
                 Chip(stringResource(R.string.net_get), false) { if (link.startsWith("http") && !busy) installFrom(listOf(link.trim())) }
             }
             if (status.isNotEmpty()) Text(status, color = t.accent, fontSize = 14.sp)
-            LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            BarLazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 items(results, key = { it.source + it.id }) { app ->
                     var focused by remember { mutableStateOf(false) }
                     val (hm, hover) = rememberHover()

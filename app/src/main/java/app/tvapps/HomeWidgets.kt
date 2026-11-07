@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
@@ -56,28 +57,30 @@ internal fun widgetName(type: String): String = stringResource(
     },
 )
 
-private fun loc(): Locale = Locale(Cfg.lang.ifBlank { Locale.getDefault().language })
+private fun loc(): Locale = AppLoc.locale()
 
 /** Нажатие на виджет: часы и дата ведут в настройки даты, память в настройки хранилища, погода обновляется. */
 internal fun widgetClick(ctx: Context, w: HWidget, refresh: () -> Unit) {
     when (w.type) {
         "clock", "date" -> openSys(ctx, Settings.ACTION_DATE_SETTINGS)
-        "storage", "ram" -> openSys(ctx, Settings.ACTION_INTERNAL_STORAGE_SETTINGS)
+        // «Память»: ОК или щелчок мышью чистит память (как кнопка очистки), «Хранилище» открывает настройки хранилища
+        "ram" -> MemoryCleaner.cleanAsync(ctx, refresh)
+        "storage" -> openSys(ctx, Settings.ACTION_INTERNAL_STORAGE_SETTINGS)
         else -> refresh()
     }
 }
 
 /** Содержимое одной ячейки виджетов. */
 @Composable
-internal fun WidgetBody(w: HWidget, tick: Int, refreshTick: Int) {
+internal fun WidgetBody(w: HWidget, tick: Int, refreshTick: Int, onLong: () -> Unit = {}) {
     when (w.type) {
         "empty" -> {}
         "weather" -> WeatherBody(w, tick, refreshTick)
         "clock" -> ClockBody(w)
         "date" -> DateBody()
-        "appwidget" -> AppWidgetBody(w)
-        "storage" -> MemBody(w.type)
-        else -> MemBody(w.type)
+        "appwidget" -> AppWidgetBody(w, onLong)
+        "storage" -> MemBody(w.type, refreshTick)
+        else -> MemBody(w.type, refreshTick)
     }
 }
 
@@ -88,7 +91,8 @@ private fun ClockBody(w: HWidget) {
     BoxWithConstraints(Modifier.fillMaxSize().padding(10.dp), contentAlignment = Alignment.Center) {
         val big = (maxHeight.value * 0.42f).coerceIn(20f, 64f)
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(withSmallSeconds(SimpleDateFormat(clockPattern(w.n), loc()).format(Date(now)), (w.n and 2) != 0), color = t.text, fontSize = big.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            Text(withSmallSeconds(SimpleDateFormat(clockPattern(w.n), loc()).format(Date(now)), (w.n and 2) != 0), color = t.text, fontSize = big.sp, fontWeight = FontWeight.Bold, maxLines = 1,
+                style = androidx.compose.material3.LocalTextStyle.current.copy(fontFeatureSettings = "tnum"))
             if (w.flag) Text(SimpleDateFormat("EEEE, d MMMM", loc()).format(Date(now)), color = t.sub, fontSize = (big * 0.3f).coerceAtLeast(11f).sp, maxLines = 1)
         }
     }
@@ -110,10 +114,10 @@ private fun DateBody() {
 private fun fmtGb(b: Long) = String.format(Locale.US, "%.1f", b / 1073741824.0)
 
 @Composable
-private fun MemBody(type: String) {
+private fun MemBody(type: String, refreshTick: Int = 0) {
     val t = LocalTh.current
     val ctx = LocalContext.current
-    val info = remember(type) {
+    val info = remember(type, refreshTick) {
         if (type == "storage") {
             val s = StatFs(Environment.getDataDirectory().path)
             s.totalBytes to s.availableBytes
@@ -139,9 +143,9 @@ private fun MemBody(type: String) {
 private fun WeatherBody(w: HWidget, tick: Int, refreshTick: Int) {
     val t = LocalTh.current
     val ctx = LocalContext.current
-    val lang = Cfg.lang.ifBlank { Locale.getDefault().language }
+    val lang = AppLoc.code()
     val seen = remember { intArrayOf(0) }
-    val weather by produceState<Weather?>(WeatherData.cached(ctx, w.city), tick, refreshTick, w.city) {
+    val weather by produceState<Weather?>(WeatherData.cached(ctx, w.city), tick, refreshTick, w.city, lang) {
         val old = value
         val force = refreshTick != seen[0]
         seen[0] = refreshTick
@@ -203,7 +207,8 @@ private fun WeatherBody(w: HWidget, tick: Int, refreshTick: Int) {
 }
 
 @Composable
-private fun AppWidgetBody(w: HWidget) {
+private fun AppWidgetBody(w: HWidget, onLong: () -> Unit) {
+    val longNow by androidx.compose.runtime.rememberUpdatedState(onLong)
     val ctx = LocalContext.current
     val t = LocalTh.current
     val id = w.ref.toIntOrNull()
@@ -215,14 +220,39 @@ private fun AppWidgetBody(w: HWidget) {
         }
         return
     }
+    // чужой виджет сам себя не обновляет (часы застывают): раз в минуту, в начале минуты, и при возврате на «Дом» просим его перерисоваться
+    val lc = (ctx as? androidx.activity.ComponentActivity)?.lifecycle
+    val hv = remember(id) { arrayOfNulls<android.appwidget.AppWidgetHostView>(1) }
+    val sz = remember(id) { intArrayOf(0, 0) }
+    androidx.compose.runtime.DisposableEffect(id) {
+        val ob = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_START) hv[0]?.let { v -> if (sz[0] > 0) AppWidgets.kick(v, id, info, sz[0], sz[1]) }
+        }
+        lc?.addObserver(ob)
+        onDispose { lc?.removeObserver(ob) }
+    }
+    LaunchedEffect(id) {
+        while (true) {
+            val n = System.currentTimeMillis()
+            kotlinx.coroutines.delay(60_000 - n % 60_000 + 2_000)
+            if (lc == null || lc.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) hv[0]?.let { v -> if (sz[0] > 0) AppWidgets.kick(v, id, info, sz[0], sz[1]) }
+        }
+    }
     BoxWithConstraints(Modifier.fillMaxSize().clipToBounds()) {
         // «Масштаб шрифта» для чужого виджета: ему даётся площадь в k раз меньше, а нарисованное увеличивается в k раз (текст и значки крупнее, как при большом шрифте)
         val k = w.fs.coerceIn(50, 250) / 100f
         val wd = (maxWidth.value / k).toInt()
         val hd = (maxHeight.value / k).toInt()
+        sz[0] = wd; sz[1] = hd
         androidx.compose.ui.viewinterop.AndroidView(
-            factory = { c -> AppWidgets.host(c).createView(c, id, info).also { it.setPadding(0, 0, 0, 0); it.updateAppWidgetSize(null, wd, hd, wd, hd) } },
-            update = { it.updateAppWidgetSize(null, wd, hd, wd, hd) },
+            factory = { c ->
+                // виджет лежит внутри обёртки, которая ловит долгое нажатие в любом месте (сам виджет забирает касания себе)
+                val frame = LongPressFrame(c) { longNow() }
+                val v = AppWidgets.host(c).createView(c, id, info).also { hv[0] = it; it.setPadding(0, 0, 0, 0); it.updateAppWidgetSize(null, wd, hd, wd, hd) }
+                frame.addView(v, android.widget.FrameLayout.LayoutParams(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT))
+                frame
+            },
+            update = { hv[0]?.updateAppWidgetSize(null, wd, hd, wd, hd) },
             modifier = Modifier.requiredSize(maxWidth / k, maxHeight / k)
                 .graphicsLayer(scaleX = k, scaleY = k, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)),
         )

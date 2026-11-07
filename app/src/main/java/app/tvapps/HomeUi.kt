@@ -30,17 +30,33 @@ internal fun HomeHardBlock() {
     var busy by remember { mutableStateOf(false) }
     val risky = remember { grabbers(ctx) }
     if (risky.isNotEmpty()) Text(stringResource(R.string.home_acc_warn, risky.joinToString(", ")), color = t.accent, fontSize = 13.sp)
-    Text(stringResource(R.string.home_hard_hint), color = t.hint, fontSize = 12.sp)
+    SectionHint(stringResource(R.string.home_hard_hint))
     if (Cfg.hardOff.isNotEmpty()) {
         Text(stringResource(R.string.home_hard_state, Cfg.hardOff.joinToString(", ")), color = t.accent, fontSize = 13.sp)
-        Text(stringResource(R.string.home_hard_manual), color = t.hint, fontSize = 12.sp)
+        SectionHint(stringResource(R.string.home_hard_manual))
     }
     if (HomeControl.guardTripped(ctx)) Text(stringResource(R.string.home_hard_guard), color = t.accent, fontSize = 13.sp)
+    // выбор: какие из найденных главных экранов отключать (выделенные), остальные остаются включёнными
+    val allHomes = remember { HomeControl.otherHomePackages(ctx) }
+    if (allHomes.isNotEmpty()) {
+        SectionHint(stringResource(R.string.home_keep_hint))
+        val off = HomeControl.toDisable(ctx).toSet()
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (p in allHomes) {
+                val name = remember(p) { runCatching { ctx.packageManager.getApplicationLabel(ctx.packageManager.getApplicationInfo(p, 0)).toString() }.getOrDefault(p) }
+                Chip(name, p in off) {
+                    val nowOff = HomeControl.toDisable(ctx).toMutableSet()
+                    if (p in nowOff) nowOff.remove(p) else nowOff.add(p)
+                    Cfg.changeHardKeep(allHomes.filter { it !in nowOff }.toSet())
+                }
+            }
+        }
+    }
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Chip(stringResource(R.string.home_hard_btn), Cfg.hardOff.isNotEmpty()) {
             if (busy) return@Chip
             val now = android.os.SystemClock.elapsedRealtime()
-            val others = HomeControl.otherHomePackages(ctx)
+            val others = HomeControl.toDisable(ctx)
             when {
                 !Adb.isConnected -> Toast.makeText(ctx, ctx.getString(R.string.home_hard_no_adb), Toast.LENGTH_LONG).show()
                 others.isEmpty() -> Toast.makeText(ctx, ctx.getString(R.string.home_hard_no_others), Toast.LENGTH_LONG).show()
@@ -86,16 +102,24 @@ internal fun grabbers(ctx: android.content.Context): List<String> {
 
 /** Включение и выключение всего модуля «Дом»: при выключении остаётся только меню приложений. */
 internal object HomeModule {
+    const val NEED_MENU = "need_menu"
     /** Возвращает пустую строку при успехе. Если родные экраны отключены, а вернуть их нечем, модуль остаётся включённым. */
     suspend fun disable(ctx: android.content.Context): String {
+        // нельзя выключить «Дом» и меню одновременно: без обоих не останется ни одного экрана программы
+        if (!Cfg.menuModule) return NEED_MENU
         if (Cfg.hardOff.isNotEmpty()) {
             val r = HomeControl.hardOff(ctx)
             if (r.isNotEmpty()) return r
         }
+        // был ли включён экран «вместо родного меню»: при обратном включении «Дома» он возвращается, иначе кнопка «Домой» и «Назад» уходят в чужой лаунчер
+        ctx.getSharedPreferences("tvapps", android.content.Context.MODE_PRIVATE).edit().putBoolean("home_alias_was", HomeControl.aliasEnabled(ctx)).apply()
         HomeControl.setAlias(ctx, false)
         Cfg.changeHomeModule(false)
         return ""
     }
 
-    fun enable() = Cfg.changeHomeModule(true)
+    fun enable(ctx: android.content.Context) {
+        if (ctx.getSharedPreferences("tvapps", android.content.Context.MODE_PRIVATE).getBoolean("home_alias_was", false)) HomeControl.setAlias(ctx, true)
+        Cfg.changeHomeModule(true)
+    }
 }
