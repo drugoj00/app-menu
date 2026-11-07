@@ -26,6 +26,16 @@ object HomeControl {
             .filter { it.packageName != ctx.packageName && it.packageName != "android" && !it.name.endsWith("FallbackHome") }
             .map { it.packageName }.distinct()
 
+    private fun isSystemPkg(ctx: Context, p: String): Boolean = runCatching {
+        (ctx.packageManager.getApplicationInfo(p, 0).flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
+    }.getOrDefault(true)
+
+    /** Какие из чужих главных экранов отключать: по выбору владельца, а без выбора только системные (сторонний любимый лаунчер остаётся). */
+    fun toDisable(ctx: Context): List<String> {
+        val keep = Cfg.hardKeep
+        return otherHomePackages(ctx).filter { if (keep != null) it !in keep else isSystemPkg(ctx, it) }
+    }
+
     /** Какой пакет сейчас главный экран по умолчанию. */
     fun currentHome(ctx: Context): String? =
         ctx.packageManager.resolveActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), PackageManager.MATCH_DEFAULT_ONLY)
@@ -50,8 +60,9 @@ object HomeControl {
 
     /** Результат: пустая строка — всё хорошо, иначе причина отказа (для сообщения). */
     suspend fun hardOn(ctx: Context): String {
+        if (!Integrity.safe(ctx)) return "integrity"
         if (!Adb.isConnected) return "no_adb"
-        val others = otherHomePackages(ctx)
+        val others = toDisable(ctx)
         if (others.isEmpty()) return "no_others"
         if (Cfg.nativeHome.isEmpty()) Cfg.changeNativeHome(others.first())
         setAlias(ctx, true)
@@ -107,6 +118,7 @@ object HomeControl {
      * а родные экраны отключены, сразу возвращаем их: человек не должен остаться без главного экрана.
      */
     fun guardOnProcessStart(ctx: Context) {
+        if (!Integrity.ok(ctx)) return
         val sp = ctx.getSharedPreferences("tvapps_guard", Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
         val times = (sp.getString("starts", "") ?: "").split(',').mapNotNull { it.toLongOrNull() }.filter { now - it < 25_000 } + now

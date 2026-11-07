@@ -81,9 +81,13 @@ class HomeActivity : ComponentActivity() {
         override fun onReceive(c: android.content.Context, i: Intent) { AppsMem.stamp = 0L; resumeTick.intValue++ }
     }
 
+    private var langAtStart = ""
+    private var sysAtStart = ""
+
     override fun attachBaseContext(base: android.content.Context) {
         val l = runCatching { base.getSharedPreferences("tvapps", MODE_PRIVATE).getString("lang", "") }.getOrNull().orEmpty()
-        if (l.isEmpty()) { super.attachBaseContext(base); return }
+        langAtStart = l; sysAtStart = AppLoc.system.language
+        if (l.isEmpty()) { java.util.Locale.setDefault(AppLoc.system); super.attachBaseContext(base); return }
         val loc = java.util.Locale(l)
         java.util.Locale.setDefault(loc)
         val conf = android.content.res.Configuration(base.resources.configuration)
@@ -94,6 +98,8 @@ class HomeActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Cfg.init(this)
+        // запуск по кнопке «Домой» (категория HOME): тихая очистка памяти, если включена
+        if (intent?.categories?.contains(Intent.CATEGORY_HOME) == true) MemoryCleaner.onHome(this)
         // модуль «Дом» выключен: открываем меню и закрываем этот экран
         if (!Cfg.homeModule) {
             startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -107,7 +113,7 @@ class HomeActivity : ComponentActivity() {
         setContent {
             UiScaleRoot {
             val tc = currentTC()
-            MaterialTheme(colorScheme = if (tc.dark) darkColorScheme() else lightColorScheme()) {
+            MaterialTheme(colorScheme = if (tc.dark) darkColorScheme() else lightColorScheme(), typography = AppFont.typography) {
                 CompositionLocalProvider(LocalTh provides tc) { FixedFont { HomeScreen(resumeTick.intValue, againTick.intValue) } }
             }
                     }
@@ -125,6 +131,8 @@ class HomeActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        // язык сменили в настройках, пока «Дом» стоял позади: пересоздаём, чтобы все подписи, даты и погода стали на новом языке
+        if (AppLoc.changedSince(langAtStart, sysAtStart)) { recreate(); return }
         homeShown = true
         SysBars.apply(this)
         resumeTick.intValue++
@@ -132,6 +140,7 @@ class HomeActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        if (intent.categories?.contains(Intent.CATEGORY_HOME) == true) MemoryCleaner.onHome(this)
         // «Домой» из другой программы: на «Дом», в начало и курсор на первый элемент;
         // «Домой» на самом «Доме» (мы уже здесь): в начало, а если уже в начале, то открывается меню приложений
         // «Домой на Доме» (мы уже на «Доме», меню поверх нет и «Назад» из меню не нажимали): открывается меню; иначе просто вернулись на «Дом»
@@ -142,6 +151,7 @@ class HomeActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
+        HomeStore.flush(); Cfg.flush()
         homeShown = false
         runCatching { unregisterReceiver(pkgReceiver) }
         runCatching { AppWidgets.host(this).stopListening() }
@@ -238,6 +248,7 @@ private fun HomeScreen(tick: Int, again: Int) {
     LaunchedEffect(Unit) {
         delay(1200)
         autoConnect(ctx)
+        CompileBoost.runIfNeeded(ctx)
     }
     LaunchedEffect(apps.isNotEmpty()) {
         if (apps.isEmpty()) return@LaunchedEffect
@@ -297,8 +308,10 @@ private fun HomeScreen(tick: Int, again: Int) {
         runCatching { ctx.startActivity(e.launch) }.onFailure { Toast.makeText(ctx, ctx.getString(R.string.cant_open), Toast.LENGTH_SHORT).show() }
     }
     val openMenu = {
+        if (!Cfg.menuOff) {
         ctx.startActivity(Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("from_home", true))
         (ctx as? android.app.Activity)?.overridePendingTransition(0, 0)
+        }
     }
     // «Домой» на «Доме»: если страница прокручена, в начало; если уже в начале, открывается меню приложений
     // реагируем только на НОВОЕ нажатие (прежнее значение при пересоздании экрана игнорируется, иначе меню открывалось бы снова и снова)
@@ -334,6 +347,7 @@ private fun HomeScreen(tick: Int, again: Int) {
             override fun addToFolder(id: String) {}
             override fun openVersions(e: Entry) { versionsFor = e }
             override fun openUpdates(e: Entry) { updatesFor = e }
+            override fun openDeskPick(e: Entry) {}
         }
     }
     CompositionLocalProvider(LocalHost provides host, LocalTh provides adaptTheme(t, layout.bg), LocalBaseTh provides t) {
@@ -345,7 +359,7 @@ private fun HomeScreen(tick: Int, again: Int) {
             Column(Modifier.fillMaxSize().padding(horizontal = if (narrow) 10.dp else 32.dp, vertical = if (narrow) 10.dp else 16.dp)) {
                 run {
                     Column(Modifier.fillMaxSize()) {
-                        if (!Integrity.ok()) androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(R.string.integrity_warn), color = androidx.compose.ui.graphics.Color(0xFFF87171), fontSize = androidx.compose.ui.unit.TextUnit(13f, androidx.compose.ui.unit.TextUnitType.Sp))
+                        if (!Integrity.statusOk()) androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(R.string.integrity_warn) + " [" + Integrity.why + "]", color = androidx.compose.ui.graphics.Color(0xFFF87171), fontSize = androidx.compose.ui.unit.TextUnit(13f, androidx.compose.ui.unit.TextUnitType.Sp))
                         // на телефоне и планшете полоска не нужна (есть системная); на ТВ и приставках показывается всегда
                         if (TopMode.visible(ctx) || TopUi.tick.intValue < 0) {
                         HomeTopBar(
@@ -419,7 +433,7 @@ private fun HomeScreen(tick: Int, again: Int) {
                         if (r.isEmpty()) {
                             ctx.startActivity(Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                             (ctx as? android.app.Activity)?.finish()
-                        } else Toast.makeText(ctx, ctx.getString(R.string.home_module_off_fail), Toast.LENGTH_LONG).show()
+                        } else Toast.makeText(ctx, ctx.getString(if (r == HomeModule.NEED_MENU) R.string.home_module_need_menu else R.string.home_module_off_fail), Toast.LENGTH_LONG).show()
                     }
                 },
             )

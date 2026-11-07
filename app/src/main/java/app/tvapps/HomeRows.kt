@@ -522,6 +522,7 @@ private fun WidgetsRow(row: HRow, tick: Int, refreshTick: Int, firstReq: FocusRe
                 HomeBox(
                     Modifier.weight(w.wt.coerceAtLeast(1).toFloat()).fillMaxHeight(), wShape, if (w.type == "appwidget" || w.type == WIDGET_EMPTY) Color.Transparent else t.tile, focusReq = if (i == 0) firstReq else null, memKey = row.id + "|w" + i,
                     ringColor = if (w.borderW > 0 && w.borderHover) wRing else null, ringWidth = if (w.borderHover) w.borderW else 0,
+                    focusTint = false,      // у виджета выбор и так виден по смене фона
                     onClick = { widgetClick(ctx, w) { refresh++ } },
                     onLong = { onDlg(Dlg.WidgetD(row.id, i)) },
                 ) {
@@ -531,7 +532,7 @@ private fun WidgetsRow(row: HRow, tick: Int, refreshTick: Int, firstReq: FocusRe
                         androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(d0.density, d0.fontScale * w.fs.coerceIn(50, 250) / 100f),
                     ) {
                         Box(Modifier.fillMaxSize().then(if (w.borderW > 0 && !w.borderHover) Modifier.border(w.borderW.dp, wRing, wShape) else Modifier)) {
-                            WidgetBody(w, tick, refreshTick + refresh)
+                            WidgetBody(w, tick, refreshTick + refresh) { onDlg(Dlg.WidgetD(row.id, i)) }
                         }
                     }
                 }

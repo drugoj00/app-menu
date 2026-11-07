@@ -48,7 +48,7 @@ internal fun HomeBackground(bg: HBg, menu: Boolean = false) {
                 val img by produceState<ImageBitmap?>(if (menu) BgMem.menuImage else BgMem.image, HomeStore.imgTick) {
                     value = withContext(Dispatchers.IO) {
                         val f = HomeBgFiles.image(ctx, menu)
-                        if (!f.exists()) null else runCatching { BitmapFactory.decodeFile(f.path)?.asImageBitmap() }.getOrNull()
+                        if (!f.exists()) null else runCatching { decodeBg(f.path)?.asImageBitmap() }.getOrNull()
                     }
                     if (menu) BgMem.menuImage = value else BgMem.image = value
                 }
@@ -59,6 +59,18 @@ internal fun HomeBackground(bg: HBg, menu: Boolean = false) {
         }
         if (bg.dim > 0) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = bg.dim.coerceAtMost(90) / 100f)))
     }
+}
+
+/**
+ * Фон «Дома» на Android 8+ декодируется в память видеокарты (HARDWARE): без второй копии в обычной памяти (на 1080p это около 8 МБ).
+ * Если так не вышло, обычный декодер.
+ */
+private fun decodeBg(path: String): android.graphics.Bitmap? {
+    if (Build.VERSION.SDK_INT >= 26) {
+        val o = BitmapFactory.Options().apply { inPreferredConfig = android.graphics.Bitmap.Config.HARDWARE }
+        runCatching { BitmapFactory.decodeFile(path, o) }.getOrNull()?.let { return it }
+    }
+    return BitmapFactory.decodeFile(path)
 }
 
 /** Последняя показанная картинка фона: при возврате на «Дом» не мигает. */

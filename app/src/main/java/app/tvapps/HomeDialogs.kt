@@ -25,6 +25,19 @@ import kotlinx.coroutines.withContext
 
 private fun onOff(b: Boolean, on: String, off: String) = if (b) on else off
 
+/** Образец цвета для окон: круг с тонким тёмным ободком (белый и светлые цвета видны и на светлом окне). */
+private fun colorDot(argb: Int): androidx.compose.ui.graphics.ImageBitmap {
+    val sz = 64
+    val bm = android.graphics.Bitmap.createBitmap(sz, sz, android.graphics.Bitmap.Config.ARGB_8888)
+    val c = android.graphics.Canvas(bm)
+    val pt = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+    pt.style = android.graphics.Paint.Style.FILL; pt.color = argb
+    c.drawCircle(sz / 2f, sz / 2f, sz / 2f - 4f, pt)
+    pt.style = android.graphics.Paint.Style.STROKE; pt.strokeWidth = 4f; pt.color = 0xFF64748B.toInt()
+    c.drawCircle(sz / 2f, sz / 2f, sz / 2f - 4f, pt)
+    return bm.asImageBitmap()
+}
+
 /** Цвета обводки плитки: 0 — цвет программы (акцент темы), дальше готовые цвета. */
 private val BORDER_COLORS = listOf(0L, 0xFFFFFFFFL, 0xFF000000L, 0xFFEF4444L, 0xFFF97316L, 0xFFFACC15L, 0xFF22C55EL, 0xFF06B6D4L, 0xFF3B82F6L, 0xFFA855F7L, 0xFFEC4899L)
 private val BORDER_NAMES = listOf(
@@ -45,6 +58,11 @@ internal fun HomeDialogs(
     var lookAll by remember { mutableStateOf(false) }
     var wgAll by remember { mutableStateOf(false) }
     val close = { setDlg(null) }
+    // «Настройки программы»: открывают настройки меню (тема, резервная копия, ADB, переключатели модулей); работают и при выключенном меню
+    val openAppSettings = {
+        close()
+        ctx.startActivity(android.content.Intent(ctx, MainActivity::class.java).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("from_home", true).putExtra("screen", "settings"))
+    }
     val on = stringResource(R.string.on)
     val off = stringResource(R.string.off)
     when (dlg) {
@@ -60,7 +78,8 @@ internal fun HomeDialogs(
                 "menu" -> stringResource(R.string.home_all_btn); "settings" -> stringResource(R.string.settings); else -> ref
             }
             val opts = buildList {
-                add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома» — первым пунктом, чтобы было видно сразу
+                add(Opt(stringResource(R.string.d_program_settings)) { openAppSettings() })      // настройки программы — первой строкой
+                add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома» — второй
                 if (!auto) {
                     add(Opt(stringResource(R.string.d_move)) { close(); startMove(dlg.itemId) })
                     add(Opt(stringResource(R.string.d_to_row)) { setDlg(Dlg.MoveToRow(dlg.itemId)) })
@@ -99,9 +118,7 @@ internal fun HomeDialogs(
             val accent = LocalTh.current.accent
             val ci = BORDER_COLORS.indexOf(item.borderC).coerceAtLeast(0)
             val swatch = remember(ci, accent) {
-                val b = android.graphics.Bitmap.createBitmap(24, 24, android.graphics.Bitmap.Config.ARGB_8888)
-                b.eraseColor(if (ci == 0) accent.toArgb() else BORDER_COLORS[ci].toInt())
-                b.asImageBitmap()
+                colorDot(if (ci == 0) accent.toArgb() else BORDER_COLORS[ci].toInt())
             }
             val opts = listOf(
                 Opt(stringResource(R.string.look_scope), if (lookAll) stringResource(R.string.look_scope_all) else stringResource(R.string.look_scope_one), onClick = { lookAll = !lookAll }),
@@ -150,7 +167,8 @@ internal fun HomeDialogs(
             val upd = { f: (HRow) -> HRow -> HomeStore.updateRow(row.id, f) }
             val autoNames = listOf("" to stringResource(R.string.auto_none), "fav" to stringResource(R.string.auto_fav), "recent" to stringResource(R.string.auto_recent), "hdmi" to stringResource(R.string.auto_hdmi), "new" to stringResource(R.string.auto_new))
             val opts = buildList {
-                add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома» — первым пунктом, чтобы было видно сразу
+                add(Opt(stringResource(R.string.d_program_settings)) { openAppSettings() })      // настройки программы — первой строкой
+                add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома» — второй
                 add(Opt(stringResource(R.string.row_title), row.title, onClick = { setDlg(Dlg.Rename(row.id)) }))
                 add(Opt(stringResource(R.string.row_title_visible), onOff(row.showTitle, on, off), onClick = { upd { it.copy(showTitle = !it.showTitle) } }))
                 when (row.kind) {
@@ -193,9 +211,7 @@ internal fun HomeDialogs(
                             val rci = BORDER_COLORS.indexOf(w0.borderC).coerceAtLeast(0)
                             val rAccent = LocalTh.current.accent
                             val rsw = remember(rci, rAccent) {
-                                val bm = android.graphics.Bitmap.createBitmap(24, 24, android.graphics.Bitmap.Config.ARGB_8888)
-                                bm.eraseColor(if (rci == 0) rAccent.toArgb() else BORDER_COLORS[rci].toInt())
-                                bm.asImageBitmap()
+                                colorDot(if (rci == 0) rAccent.toArgb() else BORDER_COLORS[rci].toInt())
                             }
                             add(Opt(stringResource(R.string.look_radius), "${w0.radius}", { val v = (w0.radius - 1).coerceAtLeast(0); allW { it.copy(radius = v) } }, { val v = (w0.radius + 1).coerceAtMost(60); allW { it.copy(radius = v) } }))
                             add(Opt(stringResource(R.string.bd_width), if (w0.borderW == 0) off else "${w0.borderW}", { val v = (w0.borderW - 1).coerceAtLeast(0); allW { it.copy(borderW = v) } }, { val v = (w0.borderW + 1).coerceAtMost(12); allW { it.copy(borderW = v) } }))
@@ -345,12 +361,11 @@ internal fun HomeDialogs(
             val wci = BORDER_COLORS.indexOf(w.borderC).coerceAtLeast(0)
             val wAccent = LocalTh.current.accent
             val wsw = remember(wci, wAccent) {
-                val bm = android.graphics.Bitmap.createBitmap(24, 24, android.graphics.Bitmap.Config.ARGB_8888)
-                bm.eraseColor(if (wci == 0) wAccent.toArgb() else BORDER_COLORS[wci].toInt())
-                bm.asImageBitmap()
+                colorDot(if (wci == 0) wAccent.toArgb() else BORDER_COLORS[wci].toInt())
             }
             val opts = buildList {
-                add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома» — первым пунктом, чтобы было видно сразу
+                add(Opt(stringResource(R.string.d_program_settings)) { openAppSettings() })      // настройки программы — первой строкой
+                add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома» — второй
                 add(Opt(stringResource(R.string.wg_type), widgetName(w.type), onClick = { setDlg(Dlg.WidgetType(row.id, dlg.slot)) }))
                 when (w.type) {
                     "weather" -> {
@@ -425,6 +440,7 @@ internal fun HomeDialogs(
         Dlg.Empty -> {
             val opts = listOf(
                 Opt(stringResource(R.string.home_add_row)) { setDlg(Dlg.AddRow(HomeStore.layout.rows.lastOrNull()?.id)) },
+                Opt(stringResource(R.string.d_program_settings)) { openAppSettings() },
                 Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) },
                 Opt(stringResource(R.string.top_items)) { setDlg(Dlg.Top) },
                 Opt(stringResource(R.string.bg_title)) { setDlg(Dlg.Bg) },
@@ -437,6 +453,10 @@ internal fun HomeDialogs(
             var sureOff by remember { mutableStateOf(false) }
             // значения переключателей лежат в настройках, а не в состоянии Compose: счётчик заставляет окно перерисоваться после нажатия
             var rev by remember { mutableStateOf(0) }
+            val ringAccent = LocalTh.current.accent
+            val homeRingSwatch = remember(Cfg.homeRing, ringAccent) {
+                colorDot(if (Cfg.homeRing == 0) ringAccent.toArgb() else Cfg.RING_COLORS[Cfg.homeRing].toInt())
+            }
             val modeName = { v: Int, show: Int, hide: Int, auto: Int -> ctx.getString(when (v) { 1 -> show; 2 -> hide; else -> auto }) }
             val opts = listOf(
                 // простые «Вкл / Выкл»; без выбора пользователя по умолчанию на ТВ полоска включена, а системные панели выключены, на телефоне наоборот
@@ -450,11 +470,12 @@ internal fun HomeDialogs(
                 Opt(stringResource(R.string.screen_row_gap), "${HomeStore.layout.rowGap}",
                     { HomeStore.set(HomeStore.layout.copy(rowGap = (HomeStore.layout.rowGap - 1).coerceAtLeast(0))); rev++ },
                     { HomeStore.set(HomeStore.layout.copy(rowGap = (HomeStore.layout.rowGap + 1).coerceAtMost(60))); rev++ }),
+                // цвет рамки выделения «Дома» (меню настраивается отдельно в настройках меню); у плитки или виджета свой цвет важнее
+                Opt(stringResource(R.string.home_ring_title), stringResource(if (Cfg.homeRing == 0) R.string.ring_default else BORDER_NAMES[Cfg.homeRing]),
+                    { Cfg.changeHomeRing((Cfg.homeRing + Cfg.RING_COLORS.size - 1) % Cfg.RING_COLORS.size) },
+                    { Cfg.changeHomeRing((Cfg.homeRing + 1) % Cfg.RING_COLORS.size) },
+                    icon = homeRingSwatch),
                 Opt(stringResource(R.string.bg_title)) { setDlg(Dlg.Bg) },
-                Opt(stringResource(R.string.screen_menu_settings)) {
-                    close()
-                    ctx.startActivity(android.content.Intent(ctx, MainActivity::class.java).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("from_home", true).putExtra("screen", "settings"))
-                },
                 Opt(if (sureReset) stringResource(R.string.screen_reset_sure) else stringResource(R.string.screen_reset), danger = true) {
                     if (sureReset) { HomeStore.resetLayout(); close() } else sureReset = true
                 },
@@ -488,7 +509,8 @@ internal fun HomeDialogs(
             val s = HomeStore.layout.top.status.firstOrNull { it.id == dlg.id }
             if (s == null) { close(); return }
             val opts = buildList {
-                add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома» — первым пунктом, чтобы было видно сразу
+                add(Opt(stringResource(R.string.d_program_settings)) { openAppSettings() })      // настройки программы — первой строкой
+                add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома» — второй
                 add(Opt(stringResource(R.string.d_move)) { close(); startMoveStatus(s.id) })
                 if (s.id == "time") {
                     add(Opt(stringResource(R.string.wg_time_fmt), if ((s.opt and 1) != 0) "12 h" else "24 h", onClick = { HomeStore.updateStatus(s.id) { it.copy(opt = it.opt xor 1) } }))
@@ -505,9 +527,11 @@ internal fun HomeDialogs(
         Dlg.Top -> {
             val top = HomeStore.layout.top
             val opts = buildList {
-                add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома» — первым пунктом, чтобы было видно сразу
+                add(Opt(stringResource(R.string.d_program_settings)) { openAppSettings() })      // настройки программы — первой строкой
+                add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома» — второй
                 add(Opt(stringResource(R.string.top_big), onOff(top.big, on, off), onClick = { HomeStore.updateTop { it.copy(big = !it.big) } }))
                 add(Opt(stringResource(R.string.top_recent), onOff(top.recent, on, off), onClick = { HomeStore.updateTop { it.copy(recent = !it.recent) } }))
+                add(Opt(stringResource(R.string.top_clean), onOff(top.clean, on, off), onClick = { HomeStore.updateTop { it.copy(clean = !it.clean) } }))
                 add(Opt(stringResource(R.string.top_hdmi), onOff(top.hdmi, on, off), onClick = { HomeStore.updateTop { it.copy(hdmi = !it.hdmi) } }))
                 add(Opt(stringResource(R.string.top_search), onOff(top.search, on, off), onClick = { HomeStore.updateTop { it.copy(search = !it.search) } }))
                 add(Opt(stringResource(R.string.top_voice_btn), onOff(top.voice, on, off), onClick = { HomeStore.updateTop { it.copy(voice = !it.voice) } }))

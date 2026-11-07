@@ -3,6 +3,7 @@ package app.tvapps
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -26,7 +27,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -39,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.composed
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -74,6 +75,8 @@ internal object HIcons {
     private fun v(name: String, d: String): ImageVector =
         ImageVector.Builder(name, 24.dp, 24.dp, 24f, 24f).addPath(PathParser().parsePathString(d).toNodes(), fill = SolidColor(Color.Black)).build()
 
+    /** Планка оперативной памяти (кнопка «Очистка памяти»). */
+    val memory = v("memory", "M3,6h18v10H3zM5,8v6h14V8zM7,10h2v2H7zM11,10h2v2h-2zM15,10h2v2h-2zM6,16h2v3H6zM10,16h2v3h-2zM14,16h2v3h-2zM18,16h2v3h-2z")
     val bt = v("bt", "M17.71,7.71L12,2h-1v7.59L6.41,5 5,6.41 10.59,12 5,17.59 6.41,19 11,14.41V22h1l5.71,-5.71 -4.3,-4.29 4.3,-4.29zM13,5.83l1.88,1.88L13,9.59V5.83zM14.88,16.29L13,18.17v-3.76l1.88,1.88z")
     val btOff = v("btOff", "M13,5.83l1.88,1.88 -1.6,1.6 1.41,1.41 3.02,-3.02L12,2h-1v5.03l2,2v-3.2zM5.41,4L4,5.41 10.59,12 5,17.59 6.41,19 11,14.41V22h1l4.29,-4.29 2.3,2.29L20,18.59 5.41,4zM13,18.17v-3.76l1.88,1.88L13,18.17z")
     val wifi = v("wifi", "M1,9l2,2c4.97,-4.97 13.03,-4.97 18,0l2,-2C16.93,2.93 7.08,2.93 1,9zM9,17l3,3 3,-3c-1.65,-1.66 -4.34,-1.66 -6,0zM5,13l2,2c2.76,-2.76 7.24,-2.76 10,0l2,-2C15.14,9.14 8.87,9.14 5,13z")
@@ -144,6 +147,8 @@ internal fun HomeBox(
     /** своя рамка при наведении и выборе пультом (цвет и толщина, dp); без неё цвет темы */
     ringColor: Color? = null,
     ringWidth: Int = 0,
+    /** подсветка выбранного элемента поверх содержимого (у значков и баннеров иначе при выключенной рамке не видно, где фокус) */
+    focusTint: Boolean = true,
     /** перетаскивание плитки (зажать и двигать, мышью или пальцем): начало, движение, отпускание; позиции в корне экрана */
     dragStart: ((androidx.compose.ui.geometry.Offset) -> Unit)? = null,
     dragMove: ((androidx.compose.ui.geometry.Offset) -> Unit)? = null,
@@ -164,7 +169,6 @@ internal fun HomeBox(
     var downAt by remember { mutableStateOf(0L) }
     val scope = rememberCoroutineScope()
     val (hm, hover) = rememberHover()
-    val scale by animateFloatAsState(if (focused || hover) 1.04f else 1f, label = "hs")
     val click by rememberUpdatedState(onClick)
     val long by rememberUpdatedState(onLong)
     val step by rememberUpdatedState(onStep)
@@ -173,8 +177,7 @@ internal fun HomeBox(
     var suppressUntil by remember { mutableStateOf(0L) }
     Box(
         modifier
-            .zIndex(if (focused || hover) 1f else 0f)      // выбранный элемент выше соседей: увеличенная рамка не прячется под правым
-            .scale(scale)
+            .zIndex(if (focused || hover) 1f else 0f)      // выбранный элемент выше соседей: рамка не прячется под правым (увеличения плитки нет)
             .then(hm)
             .focusRequester(selfReq)
             .onPreviewKeyEvent { ev ->
@@ -217,9 +220,11 @@ internal fun HomeBox(
             .clip(shape)
             .background(if (focused || hover) t.tileFocus else bg, shape)
             .border(
-                if (moving) 3.dp else if (focused) (if (ringColor != null && ringWidth > 0) ringWidth.dp else 3.dp) else if (hover) (if (ringColor != null && ringWidth > 0) ringWidth.dp else 1.dp) else 0.dp,
-                if (moving) Color(0xFFF59E0B) else if (focused || hover) (ringColor ?: t.accent) else Color.Transparent, shape,
+                // рамка выделения (наведение мышью и выбор пультом одинаково): по умолчанию толщина 2, цвет белый, только у выделенного элемента
+                if (moving) 3.dp else if (focused || hover) (if (ringColor != null && ringWidth > 0) ringWidth.dp else 2.dp) else 0.dp,
+                if (moving) Color(0xFFF59E0B) else if (focused || hover) (ringColor ?: Cfg.homeRingOr(t.accent)) else Color.Transparent, shape,
             )
+            .drawWithContent { drawContent(); if (focusTint && !moving && (focused || hover)) drawRect(Color.White.copy(alpha = 0.16f)) }
             .mouseSecondary { long() }
             .combinedClickable(
                 onClick = { if (android.os.SystemClock.elapsedRealtime() > suppressUntil) click() },
@@ -270,6 +275,7 @@ private fun OptRow(o: Opt, req: FocusRequester?) {
     var focused by remember { mutableStateOf(false) }
     val (hm, hover) = rememberHover()
     val stepper = o.onDec != null && o.onInc != null
+    val gate = remember { StepGate() }
     val rowReq = remember { FocusRequester() }
     val rmReq = remember { FocusRequester() }
     Row(
@@ -280,8 +286,8 @@ private fun OptRow(o: Opt, req: FocusRequester?) {
             .onPreviewKeyEvent { ev ->
                 if (OkShield.eats(ev)) return@onPreviewKeyEvent true
                 if (o.onRemove != null && ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionRight) { runCatching { rmReq.requestFocus() }; return@onPreviewKeyEvent true }
-                if (stepper && ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionLeft) { o.onDec?.invoke(); true }
-                else if (stepper && ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionRight) { o.onInc?.invoke(); true }
+                if (stepper && ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionLeft) { if (gate.ok()) o.onDec?.invoke(); true }
+                else if (stepper && ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionRight) { if (gate.ok()) o.onInc?.invoke(); true }
                 else false
             }
             .onFocusChanged { focused = it.isFocused }
@@ -294,12 +300,12 @@ private fun OptRow(o: Opt, req: FocusRequester?) {
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         o.icon?.let { Image(it, null, if (o.wide) Modifier.size(128.dp, 72.dp).clip(RoundedCornerShape(8.dp)) else Modifier.size(30.dp)) }
-        Text(o.label, color = if (o.danger) Color(0xFFF87171) else t.text, fontSize = 16.sp, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(o.label, color = if (o.danger) Color(0xFFF87171) else t.text, style = Typo.iconLabel(), modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
         if (stepper) {
-            Text("‹", color = t.sub, fontSize = 20.sp, modifier = Modifier.holdRepeat { o.onDec?.invoke() }.padding(horizontal = 8.dp))
-            Text(o.value, color = t.accent, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            Text("›", color = t.sub, fontSize = 20.sp, modifier = Modifier.holdRepeat { o.onInc?.invoke() }.padding(horizontal = 8.dp))
-        } else if (o.value.isNotEmpty()) Text(o.value, color = t.accent, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 220.dp))
+            Text("‹", color = t.sub, fontSize = 20.sp, modifier = Modifier.holdStep(gate) { o.onDec?.invoke() }.padding(horizontal = 8.dp))
+            Text(o.value, color = t.accent, style = Typo.iconLabel())
+            Text("›", color = t.sub, fontSize = 20.sp, modifier = Modifier.holdStep(gate) { o.onInc?.invoke() }.padding(horizontal = 8.dp))
+        } else if (o.value.isNotEmpty()) Text(o.value, color = t.accent, style = Typo.iconLabel(), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 220.dp))
         o.onRemove?.let { rm ->
             var cf by remember { mutableStateOf(false) }
             Box(
@@ -330,9 +336,24 @@ internal fun ListDialog(title: String, opts: List<Opt>, onClose: () -> Unit, hin
                 .clip(RoundedCornerShape(20.dp)).background(t.bg).border(1.dp, t.border, RoundedCornerShape(20.dp)).padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(title, color = t.text, fontSize = 19.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            if (hint.isNotEmpty()) Text(hint, color = t.hint, fontSize = 12.sp)
-            LazyColumn(Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(title, color = t.text, style = Typo.iconLabel(), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (hint.isNotEmpty()) {
+                var hintOpen by remember { mutableStateOf(false) }
+                var hintFocus by remember { mutableStateOf(false) }
+                Column(Modifier.animateContentSize()) {
+                    Row(
+                        Modifier.onFocusChanged { hintFocus = it.isFocused }.clip(RoundedCornerShape(8.dp))
+                            .border(if (hintFocus) 2.dp else 0.dp, if (hintFocus) t.accent else Color.Transparent, RoundedCornerShape(8.dp))
+                            .clickable(role = androidx.compose.ui.semantics.Role.Button) { hintOpen = !hintOpen }.padding(horizontal = 4.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(androidx.compose.ui.res.stringResource(R.string.hint_more), color = t.sub, fontSize = 13.sp)
+                        Text(if (hintOpen) "▴" else "ⓘ", color = t.accent, fontSize = 14.sp)
+                    }
+                    if (hintOpen) Text(hint, color = t.hint, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                }
+            }
+            BarLazyColumn(Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 itemsIndexed(opts) { i, o -> OptRow(o, if (i == 0) first else null) }
             }
             if (footer != null) OptRow(footer, null)
@@ -420,34 +441,6 @@ private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.tileDrag
         if (started) { ch.consume(); move(root(ch.position)) }
     }
     if (started) end(root(last)) else onLong()
-}
-
-
-/**
- * Нажал и держишь («‹» или «›» мышью или пальцем): шаг сразу, через 0,4 с повторы с ровным темпом (~14 в секунду), пока не отпустишь.
- */
-private fun Modifier.holdRepeat(action: () -> Unit): Modifier = composed {
-    // действие обновляется при каждой перерисовке: иначе зажатие держит устаревшее значение счётчика и каждый шаг ставит одно и то же число
-    val cur by rememberUpdatedState(action)
-    pointerInput(Unit) {
-        awaitEachGesture {
-            val down = awaitFirstDown(requireUnconsumed = false)
-            down.consume()
-            cur()
-            var delayMs = 400L          // первая пауза перед повтором, дальше ровный темп
-            while (true) {
-                val ev = withTimeoutOrNull(delayMs) { awaitPointerEvent() }
-                if (ev == null) {
-                    cur()
-                    delayMs = 70L
-                    continue
-                }
-                val c = ev.changes.firstOrNull { it.id == down.id } ?: break
-                c.consume()
-                if (!c.pressed) break
-            }
-        }
-    }
 }
 
 

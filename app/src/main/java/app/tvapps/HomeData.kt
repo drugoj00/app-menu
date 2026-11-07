@@ -101,7 +101,7 @@ object TvInputs {
 // ------------------------------------------------------------------ картинки
 
 object Pics {
-    private val cache = object : LruCache<String, Bitmap>(40 * 1024 * 1024) { override fun sizeOf(k: String, v: Bitmap) = v.byteCount }
+    private val cache = CacheBudget.track(object : LruCache<String, Bitmap>(CacheBudget.bytes(40)) { override fun sizeOf(k: String, v: Bitmap) = v.byteCount })
     private val failed = HashSet<String>()
 
     fun cached(url: String): Bitmap? = cache.get(url)
@@ -130,7 +130,7 @@ object Pics {
 // ------------------------------------------------------------------ баннеры приложений
 
 object Banners {
-    private val cache = object : LruCache<String, Bitmap>(24 * 1024 * 1024) { override fun sizeOf(k: String, v: Bitmap) = v.byteCount }
+    private val cache = CacheBudget.track(object : LruCache<String, Bitmap>(CacheBudget.bytes(24)) { override fun sizeOf(k: String, v: Bitmap) = v.byteCount })
     private val none = HashSet<String>()
 
     fun peek(pkg: String): Bitmap? = cache.get(pkg)
@@ -162,17 +162,23 @@ object WeatherData {
         return c.inputStream.bufferedReader().use { it.readText() }
     }
 
-    private fun key(city: String) = "w_" + city.trim().lowercase().ifBlank { "auto" }
+    private fun key(city: String, lang: String) = "w_" + city.trim().lowercase().ifBlank { "auto" } + "_" + lang
 
-    fun cached(ctx: Context, city: String): Weather? = runCatching {
-        val j = JSONObject(ctx.getSharedPreferences("tvapps_weather", Context.MODE_PRIVATE).getString(key(city), null) ?: return null)
-        parse(j)
+    fun cached(ctx: Context, city: String, lang: String = AppLoc.code()): Weather? = runCatching {
+        val j = JSONObject(ctx.getSharedPreferences("tvapps_weather", Context.MODE_PRIVATE).getString(key(city, lang), null) ?: return null)
+        parse(j, lang)
     }.getOrNull()
 
-    private fun parse(j: JSONObject): Weather {
+    /** Короткое название дня недели по дате ГГГГ-ММ-ДД на языке [lang]. */
+    fun dayLabel(iso: String, lang: String): String = runCatching {
+        java.text.SimpleDateFormat("EEE", java.util.Locale(lang)).format(java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(iso)!!)
+    }.getOrDefault(iso)
+
+    private fun parse(j: JSONObject, lang: String): Weather {
         val days = mutableListOf<WDay>()
         val d = j.getJSONArray("days")
-        for (i in 0 until d.length()) { val o = d.getJSONObject(i); days += WDay(o.getString("l"), o.getInt("c"), o.getInt("x"), o.getInt("n")) }
+        // подпись дня строится из даты при чтении: в кэше хранится дата, а не слово на каком-то языке
+        for (i in 0 until d.length()) { val o = d.getJSONObject(i); days += WDay(if (o.has("d")) dayLabel(o.getString("d"), lang) else o.getString("l"), o.getInt("c"), o.getInt("x"), o.getInt("n")) }
         return Weather(j.optString("shown", j.optString("city")), j.getInt("t"), j.getInt("c"), j.getInt("w"), days, j.getLong("at"))
     }
 
@@ -196,7 +202,7 @@ object WeatherData {
     /** Загружает погоду; пустой город: место определяется по адресу в интернете. Свежее значение (до 30 минут) берётся из памяти. */
     fun load(ctx: Context, city: String, lang: String, force: Boolean = false): Weather? {
         val sp = ctx.getSharedPreferences("tvapps_weather", Context.MODE_PRIVATE)
-        cached(ctx, city)?.let { if (!force && System.currentTimeMillis() - it.at < 30 * 60_000L) return it }
+        cached(ctx, city, lang)?.let { if (!force && System.currentTimeMillis() - it.at < 30 * 60_000L) return it }
         return runCatching {
             val lat: Double; val lon: Double; val name: String
             if (city.isBlank()) {
@@ -220,16 +226,14 @@ object WeatherData {
             val times = daily.getJSONArray("time"); val codes = daily.getJSONArray("weather_code")
             val mx = daily.getJSONArray("temperature_2m_max"); val mn = daily.getJSONArray("temperature_2m_min")
             val fmt = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
-            val out = java.text.SimpleDateFormat("EEE", java.util.Locale(lang))
             val arr = org.json.JSONArray()
             for (i in 0 until times.length()) {
-                val label = out.format(fmt.parse(times.getString(i))!!)
-                arr.put(JSONObject().put("l", label).put("c", codes.getInt(i)).put("x", Math.round(mx.getDouble(i)).toInt()).put("n", Math.round(mn.getDouble(i)).toInt()))
+                arr.put(JSONObject().put("d", times.getString(i)).put("c", codes.getInt(i)).put("x", Math.round(mx.getDouble(i)).toInt()).put("n", Math.round(mn.getDouble(i)).toInt()))
             }
             val j = JSONObject().put("shown", name).put("t", Math.round(cur.getDouble("temperature_2m")).toInt())
                 .put("c", cur.getInt("weather_code")).put("w", Math.round(cur.getDouble("wind_speed_10m")).toInt()).put("days", arr).put("at", System.currentTimeMillis())
-            sp.edit().putString(key(city), j.toString()).apply()
-            parse(j)
+            sp.edit().putString(key(city, lang), j.toString()).apply()
+            parse(j, lang)
         }.onFailure { Log.w("TVApps", "погода: ${it.message}") }.getOrNull()
     }
 

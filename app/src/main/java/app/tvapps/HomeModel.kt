@@ -105,6 +105,7 @@ data class HTop(
     val menu: Boolean = true,
     val recent: Boolean = true,      // кнопка «Недавние» справа от кнопки меню
     val hdmi: Boolean = true,        // кнопка «Входы HDMI» справа от «Недавних»
+    val clean: Boolean = true,       // кнопка «Очистка памяти» после «Недавних» (нет ключа в сохранённой раскладке: включена)
 )
 
 /** Фон экрана: none (по теме), color, gradient (живой градиент), image, video, anim (GIF/WebP). */
@@ -149,7 +150,7 @@ private fun JSONObject.toRow(): HRow {
 
 private fun HLayout.toJson() = JSONObject()
     .put("v", 1).put("rg", rowGap)
-    .put("voice", top.voice).put("big", top.big).put("search", top.search).put("menu", top.menu).put("recent", top.recent).put("hdmi", top.hdmi)
+    .put("voice", top.voice).put("big", top.big).put("search", top.search).put("menu", top.menu).put("recent", top.recent).put("hdmi", top.hdmi).put("clean", top.clean)
     .put("bg", JSONObject().put("t", bg.type).put("c", bg.color).put("f", bg.fit).put("d", bg.dim))
     .put("st", JSONArray(top.status.map { JSONObject().put("id", it.id).put("v", it.visible).put("o", it.opt) }))
     .put("rows", JSONArray(rows.map { it.toJson() }))
@@ -171,7 +172,7 @@ private fun parseLayout(s: String): HLayout? = runCatching {
     val stFull = if (newNotif.isEmpty()) st1 else newNotif + st1
     val b = j.optJSONObject("bg")
     val bg = if (b == null) HBg() else HBg(b.optString("t", "none"), b.optLong("c", 0xFF0B0B10), b.optString("f", "crop"), b.optInt("d"))
-    HLayout(HTop(j.optBoolean("voice", true), stFull, j.optBoolean("big", true), j.optBoolean("search", true), true, j.optBoolean("recent", true), j.optBoolean("hdmi", true)), rows, bg, j.optInt("rg", 8))
+    HLayout(HTop(j.optBoolean("voice", true), stFull, j.optBoolean("big", true), j.optBoolean("search", true), true, j.optBoolean("recent", true), j.optBoolean("hdmi", true), j.optBoolean("clean", true)), rows, bg, j.optInt("rg", 8))
 }.getOrNull()
 
 internal val STATUS_IDS = listOf("notif", "bt", "net", "usb", "gear", "date", "time")
@@ -255,9 +256,21 @@ object HomeStore {
         loadMenuBg()
     }
 
-    private fun save(l: HLayout) {
+    /** Раскладка пишется после паузы в изменениях (удержание «+»/«−» не пишет JSON на каждый шаг); flush() при уходе экрана. */
+    private var pendingSave: HLayout? = null
+    private val saveHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val saveRun = Runnable { flush() }
+    fun flush() {
+        saveHandler.removeCallbacks(saveRun)
+        val l = pendingSave ?: return
+        pendingSave = null
         sp.edit().putString("home_layout", l.toJson().toString()).apply()
+    }
+    private fun save(l: HLayout) {
+        pendingSave = l
         dirty = true
+        saveHandler.removeCallbacks(saveRun)
+        saveHandler.postDelayed(saveRun, 400)
     }
 
     fun set(l: HLayout) { layout = l; save(l) }
@@ -495,7 +508,7 @@ object HomeStore {
 
 /** Свои картинки значков и баннеров: файлы hm_<id>.png рядом с остальными значками (их забирает резервная копия). */
 object HomeImg {
-    private val cache = object : LruCache<String, Bitmap>(24 * 1024 * 1024) { override fun sizeOf(k: String, v: Bitmap) = v.byteCount }
+    private val cache = CacheBudget.track(object : LruCache<String, Bitmap>(CacheBudget.bytes(24)) { override fun sizeOf(k: String, v: Bitmap) = v.byteCount })
 
     private fun file(ctx: Context, id: String) = File(File(ctx.filesDir, "icons").apply { mkdirs() }, "hm_$id.png")
 
