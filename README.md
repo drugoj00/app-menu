@@ -14,24 +14,22 @@ App Menu replaces the stock app list with a big grid made for a remote and for t
 
 ## Download
 
-**Version 4.0.** [AppMenu-4.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
+**Version 4.2.** [AppMenu-4.2.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `fbd8f8b891e07baf0baf4ef12fcb060071da246f99ef9d4d9a57f6b1d639b1a4`
+SHA-256: `fe74439467dc133f750c6f034ad9dfb6c3491d5c111115f8c7e0a9c0958e6ee6`
 
-## What's new in 4.0
+## What's new in 4.2
 
-- Several desks (optional).
-- Memory clean button in the menu and on the Home screen.
-- Memory clean on the Home button (optional).
-- Icon plates: on/off.
-- Icon density works in the dense grid too.
-- Even counter step while holding, no jumps.
-- Scrollbar: always visible, draggable.
-- App shortcuts in a separate panel next to the card.
-- Uses less memory.
-- Shows the list faster at start.
-- On set-top boxes with a changed screen density the interface no longer shrinks.
-- The app speeds itself up with root or ADB.
+- Uses less memory: menu by 13%, Home screen by 22%.
+- Memory clean on OK / left mouse button on the Memory widget.
+- Search keyboard opens only on OK / click.
+- “App Menu” on/off switch in Settings.
+- Icons no longer grow on hover and selection, the frame stays.
+- Selection frame color: separate for the menu and Home screen.
+- Home screen: the selected icon or banner is highlighted.
+- Long press works anywhere on an Android widget.
+- Accent color: pick from swatches.
+- “Program settings” as the first line in Home screen dialogs.
 
 ## Features
 
@@ -53,25 +51,17 @@ SHA-256: `fbd8f8b891e07baf0baf4ef12fcb060071da246f99ef9d4d9a57f6b1d639b1a4`
 
 ## Screenshots
 
-![Home screen.](screenshots/en/01_dom.png)
+![Home screen with a highlighted banner.](screenshots/en/01_dom.png)
 
-![App menu.](screenshots/en/02_menu.png)
+![App menu with a highlighted icon.](screenshots/en/02_menu.png)
 
-![Action card on an icon.](screenshots/en/03_card.png)
+![Settings: accent color and selection frame color.](screenshots/en/03_settings.png)
 
-![Several desks.](screenshots/en/04_desks.png)
-
-![Desk menu.](screenshots/en/05_desks_menu.png)
-
-![Memory clean on Home.](screenshots/en/06_memory.png)
-
-![Settings.](screenshots/en/07_settings.png)
-
-![Favourites.](screenshots/en/08_favorites.png)
+![Home screen dialog with “Program settings”.](screenshots/en/04_dialog.png)
 
 ## Quick start
 
-1. Download AppMenu-4.0.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
+1. Download AppMenu-4.2.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
 2. Open it: apps are launched with OK or a tap, a long press (or holding OK, or the Menu key) opens the action card. To use it instead of the stock menu turn on “Launcher mode” in Settings.
 3. To act on other apps connect ADB: Settings → “Connect ADB”. Android 9 and older TV boxes with network ADB connect by themselves. Android 11+: turn on the “App Menu” service in Accessibility once, press “Connect automatically”. Android 10 and older: run adb tcpip 5555 once from a computer (repeat after a reboot). With root (Magisk) none of this is needed: allow root for the app once and it connects by itself.
 
