@@ -36,7 +36,6 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
@@ -72,6 +71,7 @@ interface HostOps {
     fun addToFolder(id: String)
     fun openVersions(e: Entry)
     fun openUpdates(e: Entry)
+    fun openDeskPick(e: Entry)
 }
 
 val LocalHost = compositionLocalOf<HostOps?> { null }
@@ -236,7 +236,7 @@ fun AddToFolderDialog(id: String, apps: List<Entry>, onClose: () -> Unit) {
                     onClose()
                 }
             }
-            LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            BarLazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 items(candidates, key = { it.pkg }) { e ->
                     val on = e.pkg in sel
                     var focused by remember { mutableStateOf(false) }

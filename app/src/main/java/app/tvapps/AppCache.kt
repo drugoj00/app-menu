@@ -80,8 +80,8 @@ object AppCache {
                 if (!IconCacheRules.isCurrent(name, pkg, pmUpdated, IconCacheRules.ICON_PIPELINE_VERSION, BuildConfig.VERSION_CODE)) continue
                 val file = File(dir, name)
                 val bitmap = BitmapFactory.decodeFile(file.path) ?: continue
-                // пустой или чёрный значок из кэша не используется: файл удаляется, значок перерисуется в фоне
-                if (!IconCacheRules.useCached(true, IconQuality.isBadBitmap(bitmap))) { file.delete(); continue }
+                // пустые и чёрные значки в кэш не записываются (см. save), поэтому здесь они не проверяются заново: проверка пикселей
+                // каждого значка при запуске занимала на слабой приставке заметную долю времени до первого списка
                 val cat = if (o.optString("t") == "tv") Intent.CATEGORY_LEANBACK_LAUNCHER else Intent.CATEGORY_LAUNCHER
                 val launch = Intent(Intent.ACTION_MAIN).addCategory(cat).setClassName(pkg, o.getString("c"))
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)

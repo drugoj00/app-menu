@@ -10,7 +10,17 @@ import java.io.InputStream
 
 /** Единая точка работы с ADB этого же телефона. */
 object Adb {
-    private lateinit var mgr: AdbConn
+    /** Соединение ADB создаётся при первом обращении (вместе с шифрованием Conscrypt и ключом): на приставках с root и у тех, кто ADB не использует, оно не занимает память. */
+    @Volatile private var mgrInst: AdbConn? = null
+    private val mgr: AdbConn get() = ensure()
+
+    private fun ensure(): AdbConn = mgrInst ?: synchronized(this) {
+        mgrInst ?: run {
+            // TLS 1.3 с экспортом ключевого материала нужен для сопряжения и беспроводной отладки
+            java.security.Security.insertProviderAt(org.conscrypt.Conscrypt.newProvider(), 1)
+            AdbConn(appCtx).also { mgrInst = it }
+        }
+    }
 
     /** Команды идут по одной: две одновременные на одном соединении иногда зависают до тайм-аута. */
     private val lock = kotlinx.coroutines.sync.Mutex()
@@ -19,7 +29,6 @@ object Adb {
 
     fun init(context: Context) {
         appCtx = context.applicationContext
-        mgr = AdbConn(context.applicationContext)
     }
 
     /** Команды идут через root (Magisk), а не через ADB: магнитолам и приставкам без компьютера ADB не нужен. */
@@ -27,7 +36,7 @@ object Adb {
     val isRoot: Boolean get() = rootOn
 
     /** Подключено ли управление (ADB или root). У копии с чужой подписью всегда нет: см. Integrity. */
-    val isConnected: Boolean get() = Integrity.ok() && (rootOn || (::mgr.isInitialized && mgr.isConnected))
+    val isConnected: Boolean get() = Integrity.ok() && (rootOn || (mgrInst?.isConnected == true))
 
     /**
      * Проверяет, дал ли Magisk (или другой su) права root этому приложению. При первом запуске на экране появится запрос Magisk:
@@ -70,10 +79,8 @@ object Adb {
         return synchronized(out) { out.toString("UTF-8") }.trim()
     }
 
-    /** Ждёт, пока в фоне загрузятся ключ и шифрование (до 10 секунд). */
-    suspend fun awaitReady() {
-        repeat(200) { if (::mgr.isInitialized) return; kotlinx.coroutines.delay(50) }
-    }
+    /** Раньше ждала фоновой загрузки ключа и шифрования; теперь они создаются при первом обращении к ADB, ждать нечего. */
+    suspend fun awaitReady() {}
 
     suspend fun connectLocal(port: Int, host: String = "127.0.0.1"): Result<Unit> = withContext(Dispatchers.IO) {
         rootOn = false   // выбран ADB: команды идут по ADB, а не через root
@@ -116,7 +123,7 @@ object Adb {
 
     /** Выполнить команду оболочки и вернуть её вывод. */
     suspend fun shell(cmd: String, timeoutMs: Long = 25_000): String = withContext(Dispatchers.IO) {
-        if (!Integrity.ok()) return@withContext ""
+        if (!Integrity.safe()) return@withContext ""
         lock.lock()
         Log.i("TVApps", "shell> ${cmd.take(300)}")
         val t0 = System.currentTimeMillis()
@@ -201,7 +208,7 @@ object Adb {
 
     /** Установить APK потоком (cmd package install -S). */
     suspend fun installApk(input: InputStream, size: Long, flags: String = "-r"): String = withContext(Dispatchers.IO) {
-        if (!Integrity.ok()) return@withContext ""
+        if (!Integrity.safe()) return@withContext ""
         if (rootOn) {
             val tmp = java.io.File(appCtx.cacheDir, "root-install-" + System.nanoTime() + ".apk")
             try {

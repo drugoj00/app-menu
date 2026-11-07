@@ -15,15 +15,16 @@ object Cfg {
     private lateinit var sp: SharedPreferences
 
     /** Число столбцов: 0 — подбирать по ширине экрана. */
-    var columns by mutableIntStateOf(0); private set
+    private var columnsB by mutableIntStateOf(0)
+    /** Число столбцов; на столе со своими настройками его значение. */
+    val columns: Int get() = Desks.ovCols() ?: columnsB
     /** Размер значков: 0 малые, 1 средние, 2 крупные. */
-    var iconSize by mutableIntStateOf(1); private set
+    private var iconSizeB by mutableIntStateOf(1)
+    val iconSize: Int get() = Desks.ovSize() ?: iconSizeB
     var listMode by mutableStateOf(false); private set
     /** name, name_desc, new, old, freq */
     var sort by mutableStateOf("name"); private set
     var showLabels by mutableStateOf(true); private set
-    /** Строка-подсказка под заголовком: убирается нажатием на неё (на магнитоле она занимает много места). */
-    var showHint by mutableStateOf(true); private set
     /** Запоминать положение в меню и после выхода кнопкой «Назад» (по умолчанию выключено: после выхода меню открывается с начала). */
     var rememberPos by mutableStateOf(false); private set
     /** Масштаб самих значков в процентах (50..200), независимо от числа столбцов и строк. */
@@ -31,7 +32,8 @@ object Cfg {
     /** Плотность сетки: 0 плотно, 1 обычно, 2 просторно (отступы вокруг значков и зазоры). */
     var gridGap by mutableIntStateOf(1); private set
     /** Строк на экране (0 авто): значки подгоняются по высоте, чтобы это число строк помещалось целиком. */
-    var gridRows by mutableIntStateOf(0); private set
+    private var gridRowsB by mutableIntStateOf(0)
+    val gridRows: Int get() = Desks.ovRows() ?: gridRowsB
     var fullscreen by mutableStateOf(true); private set
     var showHidden by mutableStateOf(false); private set
     var hidden by mutableStateOf<Set<String>>(emptySet()); private set
@@ -41,6 +43,12 @@ object Cfg {
     var accent by mutableStateOf("teal"); private set
     /** Язык программы: пусто — как в системе, иначе ru, uk, en. */
     var lang by mutableStateOf(""); private set
+    /** Подложки значков (плашки под значками, рамка и фон плитки); по умолчанию включены. */
+    var plates by mutableStateOf(true); private set
+    /** Цвет рамки выделения (наведение, выбор пультом) в меню и на «Доме»: номер в [RING_COLORS]; 0 — «по умолчанию» (акцент темы), при первом запуске выбран белый. */
+    var selRing by mutableIntStateOf(0); private set
+    /** Цвет рамки выделения на экране «Дом» (свой, отдельно от меню): номер в [RING_COLORS]; 0 — акцент темы (так при первом запуске). */
+    var homeRing by mutableIntStateOf(0); private set
     /** Фон плиток значков: true — прозрачный (по умолчанию), false — карточки. */
     var transparentTiles by mutableStateOf(true); private set
     /** Папки значков. */
@@ -79,8 +87,8 @@ object Cfg {
     var nativeHome by mutableStateOf(""); private set
     /** Родные главные экраны, отключённые железным режимом «Дом» (для возврата). */
     var hardOff by mutableStateOf<Set<String>>(emptySet()); private set
-    /** Показывать ряды «Дома» (избранное, недавние) над списком приложений, когда программа работает как главный экран. */
-    var homeRows by mutableStateOf(true); private set
+    /** Главные экраны, которые железный режим должен оставить включёнными. null: выбора не было, тогда отключаются только системные. */
+    var hardKeep by mutableStateOf<Set<String>?>(null); private set
     /** Скрытые каналы приложений («пакет:номер»). */
     var hiddenChannels by mutableStateOf<Set<String>>(emptySet()); private set
     /** Город для карточки погоды в «Доме»; пусто: карточки нет. */
@@ -91,8 +99,19 @@ object Cfg {
     var returnTo by mutableStateOf("menu"); private set
     /** Модуль «Дом» включён: кнопка «Дом» в меню, возврат в «Дом» по «Назад». Выключенный модуль оставляет только меню. */
     var homeModule by mutableStateOf(true); private set
+    /** Меню приложений (сетка) включено. Выключенное не запускается и не грузит значки, остаётся «Дом»; игнорируется, если выключен и «Дом». */
+    var menuModule by mutableStateOf(true); private set
     /** Меняется при каждом запуске приложения, чтобы пересчитать сортировку «часто запускаемые». */
     var launchTick by mutableIntStateOf(0); private set
+    /** Сколько столбцов и строк сетка показывает при «Авто» (сообщает сетка): шаги «+» и «−» из «Авто» идут от этих чисел. */
+    @Volatile var autoCols = 0
+    @Volatile var autoRows = 0
+    /** Очистка памяти при нажатии «Домой» (по умолчанию выключена). */
+    var memAuto by mutableStateOf(false); private set
+    /** Очистка памяти не останавливает избранные приложения. */
+    var memKeepFav by mutableStateOf(true); private set
+    /** Приложения, которые очистка памяти не останавливает (выбор владельца; по умолчанию пусто). */
+    var memExcl by mutableStateOf<Set<String>>(emptySet()); private set
 
     fun init(ctx: Context) {
         if (::sp.isInitialized) return
@@ -102,16 +121,15 @@ object Cfg {
 
     /** Заново читает настройки (после восстановления из копии). */
     fun reload() {
-        columns = sp.getInt("cols", 0)
-        iconSize = sp.getInt("icon", 1)
+        columnsB = Steps.cleanAuto(sp.getInt("cols", 0), 16)
+        iconSizeB = sp.getInt("icon", 1)
         listMode = sp.getBoolean("list", false)
         sort = sp.getString("sort", "name") ?: "name"
         showLabels = sp.getBoolean("labels", true)
-        showHint = sp.getBoolean("hint", true)
         rememberPos = sp.getBoolean("rememberpos", false)
         iconScale = sp.getInt("iscale", 100).coerceIn(40, 220)
         gridGap = sp.getInt("gap", 1).coerceIn(0, 2)
-        gridRows = sp.getInt("rows", 0).coerceIn(0, 12)
+        gridRowsB = Steps.cleanAuto(sp.getInt("rows", 0), 12)
         fullscreen = sp.getBoolean("fullscreen", true)
         showHidden = sp.getBoolean("show_hidden", false)
         hidden = sp.getStringSet("hidden", emptySet())?.toSet() ?: emptySet()
@@ -135,30 +153,57 @@ object Cfg {
         autoInstall = sp.getBoolean("auto_install", false)
         updFound = sp.getInt("upd_found", 0)
         transparentTiles = sp.getBoolean("tile_transparent", true)
+        plates = sp.getBoolean("plates", true)
+        // рамки меню и «Дома»: при первом запуске «По умолчанию» (цвет темы), белый выбирается в настройках
+        homeRing = sp.getInt("home_ring", 0).coerceIn(0, RING_COLORS.size - 1)
+        selRing = sp.getInt("sel_ring", 0).coerceIn(0, RING_COLORS.size - 1)
         iconPack = sp.getString("icon_pack", "") ?: ""
         nativeHome = sp.getString("native_home", "") ?: ""
         hardOff = sp.getStringSet("home_hard_off", emptySet())?.toSet() ?: emptySet()
-        homeRows = sp.getBoolean("home_rows", true)
+        hardKeep = if (sp.getBoolean("home_hard_keep_set", false)) sp.getStringSet("home_hard_keep", emptySet())?.toSet() ?: emptySet() else null
         hiddenChannels = sp.getStringSet("hidden_channels", emptySet())?.toSet() ?: emptySet()
         weatherCity = sp.getString("weather_city", "") ?: ""
         favorites = (sp.getString("favorites", "") ?: "").split(',').filter { it.isNotBlank() }
         returnTo = sp.getString("return_to", "menu") ?: "menu"
         homeModule = sp.getBoolean("home_module", true)
+        menuModule = sp.getBoolean("menu_module", true)
+        // оба модуля выключены быть не могут (остались от прежних версий): меню включается
+        if (!homeModule && !menuModule) { menuModule = true; sp.edit().putBoolean("menu_module", true).apply() }
         bootWarm = sp.getBoolean("boot_warm", true)
         pinnedAccess = sp.getStringSet("pinned_access", emptySet())?.toSet() ?: emptySet()
         noRestoreAccess = sp.getStringSet("no_restore_access", emptySet())?.toSet() ?: emptySet()
         order = (sp.getString("order", "") ?: "").split("\n").filter { it.isNotBlank() }
+        // ключи рядов над списком (убраны в 4.0) удаляются
+        if (sp.contains("home_rows") || sp.contains("tip_fav_31") || sp.contains("hint")) sp.edit().remove("home_rows").remove("tip_fav_31").remove("hint").apply()
+        memAuto = sp.getBoolean("mem_auto", false)
+        memKeepFav = sp.getBoolean("mem_keep_fav", true)
+        memExcl = sp.getStringSet("mem_excl", emptySet())?.toSet() ?: emptySet()
+        Desks.reload(sp, rememberPos)
     }
 
-    fun changeColumns(v: Int) { columns = v; sp.edit().putInt("cols", v).apply() }
-    fun changeIconSize(v: Int) { iconSize = v; sp.edit().putInt("icon", v).apply() }
+    /** Запись числа с задержкой: при удержании кнопки в настройки уходит одно последнее значение после паузы, а не каждый шаг. */
+    private val pendingInts = HashMap<String, Int>()
+    private val saveHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val flushRun = Runnable { flush() }
+    private fun putIntLater(key: String, v: Int) {
+        synchronized(pendingInts) { pendingInts[key] = v }
+        saveHandler.removeCallbacks(flushRun)
+        saveHandler.postDelayed(flushRun, 400)
+    }
+    /** Немедленно записывает отложенное (при уходе экрана с переднего плана). */
+    fun flush() {
+        saveHandler.removeCallbacks(flushRun)
+        val m = synchronized(pendingInts) { HashMap(pendingInts).also { pendingInts.clear() } }
+        if (m.isNotEmpty() && ::sp.isInitialized) { val e = sp.edit(); m.forEach { (k, v) -> e.putInt(k, v) }; e.apply() }
+    }
+    fun changeColumns(v: Int) { val c = Steps.cleanAuto(v, 16); if (c == columnsB) return; columnsB = c; putIntLater("cols", c) }
+    fun changeIconSize(v: Int) { iconSizeB = v; sp.edit().putInt("icon", v).apply() }
     fun changeListMode(v: Boolean) { listMode = v; sp.edit().putBoolean("list", v).apply() }
     fun changeSort(v: String) { sort = v; sp.edit().putString("sort", v).apply() }
-    fun changeIconScale(v: Int) { iconScale = v.coerceIn(40, 220); sp.edit().putInt("iscale", iconScale).apply() }
+    fun changeIconScale(v: Int) { val c = v.coerceIn(40, 220); if (c == iconScale) return; iconScale = c; putIntLater("iscale", c) }
     fun changeGridGap(v: Int) { gridGap = v.coerceIn(0, 2); sp.edit().putInt("gap", gridGap).apply() }
-    fun changeGridRows(v: Int) { gridRows = v.coerceIn(0, 12); sp.edit().putInt("rows", gridRows).apply() }
+    fun changeGridRows(v: Int) { val c = Steps.cleanAuto(v, 12); if (c == gridRowsB) return; gridRowsB = c; putIntLater("rows", c) }
     fun changeRememberPos(v: Boolean) { rememberPos = v; sp.edit().putBoolean("rememberpos", v).apply() }
-    fun changeShowHint(v: Boolean) { showHint = v; sp.edit().putBoolean("hint", v).apply() }
     fun changeShowLabels(v: Boolean) { showLabels = v; sp.edit().putBoolean("labels", v).apply() }
     fun changeFullscreen(v: Boolean) { fullscreen = v; sp.edit().putBoolean("fullscreen", v).apply() }
     fun changeShowHidden(v: Boolean) { showHidden = v; sp.edit().putBoolean("show_hidden", v).apply() }
@@ -173,8 +218,10 @@ object Cfg {
         noRestoreAccess = if (c in noRestoreAccess) noRestoreAccess - c else noRestoreAccess + c
         sp.edit().putStringSet("no_restore_access", noRestoreAccess).apply()
     }
+    fun changeMenuModule(v: Boolean) { if (!v && !homeModule) return; menuModule = v; sp.edit().putBoolean("menu_module", v).apply() }
+    /** Меню выключено и это допустимо (есть «Дом»): запуски меню без особой просьбы открывают «Дом». */
+    val menuOff: Boolean get() = !menuModule && homeModule
     fun changeHomeModule(v: Boolean) { homeModule = v; sp.edit().putBoolean("home_module", v).apply() }
-    fun changeHomeRows(v: Boolean) { homeRows = v; sp.edit().putBoolean("home_rows", v).apply() }
     fun changeWeatherCity(v: String) { weatherCity = v.trim(); sp.edit().putString("weather_city", weatherCity).apply() }
     fun toggleChannel(key: String) {
         hiddenChannels = if (key in hiddenChannels) hiddenChannels - key else hiddenChannels + key
@@ -185,13 +232,29 @@ object Cfg {
         favorites = if (pkg in favorites) favorites - pkg else favorites + pkg
         sp.edit().putString("favorites", favorites.joinToString(",")).apply()
     }
+    fun changeMemAuto(v: Boolean) { memAuto = v; sp.edit().putBoolean("mem_auto", v).apply() }
+    fun changeMemKeepFav(v: Boolean) { memKeepFav = v; sp.edit().putBoolean("mem_keep_fav", v).apply() }
+    fun toggleMemExcl(pkg: String) {
+        memExcl = if (pkg in memExcl) memExcl - pkg else memExcl + pkg
+        sp.edit().putStringSet("mem_excl", memExcl).apply()
+    }
     fun lastLaunch(pkg: String): Long = sp.getLong("t_$pkg", 0L)
+    fun changeHardKeep(v: Set<String>) { hardKeep = v; sp.edit().putStringSet("home_hard_keep", v).putBoolean("home_hard_keep_set", true).apply() }
     fun changeHardOff(v: Set<String>) { hardOff = v; sp.edit().putStringSet("home_hard_off", v).apply() }
     fun changeNativeHome(v: String) { nativeHome = v; sp.edit().putString("native_home", v).apply() }
     fun changeReturnTo(v: String) { returnTo = v; sp.edit().putString("return_to", v).apply() }
     fun changeTheme(v: String) { theme = v; sp.edit().putString("theme", v).apply() }
     fun changeAccent(v: String) { accent = v; sp.edit().putString("accent", v).apply() }
     fun changeLang(v: String) { lang = v; sp.edit().putString("lang", v).apply() }
+    fun changeHomeRing(v: Int) { homeRing = v.coerceIn(0, RING_COLORS.size - 1); sp.edit().putInt("home_ring", homeRing).apply() }
+    fun homeRingOr(accent: androidx.compose.ui.graphics.Color): androidx.compose.ui.graphics.Color =
+        if (homeRing == 0) accent else androidx.compose.ui.graphics.Color(RING_COLORS[homeRing].toInt())
+    fun changeSelRing(v: Int) { selRing = v.coerceIn(0, RING_COLORS.size - 1); sp.edit().putInt("sel_ring", selRing).apply() }
+    /** Цвет рамки выделения: выбранный владелицей или [accent] темы, если выбран «цвет программы». */
+    fun ringOr(accent: androidx.compose.ui.graphics.Color): androidx.compose.ui.graphics.Color =
+        if (selRing == 0) accent else androidx.compose.ui.graphics.Color(RING_COLORS[selRing].toInt())
+    val RING_COLORS = longArrayOf(0L, 0xFFFFFFFFL, 0xFF000000L, 0xFFEF4444L, 0xFFF97316L, 0xFFFACC15L, 0xFF22C55EL, 0xFF06B6D4L, 0xFF3B82F6L, 0xFFA855F7L, 0xFFEC4899L)
+    fun changePlates(v: Boolean) { plates = v; sp.edit().putBoolean("plates", v).apply() }
     fun changeTransparentTiles(v: Boolean) { transparentTiles = v; sp.edit().putBoolean("tile_transparent", v).apply() }
     fun toggleUpdSource(id: String) {
         updSources = if (id in updSources) updSources - id else updSources + id

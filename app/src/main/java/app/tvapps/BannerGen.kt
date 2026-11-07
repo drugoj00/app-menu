@@ -73,7 +73,11 @@ object BannerGen {
         return l
     }
 
-    fun make(ctx: Context, e: Entry, style: Int, color: Int? = null): Bitmap = make(e.icon.toBitmap(256, 256), e.label, style, color)
+    fun make(ctx: Context, e: Entry, style: Int, color: Int? = null): Bitmap {
+        // у значка в списке 128 px: для баннера значок берётся заново в 256 px из самого приложения (свой значок владельца: из списка как есть)
+        val src = (if (IconPacks.hasOwn(ctx, e.pkg)) null else runCatching { ctx.packageManager.getApplicationIcon(e.pkg).toBitmap(256, 256) }.getOrNull()) ?: e.icon.toBitmap(256, 256)
+        return make(src, e.label, style, color)
+    }
 
     /** color: свой цвет баннера (ARGB); null: цвет берётся из значка. */
     fun make(icon: Bitmap, label: String, style: Int, color: Int? = null): Bitmap {

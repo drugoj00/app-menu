@@ -1,11 +1,14 @@
 package app.tvapps
 
 import android.app.Application
-import org.conscrypt.Conscrypt
-import java.security.Security
 
 class App : Application() {
     companion object { @Volatile var instance: App? = null }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        CacheBudget.trim(level)
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -16,12 +19,8 @@ class App : Application() {
         UpdSched.apply(this)
         // защита главного экрана: частые перезапуски при отключённом родном экране возвращают его
         HomeControl.guardOnProcessStart(this)
-        // загрузка шифрования и ключа ADB занимает заметное время на слабых приставках: делаем в фоне,
-        // экран при этом уже рисуется; подключение дожидается готовности (Adb.awaitReady)
-        Thread {
-            // TLS 1.3 с экспортом ключевого материала нужен для сопряжения и беспроводной отладки
-            Security.insertProviderAt(Conscrypt.newProvider(), 1)
-            Adb.init(this)
-        }.start()
+        // шифрование Conscrypt и ключ ADB создаются при первом обращении к ADB (Adb.ensure), а не при каждом запуске: экономит память
+        Adb.init(this)
+        Integrity.warm(this)
     }
 }
