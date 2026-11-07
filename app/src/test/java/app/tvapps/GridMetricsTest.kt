@@ -74,4 +74,65 @@ class GridMetricsTest {
         val k = LabelPlan.plan("Калькулятор", metrics, label, normal, bleed)
         assertTrue(k.sizePx >= label * 0.9f)
     }
+
+    @Test fun gapFactorValues() {
+        assertEquals(0.5f, GridMetrics.gapFactor(0), 0f)
+        assertEquals(1f, GridMetrics.gapFactor(1), 0f)
+        assertEquals(1.8f, GridMetrics.gapFactor(2), 0f)
+        assertEquals(1f, GridMetrics.gapFactor(7), 0f)
+    }
+
+    @Test fun normalGapIsUnchanged() {
+        val a = GridMetrics.dense(1920f, 1080f, 1880f, 940f, 1f, label, 2)
+        val b = GridMetrics.dense(1920f, 1080f, 1880f, 940f, 1f, label, 2, gapFactor = 1f)
+        assertEquals(a.platePx, b.platePx, 0f)
+        assertEquals(a.gapYPx, b.gapYPx, 0f)
+        assertEquals(a.rows, b.rows)
+    }
+
+    @Test fun gapSettingChangesGridVisibly() {
+        val tight = GridMetrics.dense(1920f, 1080f, 1880f, 940f, 1f, label, 2, gapFactor = GridMetrics.gapFactor(0))
+        val norm = GridMetrics.dense(1920f, 1080f, 1880f, 940f, 1f, label, 2, gapFactor = GridMetrics.gapFactor(1))
+        val airy = GridMetrics.dense(1920f, 1080f, 1880f, 940f, 1f, label, 2, gapFactor = GridMetrics.gapFactor(2))
+        assertTrue("плотно: плашка шире", tight.platePx > norm.platePx && norm.platePx > airy.platePx)
+        assertTrue("плотно: промежуток по вертикали меньше", tight.gapYPx < norm.gapYPx && norm.gapYPx < airy.gapYPx)
+        assertTrue("шаг строк растёт с просторностью", tight.pitchY < norm.pitchY && norm.pitchY < airy.pitchY)
+        assertTrue("строк не больше при просторной", tight.rows >= norm.rows && norm.rows >= airy.rows)
+        assertTrue("столбцов столько же", tight.cols == norm.cols && norm.cols == airy.cols)
+        assertTrue("значок внутри плашки", airy.iconPx < airy.platePx && tight.iconPx < tight.platePx)
+        assertTrue(tight.gapYPx >= 2f && airy.gapYPx >= 2f)
+    }
+
+    @Test fun fixedRowsKeepRowCountWhateverTheGap() {
+        for (g in 0..2) {
+            val m = GridMetrics.dense(1920f, 1080f, 1880f, 940f, 1f, label, 2, fixedRows = 3, gapFactor = GridMetrics.gapFactor(g))
+            assertEquals("строк 3 при плотности $g", 3, m.rows)
+        }
+    }
+
+    @Test fun platesNeverTouchOnPhone() {
+        // 1080x2400, плотность 2,625: между подложками соседних ячеек не меньше 4 / 8 / 12 dp при любом числе столбцов
+        val d = 2.625f
+        for (g in 0..2) for (cols in listOf(0, 5, 6, 7)) {
+            val minGap = GridMetrics.minGapDp(g) * d
+            val m = GridMetrics.dense(1080f, 2400f, 1040f, 2000f, d, 12f * d, 2, fixedCols = cols, gapFactor = GridMetrics.gapFactor(g), minGapPx = minGap)
+            assertTrue("зазор по горизонтали: g=$g cols=$cols", m.cellPx - m.platePx >= minGap - 0.01f)
+            assertTrue("зазор по вертикали: g=$g cols=$cols", m.gapYPx >= minGap - 0.01f)
+            assertTrue(m.iconPx < m.platePx && m.platePx <= m.cellPx)
+        }
+    }
+
+    @Test fun minGapDpValues() {
+        assertEquals(4f, GridMetrics.minGapDp(0), 0f)
+        assertEquals(8f, GridMetrics.minGapDp(1), 0f)
+        assertEquals(12f, GridMetrics.minGapDp(2), 0f)
+    }
+
+    @Test fun setTopBoxLookUnchangedWhereGapAlreadyBigEnough() {
+        // приставка 1080p, плотность 1: прежний вид (зазоры 8..31 px больше минимума)
+        val a = GridMetrics.dense(1920f, 1080f, 1880f, 940f, 1f, label, 2, gapFactor = 1f)
+        val b = GridMetrics.dense(1920f, 1080f, 1880f, 940f, 1f, label, 2, gapFactor = 1f, minGapPx = GridMetrics.minGapDp(1))
+        assertEquals(a.platePx, b.platePx, 0.001f)
+        assertEquals(a.gapYPx, b.gapYPx, 0.001f)
+    }
 }
