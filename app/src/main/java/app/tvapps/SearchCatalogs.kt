@@ -26,7 +26,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -93,7 +92,7 @@ object Catalogs {
         "com.sec.android.app.sbrowser", "com.android.settings", "com.android.settings.intelligence", "com.google.android.apps.maps",
     )
     private var cache: List<Prov>? = null
-    private val posters = object : LruCache<String, Bitmap>(20 * 1024 * 1024) { override fun sizeOf(k: String, v: Bitmap) = v.byteCount }
+    private val posters = CacheBudget.track(object : LruCache<String, Bitmap>(CacheBudget.bytes(20)) { override fun sizeOf(k: String, v: Bitmap) = v.byteCount })
 
     private fun providers(ctx: Context): List<Prov> {
         cache?.let { return it }

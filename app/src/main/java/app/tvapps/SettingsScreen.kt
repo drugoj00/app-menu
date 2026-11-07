@@ -8,8 +8,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import android.provider.Settings
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,7 +35,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -96,13 +99,46 @@ internal fun Chip(text: String, selected: Boolean, modifier: Modifier = Modifier
     ) { Text(text, color = t.text, fontSize = btnSp(15), fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal) }
 }
 
+/** Пояснения пункта настроек, которые выводит [SectionHint] внутри [Section]: пункт сворачивает их под своё название. */
+internal val LocalSectionHints = androidx.compose.runtime.compositionLocalOf<androidx.compose.runtime.snapshots.SnapshotStateList<String>?> { null }
+
+/** Длинное пояснение пункта: ничего не рисует само, а передаёт текст названию пункта (раскрывается нажатием на название). */
+@Composable
+internal fun SectionHint(text: String) {
+    val list = LocalSectionHints.current
+    if (list == null) {
+        Text(text, color = LocalTh.current.hint, fontSize = 12.sp)
+        return
+    }
+    androidx.compose.runtime.DisposableEffect(text) { list.add(text); onDispose { list.remove(text) } }
+}
+
+/**
+ * Пункт настроек: название (со значком-стрелкой, если есть пояснение) и содержимое. Пояснение свёрнуто, раскрывается нажатием на название
+ * (пульт: фокус на названии, ОК); состояние раскрытия между входами не сохраняется.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Section(title: String, content: @Composable () -> Unit) {
     val t = LocalTh.current
-    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(title, color = t.sub, fontSize = 13.sp)
-        content()
+    val hints = remember { androidx.compose.runtime.mutableStateListOf<String>() }
+    var open by remember { mutableStateOf(false) }
+    var focused by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp).animateContentSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (hints.isEmpty()) Text(title, color = t.sub, fontSize = 13.sp)
+        else Row(
+            Modifier.onFocusChanged { focused = it.isFocused }
+                .clip(RoundedCornerShape(8.dp))
+                .border(if (focused) 2.dp else 0.dp, if (focused) t.accent else Color.Transparent, RoundedCornerShape(8.dp))
+                .clickable(role = androidx.compose.ui.semantics.Role.Button) { open = !open }
+                .padding(horizontal = 4.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(title, color = t.sub, fontSize = 13.sp)
+            Text(if (open) "▴" else "ⓘ", color = t.accent, fontSize = 14.sp)
+        }
+        if (open && hints.isNotEmpty()) Text(hints.joinToString("\n\n"), color = t.hint, fontSize = 12.sp)
+        androidx.compose.runtime.CompositionLocalProvider(LocalSectionHints provides hints) { content() }
     }
 }
 
@@ -111,7 +147,7 @@ private val GRID_NUM_H = 84.dp
 
 /** Кнопка «+» или «−»: знак рисуется линиями ровно по центру (в шрифте знаки сидят выше центра строки). Вид как у Chip. */
 @Composable
-private fun GridBtn(plus: Boolean, modifier: Modifier, onClick: () -> Unit) {
+private fun GridBtn(plus: Boolean, modifier: Modifier, gate: StepGate, onClick: () -> Unit) {
     val t = LocalTh.current
     var focused by remember { mutableStateOf(false) }
     val (hm, hover) = rememberHover()
@@ -122,7 +158,9 @@ private fun GridBtn(plus: Boolean, modifier: Modifier, onClick: () -> Unit) {
             .clip(RoundedCornerShape(12.dp))
             .background(if (hover) t.tileFocus else t.tile)
             .border(if (focused) 3.dp else 1.dp, if (focused) t.accent else t.border, RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick),
+            .stepKeys(gate, onClick)
+            .holdStep(gate, onClick)
+            .focusable(),
         contentAlignment = Alignment.Center,
     ) {
         androidx.compose.foundation.Canvas(Modifier.size(42.dp)) {
@@ -137,14 +175,21 @@ private fun GridBtn(plus: Boolean, modifier: Modifier, onClick: () -> Unit) {
 
 /** Счётчик: «+» сверху, число в окошке, «−» снизу, подпись под ним. Одно нажатие меняет число на шаг; 0 у строк и столбцов показано как «Авто». */
 @Composable
-private fun GridNum(value: Int, caption: String, min: Int, max: Int, step: Int, show: @Composable (Int) -> String, onChange: (Int) -> Unit) {
+private fun GridNum(value: Int, caption: String, show: @Composable (Int) -> String, onPlus: () -> Unit, onMinus: () -> Unit, onReset: (() -> Unit)? = null) {
     val t = LocalTh.current
+    val gate = remember { StepGate() }
+    // шаг считает вызывающий по живому значению настройки (а не по значению с последнего кадра): быстрые нажатия подряд не теряются и не дают скачков
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        GridBtn(true, Modifier.width(150.dp).height(GRID_BTN_H)) { onChange(minOf(value + step, max)) }
-        Box(Modifier.width(150.dp).height(GRID_NUM_H).clip(RoundedCornerShape(12.dp)).background(t.chipSel), contentAlignment = Alignment.Center) {
+        GridBtn(true, Modifier.width(150.dp).height(GRID_BTN_H), gate) { onPlus() }
+        var numFocused by remember { mutableStateOf(false) }
+        Box(
+            Modifier.width(150.dp).height(GRID_NUM_H).clip(RoundedCornerShape(12.dp)).background(t.chipSel)
+                .then(if (onReset != null) Modifier.onFocusChanged { numFocused = it.isFocused }.border(if (numFocused) 3.dp else 0.dp, if (numFocused) t.accent else Color.Transparent, RoundedCornerShape(12.dp)).clickable { onReset() } else Modifier),
+            contentAlignment = Alignment.Center,
+        ) {
             Text(show(value), color = t.text, fontSize = btnSp(17), fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
         }
-        GridBtn(false, Modifier.width(150.dp).height(GRID_BTN_H)) { onChange(maxOf(value - step, min)) }
+        GridBtn(false, Modifier.width(150.dp).height(GRID_BTN_H), gate) { onMinus() }
         Text(caption, color = t.hint, fontSize = 12.sp)
     }
 }
@@ -154,6 +199,45 @@ private fun GridNum(value: Int, caption: String, min: Int, max: Int, step: Int, 
 private fun <T> Options(options: List<Pair<T, String>>, current: T, onPick: (T) -> Unit) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         options.forEach { (v, label) -> Chip(label, v == current) { onPick(v) } }
+    }
+}
+
+/**
+ * Выбор цвета образцами (вместо кнопок со словами): кружки или одинаковые прямоугольники ([rect]); выбранный с галочкой и жирным ободком,
+ * под рядом — название выбранного цвета. [lightMark] — образцы, на которых галочка чёрная.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ColorDots(fills: List<Color>, names: List<String>, current: Int, rect: Boolean = false, lightMark: Set<Int> = emptySet(), onPick: (Int) -> Unit) {
+    val t = LocalTh.current
+    val shape = if (rect) RoundedCornerShape(12.dp) else androidx.compose.foundation.shape.CircleShape
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            fills.indices.forEach { i ->
+                var focused by remember { mutableStateOf(false) }
+                val (hm, hover) = rememberHover()
+                Box(
+                    (if (rect) Modifier.size(78.dp, 46.dp) else Modifier.size(46.dp))
+                        .then(hm)
+                        .onFocusChanged { focused = it.isFocused }
+                        .clip(shape)
+                        .background(fills[i])
+                        .border(if (i == current || focused) 4.dp else if (hover) 2.dp else 1.dp,
+                            if (focused) t.accent else if (i == current) t.text else t.border, shape)
+                        .clickable(role = androidx.compose.ui.semantics.Role.RadioButton) { onPick(i) }
+                        .semantics { contentDescription = names[i] },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (i == current) androidx.compose.foundation.Canvas(Modifier.size(22.dp)) {
+                        val c = if (i in lightMark) Color.Black else Color.White
+                        val w = size.width; val h = size.height; val sw = 3.dp.toPx()
+                        drawLine(c, androidx.compose.ui.geometry.Offset(w * 0.12f, h * 0.55f), androidx.compose.ui.geometry.Offset(w * 0.4f, h * 0.82f), sw, androidx.compose.ui.graphics.StrokeCap.Round)
+                        drawLine(c, androidx.compose.ui.geometry.Offset(w * 0.4f, h * 0.82f), androidx.compose.ui.geometry.Offset(w * 0.9f, h * 0.2f), sw, androidx.compose.ui.graphics.StrokeCap.Round)
+                    }
+                }
+            }
+        }
+        Text(names[current], color = t.hint, fontSize = 12.sp)
     }
 }
 
@@ -237,10 +321,10 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
     Column(Modifier.fillMaxSize().background(t.bg).padding(horizontal = 32.dp, vertical = 20.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Chip("← " + stringResource(R.string.back_plain), false, Modifier.focusRequester(first)) { if (sub == "main") onBack() else sub = "main" }
-            Text(stringResource(if (sub == "main") R.string.settings else R.string.hidden_list), fontSize = 24.sp, color = t.text)
+            Text(stringResource(when (sub) { "main" -> R.string.settings; "excl" -> R.string.mem_excl_title; else -> R.string.hidden_list }), fontSize = 24.sp, color = t.text)
         }
         androidx.compose.runtime.CompositionLocalProvider(LocalChipReg provides chipReg, LocalSettingsScroll provides scroll) {
-        Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(top = 8.dp)) {
+        Column(Modifier.fillMaxSize().verticalScrollbar(scroll).verticalScroll(scroll).padding(top = 8.dp, end = ScrollbarMath.RESERVE_DP.dp)) {
             if (sub == "main") {
                 Section(stringResource(R.string.set_theme)) {
                     Options(
@@ -256,7 +340,9 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                         "teal" to R.string.accent_teal, "blue" to R.string.accent_blue, "orange" to R.string.accent_orange,
                         "purple" to R.string.accent_purple, "pink" to R.string.accent_pink, "green" to R.string.accent_green,
                     )
-                    Options(accentKeys.map { it to stringResource(names.getValue(it)) }, Cfg.accent) { Cfg.changeAccent(it) }
+                    // одинаковые прямоугольники с цветами акцента (вместо кнопок со словами); название выбранного под рядом
+                    val dark = t.dark
+                    ColorDots(accentKeys.map { accentSwatch(it, dark) }, accentKeys.map { stringResource(names.getValue(it)) }, accentKeys.indexOf(Cfg.accent).coerceAtLeast(0), rect = true) { Cfg.changeAccent(accentKeys[it]) }
                 }
                 Section(stringResource(R.string.set_lang)) {
                     Options(
@@ -269,10 +355,18 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                     }
                 }
                 Section(stringResource(R.string.set_control)) {
-                    Text(stringResource(R.string.ctl_help), color = t.hint, fontSize = 13.sp)
+                    SectionHint(stringResource(R.string.ctl_help))
+                }
+                Section(stringResource(R.string.set_ring)) {
+                    val ringNames = listOf(R.string.ring_default, R.string.bd_c1, R.string.bd_c2, R.string.bd_c3, R.string.bd_c4, R.string.bd_c5, R.string.bd_c6, R.string.bd_c7, R.string.bd_c8, R.string.bd_c9, R.string.bd_c10)
+                    val ringAccent = LocalTh.current.accent
+                    ColorDots(Cfg.RING_COLORS.indices.map { if (it == 0) ringAccent else Color(Cfg.RING_COLORS[it].toInt()) }, ringNames.map { stringResource(it) }, Cfg.selRing, lightMark = setOf(1, 5)) { Cfg.changeSelRing(it) }
                 }
                 Section(stringResource(R.string.set_tilebg)) {
                     Options(listOf(true to stringResource(R.string.tilebg_clear), false to stringResource(R.string.tilebg_card)), Cfg.transparentTiles) { Cfg.changeTransparentTiles(it) }
+                }
+                Section(stringResource(R.string.set_plates)) {
+                    Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.plates) { Cfg.changePlates(it) }
                 }
                 Section(stringResource(R.string.bg_menu_title)) {
                     Chip(stringResource(R.string.bg_menu_btn), false) { menuBgDlg = true }
@@ -284,23 +378,38 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                     // три счётчика: строки × столбцы и масштаб значков
                     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         if (!Cfg.listMode) {
-                            GridNum(Cfg.gridRows, stringResource(R.string.grid_rows), 0, 12, 1, { if (it == 0) stringResource(R.string.cols_auto) else it.toString() }) { Cfg.changeGridRows(it) }
+                            GridNum(
+                                Cfg.gridRows, stringResource(R.string.grid_rows), { if (it == 0) stringResource(R.string.cols_auto) else it.toString() },
+                                onPlus = { Cfg.changeGridRows(Steps.autoStep(Cfg.gridRows, +1, 12, Cfg.autoRows)) },
+                                onMinus = { Cfg.changeGridRows(Steps.autoStep(Cfg.gridRows, -1, 12, Cfg.autoRows)) },
+                                onReset = { Cfg.changeGridRows(0) },
+                            )
                             // «×» по центру окошка с числом: сверху пустое место высотой кнопки «+», затем окошко той же высоты
                             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Spacer(Modifier.height(GRID_BTN_H))
                                 Box(Modifier.height(GRID_NUM_H), contentAlignment = Alignment.Center) { Text("×", color = t.text, fontSize = btnSp(34), fontWeight = FontWeight.Bold) }
                             }
-                            GridNum(Cfg.columns, stringResource(R.string.grid_cols), 0, 16, 1, { if (it == 0) stringResource(R.string.cols_auto) else it.toString() }) { Cfg.changeColumns(it) }
+                            GridNum(
+                                Cfg.columns, stringResource(R.string.grid_cols), { if (it == 0) stringResource(R.string.cols_auto) else it.toString() },
+                                onPlus = { Cfg.changeColumns(Steps.autoStep(Cfg.columns, +1, 16, Cfg.autoCols)) },
+                                onMinus = { Cfg.changeColumns(Steps.autoStep(Cfg.columns, -1, 16, Cfg.autoCols)) },
+                                onReset = { Cfg.changeColumns(0) },
+                            )
                             Spacer(Modifier.width(28.dp))
                         }
-                        GridNum(Cfg.iconScale.coerceIn(50, 200), stringResource(R.string.grid_scale), 50, 200, 10, { "$it%" }) { Cfg.changeIconScale(it) }
+                        GridNum(
+                            Cfg.iconScale.coerceIn(50, 200), stringResource(R.string.grid_scale), { "$it%" },
+                            onPlus = { Cfg.changeIconScale(Steps.rangeStep(Cfg.iconScale, +1, 50, 200, 10)) },
+                            onMinus = { Cfg.changeIconScale(Steps.rangeStep(Cfg.iconScale, -1, 50, 200, 10)) },
+                            onReset = { Cfg.changeIconScale(100) },
+                        )
                     }
                 }
                 Section(stringResource(R.string.set_iconpack)) {
                     val packs = remember { IconPacks.installed(ctx) }
                     Options(listOf("" to stringResource(R.string.iconpack_native)) + packs, Cfg.iconPack) { Cfg.changeIconPack(it) }
                     if (packs.isEmpty()) Text(stringResource(R.string.iconpack_none), color = t.hint, fontSize = 12.sp)
-                    Text(stringResource(R.string.import_hint), color = t.hint, fontSize = 12.sp)
+                    SectionHint(stringResource(R.string.import_hint))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Chip(stringResource(R.string.import_tree), false) {
                             runCatching { pickTree.launch(null) }.onFailure { Toast.makeText(ctx, ctx.getString(R.string.icon_no_picker), Toast.LENGTH_LONG).show() }
@@ -325,26 +434,22 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                 Section(stringResource(R.string.set_labels)) {
                     Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.showLabels) { Cfg.changeShowLabels(it) }
                 }
-                Section(stringResource(R.string.set_hint)) {
-                    Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.showHint) { Cfg.changeShowHint(it) }
-                }
                 Section(stringResource(R.string.set_remember)) {
                     Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.rememberPos) { Cfg.changeRememberPos(it) }
-                    Text(stringResource(R.string.remember_hint), color = t.hint, fontSize = 12.sp)
+                    SectionHint(stringResource(R.string.remember_hint))
                 }
                 Section(stringResource(R.string.set_dense)) {
                     Options(
                         listOf(0 to stringResource(R.string.lite_auto), 1 to stringResource(R.string.dense_on), 2 to stringResource(R.string.dense_off)), DenseGrid.mode,
                     ) { DenseGrid.change(ctx, it) }
-                    Text(stringResource(R.string.dense_hint), color = t.hint, fontSize = 12.sp)
+                    SectionHint(stringResource(R.string.dense_hint))
                 }
                 Section(stringResource(R.string.set_lite)) {
                     Options(
                         listOf(0 to stringResource(R.string.lite_auto), 1 to stringResource(R.string.on), 2 to stringResource(R.string.off)), Lite.mode,
                     ) { Lite.change(ctx, it) }
-                    Text(stringResource(R.string.lite_hint), color = t.hint, fontSize = 12.sp)
+                    SectionHint(stringResource(R.string.lite_hint))
                 }
-                Section(stringResource(R.string.set_speed)) { SpeedBlock(ctx, t) }
                 Section(stringResource(R.string.set_sort)) {
                     Options(
                         listOf(
@@ -355,8 +460,22 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                         Cfg.sort,
                     ) { Cfg.changeSort(it) }
                 }
+                Section(stringResource(R.string.desks_title)) {
+                    Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Desks.on) { Desks.enable(it) }
+                }
+                Section(stringResource(R.string.set_mem)) {
+                    FoldItem(stringResource(R.string.mem_auto), stringResource(R.string.mem_auto_hint)) {
+                        Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.memAuto) { Cfg.changeMemAuto(it) }
+                    }
+                    FoldItem(stringResource(R.string.mem_keep_fav), null) {
+                        Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.memKeepFav) { Cfg.changeMemKeepFav(it) }
+                    }
+                    FoldItem(stringResource(R.string.mem_excl_title), stringResource(R.string.mem_excl_hint)) {
+                        Chip(stringResource(R.string.mem_excl_open) + " (" + Cfg.memExcl.size + ")", false) { sub = "excl" }
+                    }
+                }
                 Section(stringResource(R.string.boot_title)) {
-                    Text(stringResource(R.string.boot_hint), color = t.hint, fontSize = 12.sp)
+                    SectionHint(stringResource(R.string.boot_hint))
                     Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.bootWarm) { Cfg.changeBootWarm(it) }
                 }
                 Section(stringResource(R.string.set_fullscreen)) {
@@ -374,7 +493,7 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                     Chip(stringResource(R.string.hidden_list) + " (" + Cfg.hidden.size + ")", false) { sub = "hidden" }
                 }
                 Section(stringResource(R.string.set_install)) {
-                    Text(stringResource(R.string.install_hint), color = t.hint, fontSize = 12.sp)
+                    SectionHint(stringResource(R.string.install_hint))
                     Chip(stringResource(R.string.fb_open), true) { browser = true }
                     Chip(stringResource(R.string.wifi_open), true) { wifi = true }
                     Chip(stringResource(R.string.net_open), true) { net = true }
@@ -392,18 +511,26 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                     Options(listOf("menu" to stringResource(R.string.return_menu), "home" to stringResource(R.string.return_home)), Cfg.returnTo) { Cfg.changeReturnTo(it) }
                 }
                 Section(stringResource(R.string.home_module_title)) {
-                    Text(stringResource(R.string.home_module_hint), color = t.hint, fontSize = 12.sp)
+                    SectionHint(stringResource(R.string.home_module_hint))
                     Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.homeModule) { v ->
-                        if (v) HomeModule.enable()
+                        if (v) HomeModule.enable(ctx)
                         else scope.launch {
                             val r = HomeModule.disable(ctx)
-                            Toast.makeText(ctx, ctx.getString(if (r.isEmpty()) R.string.home_module_off_ok else R.string.home_module_off_fail), Toast.LENGTH_LONG).show()
+                            Toast.makeText(ctx, ctx.getString(if (r.isEmpty()) R.string.home_module_off_ok else if (r == HomeModule.NEED_MENU) R.string.home_module_need_menu else R.string.home_module_off_fail), Toast.LENGTH_LONG).show()
                         }
                     }
                 }
+                // выключатель меню виден всегда (раньше исчезал при выключенном «Доме»); оба модуля сразу выключить нельзя
+                Section(stringResource(R.string.menu_module_title)) {
+                    SectionHint(stringResource(R.string.menu_module_hint))
+                    Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.menuModule) { v ->
+                        if (!v && !Cfg.homeModule) Toast.makeText(ctx, ctx.getString(R.string.menu_module_need_home), Toast.LENGTH_LONG).show()
+                        else Cfg.changeMenuModule(v)
+                    }
+                }
                 Section(stringResource(R.string.set_home)) {
-                    Text(stringResource(R.string.set_home_hint), color = t.hint, fontSize = 12.sp)
-                    Text(stringResource(R.string.native_home_hint), color = t.hint, fontSize = 12.sp)
+                    SectionHint(stringResource(R.string.set_home_hint))
+                    SectionHint(stringResource(R.string.native_home_hint))
                     // список родных экранов с названиями собирается в фоне: loadLabel обращается к ресурсам и Binder, в главном потоке это до 150 мс (журнал магнитолы)
                     val natives by androidx.compose.runtime.produceState(emptyList<Pair<String, String>>()) {
                         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { nativeHomes(ctx).map { it.activityInfo.packageName to it.loadLabel(ctx.packageManager).toString() } }
@@ -443,11 +570,11 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                 }
                 Section(stringResource(R.string.set_backups)) {
                     Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.backupOnDelete) { Cfg.changeBackupOnDelete(it) }
-                    Text(stringResource(R.string.backups_hint), color = t.hint, fontSize = 12.sp)
+                    SectionHint(stringResource(R.string.backups_hint))
                     Chip(stringResource(R.string.backups_open), false) { backups = true }
                 }
                 Section(stringResource(R.string.backup_title)) {
-                    Text(stringResource(R.string.backup_hint), color = t.hint, fontSize = 12.sp)
+                    SectionHint(stringResource(R.string.backup_hint))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Chip(stringResource(R.string.backup_save), false) {
                             runCatching { saveBackup.launch("tvapps-backup.zip") }.onFailure { Toast.makeText(ctx, ctx.getString(R.string.icon_no_picker), Toast.LENGTH_LONG).show() }
@@ -476,7 +603,7 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                         Cfg.changeUseRoot(it)
                         if (!it) { Adb.disableRoot(); Conn.refresh() }
                     }
-                    Text(stringResource(R.string.root_hint), color = t.hint, fontSize = 12.sp)
+                    SectionHint(stringResource(R.string.root_hint))
                 }
                 Section(stringResource(R.string.about_title)) {
                     Text(stringResource(R.string.about_version, BuildConfig.VERSION_NAME), color = t.sub, fontSize = 14.sp)
@@ -485,6 +612,7 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                         Chip(stringResource(R.string.about_tg), false) { openUrl(ctx, "https://t.me/PhoneInWindowSound") }
                         Chip(stringResource(R.string.about_gh), false) { openUrl(ctx, "https://github.com/drugoj00/app-menu") }
                         Chip(stringResource(R.string.about_all), false) { openUrl(ctx, "https://drugoj00.github.io/") }
+                        Chip(stringResource(R.string.about_check_upd), false) { UpdOpen.requested = true }
                     }
                     Text(stringResource(R.string.about_support), color = t.sub, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -493,6 +621,8 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                     }
                 }
                 Spacer(Modifier.size(24.dp))
+            } else if (sub == "excl") {
+                ExcludeList(apps)
             } else {
                 HiddenList(apps)
             }
@@ -520,6 +650,60 @@ private fun copyText(ctx: android.content.Context, text: String) {
 private fun openUrl(ctx: android.content.Context, url: String) {
     runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
         .onFailure { Toast.makeText(ctx, ctx.getString(R.string.home_cant_open), Toast.LENGTH_SHORT).show() }
+}
+
+/** Пункт настроек, где длинное пояснение свёрнуто: оно раскрывается нажатием на название. */
+@Composable
+private fun FoldItem(title: String, hint: String?, content: @Composable () -> Unit) {
+    val t = LocalTh.current
+    var open by remember { mutableStateOf(false) }
+    var focused by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().padding(top = 2.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            Modifier.onFocusChanged { focused = it.isFocused }
+                .clip(RoundedCornerShape(8.dp))
+                .border(if (focused) 2.dp else 0.dp, if (focused) t.accent else Color.Transparent, RoundedCornerShape(8.dp))
+                .then(if (hint != null) Modifier.clickable { open = !open } else Modifier)
+                .padding(horizontal = 4.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(title, color = t.text, fontSize = 15.sp)
+            if (hint != null) Text(if (open) "▴" else "▾", color = t.accent, fontSize = 15.sp)
+        }
+        if (open && hint != null) Text(hint, color = t.hint, fontSize = 12.sp)
+        content()
+    }
+}
+
+/** Приложения, которые очистка памяти не останавливает: отметки по установленным (не системным). */
+@Composable
+private fun ExcludeList(apps: List<Entry>) {
+    val t = LocalTh.current
+    val list = apps.filter { !it.system }
+    if (list.isEmpty()) { Text(stringResource(R.string.mem_excl_none), color = t.sub, fontSize = 14.sp); return }
+    list.forEach { e ->
+        val on = e.pkg in Cfg.memExcl
+        var focused by remember { mutableStateOf(false) }
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 3.dp)
+                .onFocusChanged { focused = it.isFocused }
+                .clip(RoundedCornerShape(12.dp))
+                .background(if (focused) t.tileFocus else t.tile)
+                .border(if (focused) 3.dp else 0.dp, if (focused) t.accent else Color.Transparent, RoundedCornerShape(12.dp))
+                .toggleable(on, onValueChange = { Cfg.toggleMemExcl(e.pkg) })
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            val bmp = remember(e.pkg) { e.icon.toBitmap(96, 96).asImageBitmap() }
+            Image(bmp, null, Modifier.size(36.dp))
+            Column(Modifier.weight(1f)) {
+                Text(e.label, color = t.text, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(e.pkg, color = t.hint, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Switch(on, null)
+        }
+    }
 }
 
 @Composable
@@ -572,7 +756,8 @@ private fun InstallDialog(files: List<ApkFile>, onClose: () -> Unit) {
         ) {
             Text(stringResource(R.string.install_title, files.size), color = t.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             if (files.isEmpty()) Text(stringResource(R.string.install_none), color = t.sub, fontSize = 14.sp)
-            Column(Modifier.heightIn(max = 340.dp).verticalScroll(rememberScrollState())) {
+            val instScroll = rememberScrollState()
+            Column(Modifier.heightIn(max = 340.dp).verticalScrollbar(instScroll).verticalScroll(instScroll).padding(end = ScrollbarMath.RESERVE_DP.dp)) {
                 files.forEach { f ->
                     val on = f.name in chosen
                     var focused by remember { mutableStateOf(false) }
@@ -643,13 +828,4 @@ private fun setHomeMode(ctx: android.content.Context, on: Boolean) {
         if (on) android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED else android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
         android.content.pm.PackageManager.DONT_KILL_APP,
     )
-}
-
-
-/** Ускорение программы (root): состояние компиляции в машинный код и кнопка запуска. */
-@Composable
-private fun SpeedBlock(ctx: android.content.Context, t: TC) {
-    val comp = CompileBoost.result.ifEmpty { CompileBoost.status(ctx) }
-    Text(stringResource(R.string.compile_status, comp), color = t.hint, fontSize = 12.sp)
-    if (Adb.isRoot && !CompileBoost.running) Chip(stringResource(R.string.compile_now), false) { CompileBoost.runIfNeeded(ctx, force = true) }
 }

@@ -36,6 +36,9 @@ private val Accents = linkedMapOf(
 
 val accentKeys: List<String> get() = Accents.keys.toList()
 
+/** Цвет акцента с этим ключом в тёмной или светлой теме (для образцов цвета в настройках). */
+fun accentSwatch(key: String, dark: Boolean): Color { val a = Accents[key] ?: Accents.getValue("teal"); return Color(if (dark) a.dk else a.lt) }
+
 val LocalTh = compositionLocalOf { DarkTC }
 
 @Composable

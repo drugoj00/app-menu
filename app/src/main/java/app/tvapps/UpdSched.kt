@@ -108,6 +108,7 @@ object UpdSched {
     suspend fun run(ctx: Context) {
         Cfg.init(ctx)
         if (!Cfg.autoUpd) return
+        if (!Integrity.safe(ctx)) return
         log(ctx, "проверка начата (источники: " + Updates.ALL_SOURCES.filter { it in Cfg.updSources }.joinToString(",") + ")")
         val res = Updates.checkAll(ctx, force = false) { _, _ -> }
         val upd = res.filter { it.best != null && it.pkg !in Cfg.updSkip }

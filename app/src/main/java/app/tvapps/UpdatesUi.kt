@@ -17,7 +17,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -118,7 +117,7 @@ fun UpdatesDialog(pkg: String, label: String, onClose: () -> Unit) {
                 Chip(stringResource(R.string.close), true) { onClose() }
             }
             val r = res
-            LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            BarLazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (r != null) {
                     if (r.cands.isEmpty()) item { Text(stringResource(R.string.upd_none), color = t.hint, fontSize = 14.sp, modifier = Modifier.padding(top = 6.dp)) }
                     else if (!r.hasUpdate) item { Text(stringResource(R.string.upd_nothing_new), color = t.sub, fontSize = 14.sp, modifier = Modifier.padding(top = 6.dp)) }
@@ -333,7 +332,7 @@ fun UpdatesAllDialog(onClose: () -> Unit) {
                 Chip(stringResource(R.string.upd_token), false) { token = true }
                 Chip(stringResource(R.string.close), true) { onClose() }
             }
-            LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            BarLazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(shown, key = { it.pkg }) { a ->
                     val c = a.best!!
                     val skipped = a.pkg in Cfg.updSkip

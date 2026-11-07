@@ -24,10 +24,42 @@ object UiScale {
         return if (ratio >= 1.25f) minOf(ratio, 1.6f) else 1f
     }
 
+    /**
+     * Коэффициент для телевизора или приставки с уменьшенной плотностью экрана (команда wm density: физическая 240, выставлена 153).
+     * Размеры в dp сами не знают о таком уменьшении: верхняя полоска «Дома», часы, значки, подписи, карточки становились в 1,57 раза мельче,
+     * чем на той же приставке без уменьшения. Коэффициент = стабильная (физическая) плотность / текущая; 1 = без изменений
+     * (нет уменьшения, плотность выше физической, не телевизор). Не складывается с автомасштабом магнитол ([of] для телевизора даёт 1).
+     */
+    fun tvRatio(stableDpi: Int, currentDpi: Int): Float {
+        if (stableDpi <= 0 || currentDpi <= 0) return 1f
+        val r = stableDpi.toFloat() / currentDpi
+        return if (r < 1.05f) 1f else minOf(r, 2.5f)
+    }
+
+    fun tvK(base: android.content.Context): Float {
+        if (!TopMode.isTv(base)) return 1f
+        return tvRatio(android.util.DisplayMetrics.DENSITY_DEVICE_STABLE, base.resources.displayMetrics.densityDpi)
+    }
+
     /** Живой масштаб: пересчитывается при повороте и смене размера окна (конфигурация подменяется на уровне Compose, а не заморожена при запуске). */
     @Composable
     fun Root(content: @Composable () -> Unit) {
         val ctx = LocalContext.current
+        val k = remember { tvK(ctx) }
+        if (k > 1.01f) {
+            // телевизор с уменьшенной плотностью: интерфейс рисуется так, как при физической плотности (и размер текста тоже)
+            val d = LocalDensity.current
+            val cfg = LocalConfiguration.current
+            val cfgK = remember(cfg, k) {
+                android.content.res.Configuration(cfg).also {
+                    it.screenWidthDp = (cfg.screenWidthDp / k).toInt()
+                    it.screenHeightDp = (cfg.screenHeightDp / k).toInt()
+                    it.smallestScreenWidthDp = (cfg.smallestScreenWidthDp / k).toInt()
+                }
+            }
+            CompositionLocalProvider(LocalDensity provides Density(d.density * k, d.fontScale), LocalConfiguration provides cfgK) { content() }
+            return
+        }
         val s = remember { of(ctx) }
         if (s <= 1.01f) { content(); return }
         val d = LocalDensity.current
@@ -124,6 +156,55 @@ private data class LinearDensity(override val density: Float, override val fontS
     override fun Int.toSp(): androidx.compose.ui.unit.TextUnit = (this / (fontScale * density)).sp
 }
 
+/** Плотность корня интерфейса (после автомасштаба): по ней задан размер подписей под значками в сетке; окна с уменьшенной плотностью (HalfUi, FixedFont) берут её как образец. */
+internal val LocalRootDensity = androidx.compose.runtime.compositionLocalOf<Density?> { null }
+
 /** Корень интерфейса с автоматическим масштабом под реальный размер экрана (см. UiScale). */
 @Composable
-fun UiScaleRoot(content: @Composable () -> Unit) = UiScale.Root(content)
+fun UiScaleRoot(content: @Composable () -> Unit) = UiScale.Root {
+    val d = LocalDensity.current
+    val ctx = LocalContext.current
+    val adj = if (android.os.Build.VERSION.SDK_INT >= 31) LocalConfiguration.current.fontWeightAdjustment else 0
+    // «Жирный шрифт» в системе (у Samsung +300) Compose добавлял к весу всех своих текстов, а подписи значков в сетке (нативный TextPaint) нет:
+    // окна выходили жирнее подписей. Свой разрешитель шрифтов без этой добавки делает вес окон таким же, как у подписей.
+    val resolver = remember(ctx, adj) {
+        if (adj == 0) null
+        else runCatching {
+            val cfg = android.content.res.Configuration(ctx.resources.configuration)
+            if (android.os.Build.VERSION.SDK_INT >= 31) cfg.fontWeightAdjustment = 0
+            androidx.compose.ui.text.font.createFontFamilyResolver(ctx.createConfigurationContext(cfg))
+        }.getOrNull()
+    }
+    if (resolver != null) CompositionLocalProvider(LocalRootDensity provides d, androidx.compose.ui.platform.LocalFontFamilyResolver provides resolver) { content() }
+    else CompositionLocalProvider(LocalRootDensity provides d) { content() }
+}
+
+/**
+ * ЕДИНЫЙ стиль подписи под значком: так же рисуются все тексты карточки действий, панели ярлыков и окон «Дома».
+ * Определение подписи в сетке: LabelCache.build: TextPaint (шрифт приложения AppFont, обычное начертание, межбуквенный интервал 0), размер gridLabelSp,
+ * высота строки 1,32 размера. Здесь тот же шрифт и интервал, а размер пересчитан под плотность окна так, чтобы буквы были ровно того же размера в px,
+ * что и у подписи в сетке (в окнах телефона плотность вдвое меньше, а шрифт крупнее: [labelSp] это учитывает).
+ */
+object Typo {
+    /** Размер подписи для текущей области композиции: даёт те же пиксели, что подпись значка в сетке. */
+    @Composable
+    fun labelSp(): androidx.compose.ui.unit.TextUnit {
+        val here = LocalDensity.current
+        val root = LocalRootDensity.current ?: here
+        val base = gridLabelSp(isNarrow())
+        if (here.density == root.density && here.fontScale == root.fontScale) return base.sp
+        // размер в px у подписи сетки (с учётом нелинейного масштаба шрифта системы), пересчитанный в sp этого окна (в окнах телефона масштаб линейный)
+        val px = with(root) { base.sp.toPx() }
+        return (px / (here.density * here.fontScale)).sp
+    }
+
+    /** Стиль: шрифт приложения (AppFont), обычное начертание, интервал 0, строка 1,32 размера. */
+    @Composable
+    fun iconLabel(): androidx.compose.ui.text.TextStyle {
+        val s = labelSp()
+        return androidx.compose.ui.text.TextStyle(
+            fontFamily = AppFont.family, fontWeight = androidx.compose.ui.text.font.FontWeight.Normal,
+            letterSpacing = 0.sp, fontSize = s, lineHeight = s * 1.32f,
+        )
+    }
+}

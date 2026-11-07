@@ -21,7 +21,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -170,6 +169,7 @@ object AppBackups {
      * удаляется с сохранением данных и ставится нужная версия; при неудаче возвращается прежняя версия из копии.
      */
     suspend fun installFiles(ctx: Context, pkg: String, files: List<File>, code: Long): String = withContext(Dispatchers.IO) {
+        if (!Integrity.safe(ctx)) return@withContext "fail:integrity"
         val cur = installedVersion(ctx, pkg)?.second
         val down = cur != null && code < cur
         if (!Adb.isConnected) {
@@ -279,7 +279,7 @@ fun VersionsDialog(pkg: String, label: String, onClose: () -> Unit) {
                 Chip(stringResource(R.string.ver_file), false) { if (!busy) browser = true }
                 Chip(stringResource(R.string.close), true) { onClose() }
             }
-            LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            BarLazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 item { Text(stringResource(R.string.ver_copies), color = t.sub, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp)) }
                 if (copies.isEmpty()) item { Text(stringResource(R.string.ver_no_copies), color = t.hint, fontSize = 13.sp) }
                 items(copies, key = { it.dir.path }) { c ->
@@ -342,7 +342,7 @@ fun BackupsDialog(onClose: () -> Unit) {
             Text(stringResource(R.string.backups_where, AppBackups.root(ctx).absolutePath), color = t.hint, fontSize = 12.sp)
             Chip(stringResource(R.string.close), true, Modifier.focusRequester(first)) { onClose() }
             if (groups.isEmpty()) Text(stringResource(R.string.backups_empty), color = t.sub, fontSize = 14.sp)
-            LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            BarLazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(groups.entries.toList(), key = { it.key }) { (pkg, list) ->
                     Row(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(t.tile).padding(horizontal = 12.dp, vertical = 8.dp),

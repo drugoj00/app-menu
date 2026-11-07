@@ -23,6 +23,8 @@ import java.util.zip.ZipFile
 data class UpdCand(
     val source: String, val versionName: String, val versionCode: Long, val urls: List<String>,
     val size: Long = 0, val md5: String = "", val note: String = "", val manual: Boolean = false,
+    /** SHA-256 файла из описания выпуска (строка «SHA-256 …»): если есть, скачанный файл без совпадения не ставится. */
+    val sha256: String = "",
 )
 
 /** Результат проверки одного приложения по всем источникам. */
@@ -249,7 +251,9 @@ object Updates {
                 .filter { it.optString("name").lowercase().endsWith(".apk") && extraOk(it.optString("name"), extra) }
             if (apks.isEmpty()) continue
             val sorted = sortByAbi(apks) { it.optString("name") }
-            val cand = UpdCand("github", name, 0, sorted.take(4).map { it.getString("browser_download_url") }, sorted.first().optLong("size"), note = "$user/$repo")
+            // сумма из описания выпуска: строка «SHA-256 <64 hex>»; берётся, только если в выпуске один APK
+            val sum = if (sorted.size == 1) Regex("(?i)sha-?256[^0-9a-f]{0,8}([0-9a-f]{64})").find(j.optString("body"))?.groupValues?.get(1).orEmpty() else ""
+            val cand = UpdCand("github", name, 0, sorted.take(4).map { it.getString("browser_download_url") }, sorted.first().optLong("size"), note = "$user/$repo", sha256 = sum)
             if (best == null || compareVersions(cand.versionName, best.versionName) > 0) best = cand
         }
         return best
@@ -459,6 +463,12 @@ object Updates {
         }
     }.getOrDefault(true)
 
+    private fun sha256File(f: File): String {
+        val d = MessageDigest.getInstance("SHA-256")
+        f.inputStream().use { i -> val buf = ByteArray(64 * 1024); while (true) { val n = i.read(buf); if (n < 0) break; d.update(buf, 0, n) } }
+        return d.digest().joinToString("") { "%02x".format(it) }
+    }
+
     private fun md5(f: File): String {
         val d = MessageDigest.getInstance("MD5")
         f.inputStream().use { i -> val buf = ByteArray(64 * 1024); while (true) { val n = i.read(buf); if (n < 0) break; d.update(buf, 0, n) } }
@@ -471,6 +481,7 @@ object Updates {
      */
     suspend fun install(ctx: Context, app: AppUpd, cand: UpdCand, onStatus: (String) -> Unit): String = withContext(Dispatchers.IO) {
         if (cand.manual) return@withContext "manual"
+        if (!Integrity.safe(ctx)) return@withContext "fail:integrity"
         val pm = ctx.packageManager
         val inst = runCatching { pm.getPackageInfo(app.pkg, sigFlags) }.getOrNull() ?: return@withContext "fail:not installed"
         val instCerts = certs(inst)
@@ -482,6 +493,7 @@ object Updates {
                 val ai = pm.getPackageArchiveInfo(file.path, sigFlags)
                 if (ai == null || ai.packageName != app.pkg) { verdict = "fail:" + ctx.getString(R.string.ver_not_apk); continue }
                 if (cand.md5.isNotBlank() && !md5(file).equals(cand.md5, true)) { verdict = "hash"; continue }
+                if (cand.sha256.isNotBlank() && !sha256File(file).equals(cand.sha256, true)) { verdict = "hash"; continue }
                 if (!abiOk(file)) { verdict = "abi"; continue }
                 if (Build.VERSION.SDK_INT >= 24 && (ai.applicationInfo?.minSdkVersion ?: 0) > Build.VERSION.SDK_INT) { verdict = "minsdk"; continue }
                 val newCode = versionCodeOf(ai)
