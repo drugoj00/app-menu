@@ -520,6 +520,10 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                         }
                     }
                 }
+                Section(stringResource(R.string.home_auto_add_title)) {
+                    SectionHint(stringResource(R.string.home_auto_add_hint))
+                    Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.homeAutoAdd) { Cfg.changeHomeAutoAdd(it) }
+                }
                 // выключатель меню виден всегда (раньше исчезал при выключенном «Доме»); оба модуля сразу выключить нельзя
                 Section(stringResource(R.string.menu_module_title)) {
                     SectionHint(stringResource(R.string.menu_module_hint))
@@ -577,7 +581,7 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                     SectionHint(stringResource(R.string.backup_hint))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Chip(stringResource(R.string.backup_save), false) {
-                            runCatching { saveBackup.launch("tvapps-backup.zip") }.onFailure { Toast.makeText(ctx, ctx.getString(R.string.icon_no_picker), Toast.LENGTH_LONG).show() }
+                            runCatching { saveBackup.launch(Backup.fileName(ctx)) }.onFailure { Toast.makeText(ctx, ctx.getString(R.string.icon_no_picker), Toast.LENGTH_LONG).show() }
                         }
                         Chip(stringResource(R.string.backup_load), false) {
                             runCatching { loadBackup.launch(arrayOf("*/*")) }.onFailure { Toast.makeText(ctx, ctx.getString(R.string.icon_no_picker), Toast.LENGTH_LONG).show() }

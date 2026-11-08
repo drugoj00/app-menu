@@ -56,6 +56,8 @@ data class HWidget(
     val radius: Int = 16,
     /** обводка: толщина, dp (0: без обводки), цвет ARGB (0: цвет программы), только при наведении */
     val borderW: Int = 0, val borderC: Long = 0L, val borderHover: Boolean = false,
+    /** Android-виджет: компонент поставщика (пакет/класс). Номер виджета (ref) привязан к устройству и после восстановления копии недействителен, по компоненту виджет добавляется заново. */
+    val prov: String = "",
 )
 
 data class HRow(
@@ -130,8 +132,8 @@ private fun JSONObject.toItem() = HItem(
     optInt("bw"), optLong("bc"), optBoolean("bh"),
 )
 
-private fun HWidget.toJson() = JSONObject().put("t", type).put("c", city).put("n", n).put("f", flag).put("r", ref).put("fs", fs).put("wt", wt).put("rd", radius).put("bw", borderW).put("bc", borderC).put("bh", borderHover)
-private fun JSONObject.toWidget() = HWidget(optString("t", "weather"), optString("c"), optInt("n", 5), optBoolean("f", true), optString("r"), optInt("fs", 100), optInt("wt", 100), optInt("rd", 16), optInt("bw"), optLong("bc"), optBoolean("bh"))
+private fun HWidget.toJson() = JSONObject().put("t", type).put("c", city).put("n", n).put("f", flag).put("r", ref).put("fs", fs).put("wt", wt).put("rd", radius).put("bw", borderW).put("bc", borderC).put("bh", borderHover).put("p", prov)
+private fun JSONObject.toWidget() = HWidget(optString("t", "weather"), optString("c"), optInt("n", 5), optBoolean("f", true), optString("r"), optInt("fs", 100), optInt("wt", 100), optInt("rd", 16), optInt("bw"), optLong("bc"), optBoolean("bh"), optString("p"))
 
 private fun HRow.toJson() = JSONObject().put("id", id).put("t", title).put("st", showTitle).put("k", kind)
     .put("it", JSONArray(items.map { it.toJson() })).put("a", auto).put("c", count).put("s", size).put("as", aspect)
@@ -467,6 +469,38 @@ object HomeStore {
         list.add(j, s)
         updateTop { it.copy(status = list) }
         return true
+    }
+
+    /**
+     * Новые приложения (07.11.2026): всё, что не было известно раньше, попадает в строку «Новые приложения» на «Доме».
+     * Известные пакеты запоминаются; первый вызов после стартовой расстановки только записывает исходный набор, чтобы не высыпать всё сразу.
+     * При выключенной настройке пакеты тоже запоминаются, но на «Дом» не попадают.
+     */
+    fun addNewApps(ctx: Context, own: List<String>, enabled: Boolean) {
+        val known = sp.getStringSet("home_known_pkgs", null)
+        if (known == null) {
+            if (sp.getBoolean("home_seeded_apps", false) && own.isNotEmpty()) sp.edit().putStringSet("home_known_pkgs", own.toSet()).apply()
+            return
+        }
+        // удалённые приложения забываются: после переустановки приложение снова считается новым
+        val pm = ctx.packageManager
+        val alive = known.filter { p -> runCatching { pm.getApplicationInfo(p, 0) }.isSuccess }.toSet()
+        val fresh = own.filter { it !in alive }
+        if (alive.size != known.size || fresh.isNotEmpty()) sp.edit().putStringSet("home_known_pkgs", alive + fresh).apply()
+        if (fresh.isEmpty() || !enabled) return
+        val placed = layout.rows.flatMap { it.items }.filter { it.kind == "app" }.map { it.ref }.toSet()
+        val add = fresh.filter { it !in placed }
+        if (add.isEmpty()) return
+        val row = layout.rows.firstOrNull { it.id == sp.getString("home_newrow_id", "") }
+        if (row != null) {
+            for (p in add) addItem(row.id, HItem(newId("i"), "app", p, mode = "icon", showLabel = true))
+        } else {
+            val nr = HRow(newId("r"), ctx.getString(R.string.home_new_apps_row), true, "apps", add.map { HItem(newId("i"), "app", it, mode = "icon", showLabel = true) }, size = 72, itemMode = "icon")
+            val last = layout.rows.lastOrNull()
+            val keepLast = last != null && last.kind == "apps" && last.auto.isEmpty() && last.items.size == 1 && last.items[0].kind == "menu"
+            set(layout.copy(rows = if (keepLast) layout.rows.dropLast(1) + nr + last!! else layout.rows + nr))
+            sp.edit().putString("home_newrow_id", nr.id).apply()
+        }
     }
 
     // ------------------------------------------------------------ первый запуск: каналы и входы

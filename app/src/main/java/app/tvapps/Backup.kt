@@ -18,7 +18,16 @@ object Backup {
     private const val SETTINGS = "settings.json"
 
     /** Файл автоматической копии в папке программы; обновляется при каждом выходе из программы. */
-    fun autoFile(ctx: Context): File? = ctx.getExternalFilesDir("backup")?.let { File(it, "tvapps-backup.zip") }
+    /** Имя файла копии: AppMenu_дата (для ручного сохранения), AppMenu_авто (одна автоматическая копия, перезаписывается). */
+    fun fileName(ctx: Context): String = "AppMenu_" + java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date()) + ".zip"
+
+    fun autoFile(ctx: Context): File? = ctx.getExternalFilesDir("backup")?.let { dir ->
+        val f = File(dir, "AppMenu_auto.zip")
+        // копия прежних версий называлась tvapps-backup.zip: переименовываем, чтобы «восстановить отсюда» её находило
+        val old = File(dir, "tvapps-backup.zip")
+        if (!f.exists() && old.exists()) runCatching { old.renameTo(f) }
+        f
+    }
 
     fun write(ctx: Context, out: OutputStream) {
         val prefs = ctx.getSharedPreferences("tvapps", Context.MODE_PRIVATE)

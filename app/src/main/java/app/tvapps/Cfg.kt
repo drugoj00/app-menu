@@ -49,6 +49,8 @@ object Cfg {
     var selRing by mutableIntStateOf(0); private set
     /** Цвет рамки выделения на экране «Дом» (свой, отдельно от меню): номер в [RING_COLORS]; 0 — акцент темы (так при первом запуске). */
     var homeRing by mutableIntStateOf(0); private set
+    /** Новые установленные приложения сами попадают на «Дом» (строка «Новые приложения»). */
+    var homeAutoAdd by mutableStateOf(true); private set
     /** Фон плиток значков: true — прозрачный (по умолчанию), false — карточки. */
     var transparentTiles by mutableStateOf(true); private set
     /** Папки значков. */
@@ -166,6 +168,7 @@ object Cfg {
         favorites = (sp.getString("favorites", "") ?: "").split(',').filter { it.isNotBlank() }
         returnTo = sp.getString("return_to", "menu") ?: "menu"
         homeModule = sp.getBoolean("home_module", true)
+        homeAutoAdd = sp.getBoolean("home_auto_add", true)
         menuModule = sp.getBoolean("menu_module", true)
         // оба модуля выключены быть не могут (остались от прежних версий): меню включается
         if (!homeModule && !menuModule) { menuModule = true; sp.edit().putBoolean("menu_module", true).apply() }
@@ -221,6 +224,7 @@ object Cfg {
     fun changeMenuModule(v: Boolean) { if (!v && !homeModule) return; menuModule = v; sp.edit().putBoolean("menu_module", v).apply() }
     /** Меню выключено и это допустимо (есть «Дом»): запуски меню без особой просьбы открывают «Дом». */
     val menuOff: Boolean get() = !menuModule && homeModule
+    fun changeHomeAutoAdd(v: Boolean) { homeAutoAdd = v; sp.edit().putBoolean("home_auto_add", v).apply() }
     fun changeHomeModule(v: Boolean) { homeModule = v; sp.edit().putBoolean("home_module", v).apply() }
     fun changeWeatherCity(v: String) { weatherCity = v.trim(); sp.edit().putString("weather_city", weatherCity).apply() }
     fun toggleChannel(key: String) {

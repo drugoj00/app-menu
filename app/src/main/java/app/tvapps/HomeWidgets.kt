@@ -60,6 +60,13 @@ internal fun widgetName(type: String): String = stringResource(
 private fun loc(): Locale = AppLoc.locale()
 
 /** Нажатие на виджет: часы и дата ведут в настройки даты, память в настройки хранилища, погода обновляется. */
+/** Проверки Android-виджетов по номеру. */
+internal fun AppWidgets.alive(ctx: Context, ref: String): Boolean =
+    ref.toIntOrNull()?.let { runCatching { android.appwidget.AppWidgetManager.getInstance(ctx).getAppWidgetInfo(it) != null }.getOrDefault(false) } ?: false
+
+internal fun AppWidgets.providerOf(ctx: Context, ref: String): String? =
+    ref.toIntOrNull()?.let { runCatching { android.appwidget.AppWidgetManager.getInstance(ctx).getAppWidgetInfo(it)?.provider?.flattenToString() }.getOrNull() }
+
 internal fun widgetClick(ctx: Context, w: HWidget, refresh: () -> Unit) {
     when (w.type) {
         "clock", "date" -> openSys(ctx, Settings.ACTION_DATE_SETTINGS)
@@ -217,6 +224,7 @@ private fun AppWidgetBody(w: HWidget, onLong: () -> Unit) {
         Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.Center) {
             Text(stringResource(R.string.wg_android), color = t.sub, fontSize = 13.sp)
             Text(stringResource(R.string.wg_unavail), color = t.hint, fontSize = 14.sp)
+            Text(stringResource(R.string.wg_restore_hint), color = t.accent, fontSize = 13.sp)
         }
         return
     }

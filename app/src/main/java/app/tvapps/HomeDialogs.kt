@@ -51,6 +51,8 @@ internal fun HomeDialogs(
     dlg: Dlg?, apps: List<Entry>, setDlg: (Dlg?) -> Unit,
     startMove: (String) -> Unit, startMoveStatus: (String) -> Unit, pickImage: (String) -> Unit, refreshWeather: () -> Unit,
     addAppWidget: (String, Int, android.appwidget.AppWidgetProviderInfo) -> Unit, disableHome: () -> Unit,
+    openUpdates: () -> Unit = {},
+    configureWidget: (String) -> Boolean = { false },
 ) {
     val ctx = LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -58,6 +60,8 @@ internal fun HomeDialogs(
     var lookAll by remember { mutableStateOf(false) }
     var wgAll by remember { mutableStateOf(false) }
     val close = { setDlg(null) }
+    // строка «Обновления» внизу начальных окон: проверка обновлений приложений даже при выключенном меню (кнопка есть только в меню)
+    val updatesFooter = Opt(stringResource(R.string.upd_cell)) { close(); openUpdates() }
     // «Настройки программы»: открывают настройки меню (тема, резервная копия, ADB, переключатели модулей); работают и при выключенном меню
     val openAppSettings = {
         close()
@@ -99,7 +103,7 @@ internal fun HomeDialogs(
                 add(Opt(stringResource(R.string.d_row_settings)) { setDlg(Dlg.RowD(dlg.rowId)) })
                 add(Opt(stringResource(R.string.d_android)) { close(); openSys(ctx, android.provider.Settings.ACTION_SETTINGS) })
             }
-            ListDialog(name, opts, close)
+            ListDialog(name, opts, close, footer = updatesFooter)
         }
 
         is Dlg.Look -> {
@@ -231,7 +235,7 @@ internal fun HomeDialogs(
                     if (sure) { HomeStore.removeRow(row.id); close() } else sure = true
                 })
             }
-            ListDialog(row.title.ifBlank { stringResource(R.string.row_noname) }, opts, close)
+            ListDialog(row.title.ifBlank { stringResource(R.string.row_noname) }, opts, close, footer = updatesFooter)
         }
 
         is Dlg.AddRow -> {
@@ -367,6 +371,11 @@ internal fun HomeDialogs(
                 add(Opt(stringResource(R.string.d_program_settings)) { openAppSettings() })      // настройки программы — первой строкой
                 add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома» — второй
                 add(Opt(stringResource(R.string.wg_type), widgetName(w.type), onClick = { setDlg(Dlg.WidgetType(row.id, dlg.slot)) }))
+                // настройка самого Android-виджета (его собственный экран настроек), сразу после вида виджета
+                if (w.type == "appwidget") add(Opt(stringResource(R.string.wg_configure)) {
+                    if (configureWidget(w.ref)) close()
+                    else android.widget.Toast.makeText(ctx, ctx.getString(R.string.wg_no_config), android.widget.Toast.LENGTH_LONG).show()
+                })
                 when (w.type) {
                     "weather" -> {
                         add(Opt(stringResource(R.string.wg_city), w.city.ifBlank { stringResource(R.string.wg_city_auto) }, onClick = { setDlg(Dlg.WidgetCity(row.id, dlg.slot)) }))
@@ -402,7 +411,7 @@ internal fun HomeDialogs(
                 add(Opt(stringResource(R.string.row_slots), "${row.slots.size}", { HomeStore.setSlotCount(row.id, row.slots.size - 1) }, { HomeStore.setSlotCount(row.id, row.slots.size + 1) }))
                 add(Opt(stringResource(R.string.d_row_settings)) { setDlg(Dlg.RowD(row.id)) })
             }
-            ListDialog(stringResource(R.string.wg_title), opts, close)
+            ListDialog(stringResource(R.string.wg_title), opts, close, footer = updatesFooter)
         }
 
         is Dlg.WidgetType -> {
@@ -412,12 +421,21 @@ internal fun HomeDialogs(
                 WIDGET_TYPES.map { ty ->
                     Opt(widgetName(ty), if (curSlot?.type == ty) "✓" else "") {
                         if (curSlot?.type == "appwidget") AppWidgets.release(ctx, curSlot.ref)
-                        HomeStore.updateSlot(dlg.rowId, dlg.slot) { it.copy(type = ty, n = if (ty == "weather") 5 else 0, ref = "") }
+                        HomeStore.updateSlot(dlg.rowId, dlg.slot) { it.copy(type = ty, n = if (ty == "weather") 5 else 0, ref = "", prov = "") }
                         setDlg(Dlg.WidgetD(dlg.rowId, dlg.slot))
                     }
                 } + Opt(stringResource(R.string.wg_android), if (curSlot?.type == "appwidget") "✓" else "") { setDlg(Dlg.AppWidgetPick(dlg.rowId, dlg.slot)) },
                 { setDlg(Dlg.WidgetD(dlg.rowId, dlg.slot)) },
             )
+        }
+
+        is Dlg.WidgetRestore -> {
+            // виджет из резервной копии: по записанному компоненту добавляется заново (система при необходимости спросит разрешение)
+            val prov = HomeStore.row(dlg.rowId)?.slots?.getOrNull(dlg.slot)?.prov.orEmpty()
+            val info = remember(dlg) { if (prov.isEmpty()) null else AppWidgets.providers(ctx).firstOrNull { it.provider.flattenToString() == prov } }
+            androidx.compose.runtime.LaunchedEffect(dlg) {
+                if (info != null) { close(); addAppWidget(dlg.rowId, dlg.slot, info) } else setDlg(Dlg.AppWidgetPick(dlg.rowId, dlg.slot))
+            }
         }
 
         is Dlg.AppWidgetPick -> {
@@ -445,7 +463,7 @@ internal fun HomeDialogs(
                 Opt(stringResource(R.string.top_items)) { setDlg(Dlg.Top) },
                 Opt(stringResource(R.string.bg_title)) { setDlg(Dlg.Bg) },
             )
-            ListDialog(stringResource(R.string.empty_title), opts, close)
+            ListDialog(stringResource(R.string.empty_title), opts, close, footer = updatesFooter)
         }
 
         Dlg.Screen -> {
@@ -521,7 +539,7 @@ internal fun HomeDialogs(
                 add(Opt(stringResource(R.string.st_hide)) { HomeStore.updateStatus(s.id) { it.copy(visible = false) }; close() })
                 add(Opt(stringResource(R.string.st_top)) { setDlg(Dlg.Top) })
             }
-            ListDialog(statusName(s.id), opts, close)
+            ListDialog(statusName(s.id), opts, close, footer = updatesFooter)
         }
 
         Dlg.Top -> {
@@ -542,7 +560,7 @@ internal fun HomeDialogs(
                 }
                 add(Opt(stringResource(R.string.bg_title)) { setDlg(Dlg.Bg) })
             }
-            ListDialog(stringResource(R.string.top_title), opts, close)
+            ListDialog(stringResource(R.string.top_title), opts, close, footer = updatesFooter)
         }
 
         Dlg.Bg -> BgDialogHost(false) { setDlg(Dlg.Top) }

@@ -171,6 +171,7 @@ private fun HomeScreen(tick: Int, again: Int) {
     var apps by remember { mutableStateOf(AppsMem.list) }
     var versionsFor by remember { mutableStateOf<Entry?>(null) }
     var updatesFor by remember { mutableStateOf<Entry?>(null) }
+    var updatesAll by remember { mutableStateOf(false) }
     var dlg by remember { mutableStateOf<Dlg?>(null) }
     var movingItem by remember { mutableStateOf<String?>(null) }
     var movingStatus by remember { mutableStateOf<String?>(null) }
@@ -180,7 +181,13 @@ private fun HomeScreen(tick: Int, again: Int) {
     val menuReq = remember { FocusRequester() }
     val bgScope = androidx.compose.runtime.rememberCoroutineScope()
     var flow by remember { mutableStateOf<WidgetFlow?>(null) }
-    fun finishWidget(f: WidgetFlow) { HomeStore.updateSlot(f.rowId, f.slot) { it.copy(type = "appwidget", ref = f.id.toString(), n = 0) }; flow = null }
+    fun finishWidget(f: WidgetFlow) {
+        // прежний Android-виджет в этой ячейке (замена одного виджета другим) освобождается, а у нового записывается компонент для восстановления из копии
+        val old = HomeStore.row(f.rowId)?.slots?.getOrNull(f.slot)
+        if (old?.type == "appwidget" && old.ref != f.id.toString()) AppWidgets.release(ctx, old.ref)
+        HomeStore.updateSlot(f.rowId, f.slot) { it.copy(type = "appwidget", ref = f.id.toString(), n = 0, prov = f.info.provider.flattenToString()) }
+        flow = null
+    }
     fun dropWidget(f: WidgetFlow) { runCatching { AppWidgets.host(ctx).deleteAppWidgetId(f.id) }; flow = null }
     val cfgLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         val f = flow
@@ -202,6 +209,14 @@ private fun HomeScreen(tick: Int, again: Int) {
             if (r.resultCode == android.app.Activity.RESULT_OK) afterBind(f)
             else { dropWidget(f); Toast.makeText(ctx, ctx.getString(R.string.wg_bind_fail), Toast.LENGTH_LONG).show() }
         }
+    }
+    // «Настройка виджета» (долгое нажатие на виджет): открывает экран настройки самого Android-виджета (если у него есть)
+    val configureWidget: (String) -> Boolean = cw@{ ref ->
+        val id = ref.toIntOrNull() ?: return@cw false
+        val cfg = runCatching { android.appwidget.AppWidgetManager.getInstance(ctx).getAppWidgetInfo(id)?.configure }.getOrNull() ?: return@cw false
+        runCatching {
+            cfgLauncher.launch(Intent(android.appwidget.AppWidgetManager.ACTION_APPWIDGET_CONFIGURE).setComponent(cfg).putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, id))
+        }.isSuccess
     }
     val addAppWidget: (String, Int, android.appwidget.AppWidgetProviderInfo) -> Unit = { rowId, slot, info ->
         bgScope.launch {
@@ -265,6 +280,15 @@ private fun HomeScreen(tick: Int, again: Int) {
         @Suppress("UNCHECKED_CAST")
         HomeStore.seed(ctx, seeded[0] as List<ChRow>, seeded[1] as List<TvIn>, seeded[2] as List<String>, seeded[3] as List<String>, seeded[4] as String?)
     }
+    // новые установленные приложения сами попадают на «Дом» (настройка «Новые приложения»), берём только свежий список
+    LaunchedEffect(apps, Cfg.homeAutoAdd) {
+        if (apps.isEmpty() || AppsMem.stamp == 0L) return@LaunchedEffect
+        delay(2000)
+        withContext(Dispatchers.IO) {
+            val own = apps.filter { !it.system && it.pkg != ctx.packageName && !Cfg.isHidden(it.pkg) }.map { it.pkg }
+            runCatching { HomeStore.addNewApps(ctx, own, Cfg.homeAutoAdd) }
+        }
+    }
     // у приложения на «Доме» нет баннера (новое или без своего): один раз предлагаем создать красивый
     LaunchedEffect(apps.size, layout.rows.sumOf { it.items.size }, tick) {
         if (apps.isEmpty()) return@LaunchedEffect
@@ -324,7 +348,7 @@ private fun HomeScreen(tick: Int, again: Int) {
         }
     }
     // когда закрывается любое окно, курсор пульта возвращается на плитку, где он был (а не прыгает наверх)
-    val overlaysOpen = dlg != null || TopUi.recents.value || TopUi.notifs.value || TopUi.hdmi.value || versionsFor != null || updatesFor != null ||
+    val overlaysOpen = dlg != null || TopUi.recents.value || TopUi.notifs.value || TopUi.hdmi.value || versionsFor != null || updatesFor != null || updatesAll ||
         Voice.picking.value || Voice.capturing.value
     val wasOpen = remember { booleanArrayOf(false) }
     LaunchedEffect(overlaysOpen) {
@@ -427,6 +451,8 @@ private fun HomeScreen(tick: Int, again: Int) {
                 },
                 refreshWeather = { refreshTick++ },
                 addAppWidget = addAppWidget,
+                configureWidget = configureWidget,
+                openUpdates = { updatesAll = true },
                 disableHome = {
                     bgScope.launch {
                         val r = HomeModule.disable(ctx)
@@ -440,5 +466,6 @@ private fun HomeScreen(tick: Int, again: Int) {
         }
         versionsFor?.let { e -> HalfUi { VersionsDialog(e.pkg, e.label) { versionsFor = null } } }
         updatesFor?.let { e -> HalfUi { UpdatesDialog(e.pkg, e.label) { updatesFor = null } } }
+        if (updatesAll) HalfUi { UpdatesAllDialog { updatesAll = false } }
     }
 }

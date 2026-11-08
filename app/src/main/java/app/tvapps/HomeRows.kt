@@ -36,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -79,6 +80,7 @@ sealed interface Dlg {
     data class WidgetD(val rowId: String, val slot: Int) : Dlg
     data class WidgetType(val rowId: String, val slot: Int) : Dlg
     data class WidgetCity(val rowId: String, val slot: Int) : Dlg
+    data class WidgetRestore(val rowId: String, val slot: Int) : Dlg
     data class Status(val id: String) : Dlg
     data object Top : Dlg
     data object Screen : Dlg
@@ -415,10 +417,23 @@ private fun HomeAppTile(
                     else -> Icon(vec, null, tint = t.accent, modifier = Modifier.size((sizeDp * 0.55f).dp))
                 }
             }
-            if (showLabel) Text(
-                label, color = t.text, fontSize = (sizeDp / 5.5f).coerceIn(10f, 15f).sp, maxLines = 2, minLines = 1, overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center, modifier = Modifier.width(maxOf(wDp, 84f * scale).dp).padding(top = 3.dp),
-            )
+            if (showLabel) {
+                // слово не должно рваться посреди: если перенос пришёлся внутрь слова, шрифт уменьшается (не меньше 9 sp)
+                val baseFs = (sizeDp / 5.5f).coerceIn(10f, 15f)
+                var fit by remember(label, baseFs) { mutableStateOf(baseFs) }
+                Text(
+                    label, color = t.text, fontSize = fit.sp, maxLines = 2, minLines = 1, overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center, modifier = Modifier.width(maxOf(wDp, 84f * scale).dp).padding(top = 3.dp),
+                    onTextLayout = { r ->
+                        var cut = false
+                        for (i in 0 until r.lineCount - 1) {
+                            val e = r.getLineEnd(i)
+                            if (e in 1 until label.length && label[e - 1].isLetterOrDigit() && label[e].isLetterOrDigit()) cut = true
+                        }
+                        if (cut && fit > 9f) fit = (fit * 0.92f).coerceAtLeast(9f)
+                    },
+                )
+            }
         }
     }
 }
@@ -518,12 +533,21 @@ private fun WidgetsRow(row: HRow, tick: Int, refreshTick: Int, firstReq: FocusRe
         row.slots.forEachIndexed { i, w ->
             androidx.compose.runtime.key(i) {
                 val wShape = RoundedCornerShape(w.radius.coerceIn(0, 60).dp)
+                // у прежних Android-виджетов компонент не записан: дописываем, пока виджет действителен
+                androidx.compose.runtime.LaunchedEffect(w.type, w.ref, w.prov) {
+                    if (w.type == "appwidget" && w.prov.isEmpty()) AppWidgets.providerOf(ctx, w.ref)?.let { p -> HomeStore.updateSlot(row.id, i) { it.copy(prov = p) } }
+                }
                 val wRing = if (w.borderC == 0L) t.accent else Color(w.borderC.toInt())
                 HomeBox(
                     Modifier.weight(w.wt.coerceAtLeast(1).toFloat()).fillMaxHeight(), wShape, if (w.type == "appwidget" || w.type == WIDGET_EMPTY) Color.Transparent else t.tile, focusReq = if (i == 0) firstReq else null, memKey = row.id + "|w" + i,
                     ringColor = if (w.borderW > 0 && w.borderHover) wRing else null, ringWidth = if (w.borderHover) w.borderW else 0,
                     focusTint = false,      // у виджета выбор и так виден по смене фона
-                    onClick = { widgetClick(ctx, w) { refresh++ } },
+                    // пустое место: одиночный клик сразу открывает выбор вида виджета; недействительный Android-виджет (после восстановления копии): клик добавляет его заново
+                    onClick = {
+                        if (w.type == WIDGET_EMPTY) onDlg(Dlg.WidgetType(row.id, i))
+                        else if (w.type == "appwidget" && !AppWidgets.alive(ctx, w.ref)) onDlg(Dlg.WidgetRestore(row.id, i))
+                        else widgetClick(ctx, w) { refresh++ }
+                    },
                     onLong = { onDlg(Dlg.WidgetD(row.id, i)) },
                 ) {
                     // масштаб шрифта виджета: меняет только размер текста (sp), размеры в dp остаются
