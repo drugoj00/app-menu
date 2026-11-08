@@ -420,6 +420,8 @@ S = {
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from gen_strings_home2 import HOME2
 S.update(HOME2)
+from gen_strings_extra import EXTRA
+S.update(EXTRA)
 
 
 def esc(s):

@@ -302,4 +302,8 @@ HOME2 = {
     'bn_color_own': ('own colour', 'свой цвет', 'власний колір'),
     'bn_color_hex': ('Own colour (code #RRGGBB)...', 'Свой цвет (код #RRGGBB)...', 'Власний колір (код #RRGGBB)...'),
     'bn_color_hint': ('Six hexadecimal digits, for example 1E88E5', 'Шесть шестнадцатеричных цифр, например 1E88E5', 'Шість шістнадцяткових цифр, наприклад 1E88E5'),
+    'wg_configure': ('Widget settings', 'Настройка виджета', 'Налаштування віджета'),
+    'wg_no_config': ('This widget has no settings screen of its own', 'У этого виджета нет собственного экрана настроек', 'У цього віджета немає власного екрана налаштувань'),
+    'backup_word': ('backup', 'резервная копия', 'резервна копія'),
+    'wg_restore_hint': ('Tap to add it again', 'Нажми, чтобы добавить снова', 'Натисни, щоб додати знову'),
 }
