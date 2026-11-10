@@ -1,0 +1,42 @@
+# Строки 4.4 (ключ: en, ru, uk). Дописываются в strings.xml скриптом add_strings.py; подключаются и в gen_strings.py
+S44 = {
+    # самообновление (правила 14 и 17)
+    'self_upd_title': ('App Menu update', 'Обновление «Меню приложений»', 'Оновлення «Меню застосунків»'),
+    'self_upd_checking': ('Checking releases on GitHub…', 'Проверка выпусков на GitHub…', 'Перевірка випусків на GitHub…'),
+    'self_upd_found': ('Version %1$s is out (installed: %2$s).', 'Вышла версия %1$s (установлена %2$s).', 'Вийшла версія %1$s (встановлена %2$s).'),
+    'self_upd_size': ('File size: about %1$s MB. It is checked by SHA-256 before installing.', 'Размер файла: около %1$s МБ. Перед установкой файл проверяется по SHA-256.', 'Розмір файлу: близько %1$s МБ. Перед встановленням файл перевіряється за SHA-256.'),
+    'self_upd_latest': ('The latest version is installed: %1$s.', 'Установлена последняя версия: %1$s.', 'Встановлено останню версію: %1$s.'),
+    'self_upd_failed': ('Could not check for updates. Check the internet connection.', 'Не удалось проверить обновления. Проверь подключение к интернету.', 'Не вдалося перевірити оновлення. Перевір підключення до інтернету.'),
+    'self_upd_install': ('Update', 'Обновить', 'Оновити'),
+    'self_upd_later': ('Later', 'Позже', 'Пізніше'),
+    'self_upd_retry': ('Try again', 'Повторить', 'Повторити'),
+    'self_upd_release': ('Release page', 'Страница выпуска', 'Сторінка випуску'),
+    'self_upd_installing': ('Installing…', 'Установка…', 'Встановлення…'),
+    'self_upd_wait': ('Download, check and install can take up to a minute. The program restarts after the update.', 'Скачивание, проверка и установка могут занять до минуты. После обновления программа перезапустится.', 'Завантаження, перевірка та встановлення можуть тривати до хвилини. Після оновлення програма перезапуститься.'),
+    'self_upd_auto': ('Notify about new versions of this program', 'Сообщать о новых версиях программы', 'Повідомляти про нові версії програми'),
+    'self_upd_auto_hint': ('Checks once a day. The "Update / Later" window appears once for each version.', 'Проверка раз в сутки. Окно «Обновить / Позже» показывается один раз для каждой версии.', 'Перевірка раз на добу. Вікно «Оновити / Пізніше» показується один раз для кожної версії.'),
+    # установка пачки, журнал, приём файлов (отзыв пользователя 4PDA)
+    'install_verified': ('installed (checked in the system)', 'установлено (проверено в системе)', 'встановлено (перевірено в системі)'),
+    'install_timeout': ('time limit exceeded (8 min)', 'превышено время ожидания (8 мин)', 'перевищено час очікування (8 хв)'),
+    'install_progress': ('Installing %1$d of %2$d: %3$s', 'Установка %1$d из %2$d: %3$s', 'Встановлення %1$d з %2$d: %3$s'),
+    'install_summary': ('Done: installed %1$d, failed %2$d', 'Готово: установлено %1$d, не вышло %2$d', 'Готово: встановлено %1$d, не вдалося %2$d'),
+    'install_log_btn': ('Install log', 'Журнал установки', 'Журнал встановлення'),
+    'install_log_title': ('Install log', 'Журнал установки', 'Журнал встановлення'),
+    'install_log_empty': ('Nothing installed yet.', 'Установок пока не было.', 'Встановлень ще не було.'),
+    'wifi_cell': ('Receive files', 'Приём файлов', 'Прийом файлів'),
+    # выбор картинки фона без системного окна
+    'imgp_title_image': ('Choose a picture', 'Выбор картинки', 'Вибір картинки'),
+    'imgp_title_video': ('Choose a video', 'Выбор видео', 'Вибір відео'),
+    'imgp_none': ('No files in the folders wallpaper, DCIM, Pictures, Download. Put a file into the folder "wallpaper" in the device storage or use the system picker.', 'В папках wallpaper, DCIM, Pictures, Download файлов нет. Положи файл в папку «wallpaper» во внутренней памяти или открой системный выбор.', 'У теках wallpaper, DCIM, Pictures, Download файлів немає. Поклади файл у теку «wallpaper» у внутрішній памʼяті або відкрий системний вибір.'),
+    'imgp_no_access': ('No access to the device files. Connect ADB or root in the menu settings, or use the system picker.', 'Нет доступа к файлам устройства. Подключи ADB или root в настройках меню либо открой системный выбор.', 'Немає доступу до файлів пристрою. Підключи ADB або root у налаштуваннях меню чи відкрий системний вибір.'),
+    'imgp_pick': ('Choose', 'Выбрать', 'Вибрати'),
+    'imgp_prev': ('◀ Previous', '◀ Назад', '◀ Назад'),
+    'imgp_next': ('Next ▶', 'Дальше ▶', 'Далі ▶'),
+    'imgp_system': ('System picker…', 'Системный выбор…', 'Системний вибір…'),
+    'imgp_hint': ('Left/Right arrows switch files, OK chooses.', 'Стрелки влево/вправо листают файлы, ОК выбирает.', 'Стрілки вліво/вправо гортають файли, ОК вибирає.'),
+    # «Изменить значок…» везде (просьба владелицы 10.11.2026)
+    'icon_edit': ('Change icon…', 'Изменить значок…', 'Змінити значок…'),
+    'icon_edit_cell': ('Change icon', 'Изменить значок', 'Змінити значок'),
+    'icon_pick_tile': ('Choose a picture for this tile…', 'Выбрать картинку для этой плитки…', 'Обрати картинку для цієї плитки…'),
+    'about_apps_upd': ('Updates of other apps…', 'Обновления других приложений…', 'Оновлення інших застосунків…'),
+}

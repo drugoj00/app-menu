@@ -422,6 +422,8 @@ from gen_strings_home2 import HOME2
 S.update(HOME2)
 from gen_strings_extra import EXTRA
 S.update(EXTRA)
+from gen_strings_44 import S44
+S.update(S44)
 
 
 def esc(s):
