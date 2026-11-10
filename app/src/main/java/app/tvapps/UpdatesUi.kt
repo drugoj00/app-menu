@@ -40,7 +40,7 @@ import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
-private fun updResultText(ctx: android.content.Context, r: String): String = when {
+internal fun updResultText(ctx: android.content.Context, r: String): String = when {
     r == "ok" -> ctx.getString(R.string.ver_done)
     r == "system" -> ctx.getString(R.string.net_system_dialog)
     r == "need_adb" -> ctx.getString(R.string.ver_need_adb)

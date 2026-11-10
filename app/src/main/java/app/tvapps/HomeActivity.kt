@@ -114,7 +114,7 @@ class HomeActivity : ComponentActivity() {
             UiScaleRoot {
             val tc = currentTC()
             MaterialTheme(colorScheme = if (tc.dark) darkColorScheme() else lightColorScheme(), typography = AppFont.typography) {
-                CompositionLocalProvider(LocalTh provides tc) { FixedFont { HomeScreen(resumeTick.intValue, againTick.intValue) } }
+                CompositionLocalProvider(LocalTh provides tc) { FixedFont { HomeScreen(resumeTick.intValue, againTick.intValue); SelfUpdHost(); ReceiveHost() } }
             }
                     }
         }
@@ -178,6 +178,7 @@ private fun HomeScreen(tick: Int, again: Int) {
     var refreshTick by remember { mutableIntStateOf(0) }
     var statusTick by remember { mutableIntStateOf(0) }
     var pickFor by remember { mutableStateOf<String?>(null) }
+    var ownTilePick by remember { mutableStateOf<String?>(null) }
     val menuReq = remember { FocusRequester() }
     val bgScope = androidx.compose.runtime.rememberCoroutineScope()
     var flow by remember { mutableStateOf<WidgetFlow?>(null) }
@@ -438,16 +439,26 @@ private fun HomeScreen(tick: Int, again: Int) {
             if (TopUi.notifs.value) NotificationsDialog { TopUi.notifs.value = false }
             if (TopUi.hdmi.value) HdmiDialog { TopUi.hdmi.value = false }
             LaunchedEffect(TopUi.emptyMenu.value) { if (TopUi.emptyMenu.value) { TopUi.emptyMenu.value = false; if (dlg == null) dlg = Dlg.Empty } }
+            ownTilePick?.let { tid ->
+                FilePickDialog("image", onPick = { uri ->
+                    ownTilePick = null; pickFor = null
+                    val ok = HomeImg.save(ctx, tid, uri)
+                    val row = HomeStore.rowOfItem(tid)
+                    if (ok && row != null) HomeStore.updateItem(row.id, tid) { it.copy(img = true) }
+                    Toast.makeText(ctx, ctx.getString(if (ok) R.string.icon_saved else R.string.failed), Toast.LENGTH_SHORT).show()
+                }, onSystem = {
+                    ownTilePick = null
+                    runCatching { imgPicker.launch("image/*") }.onFailure { pickFor = null; Toast.makeText(ctx, ctx.getString(R.string.icon_no_picker), Toast.LENGTH_LONG).show() }
+                }, onClose = { ownTilePick = null; pickFor = null })
+            }
             HomeDialogs(
                 dlg, apps, { dlg = it },
                 startMove = { movingItem = it }, startMoveStatus = { movingStatus = it },
                 pickImage = { id ->
+                    // свой выбор из папок wallpaper, DCIM, Pictures, Download; системное окно остаётся запасным (кнопка в окне выбора)
                     pickFor = id
                     dlg = null
-                    runCatching { imgPicker.launch("image/*") }.onFailure {
-                        pickFor = null
-                        Toast.makeText(ctx, ctx.getString(R.string.icon_no_picker), Toast.LENGTH_LONG).show()
-                    }
+                    ownTilePick = id
                 },
                 refreshWeather = { refreshTick++ },
                 addAppWidget = addAppWidget,

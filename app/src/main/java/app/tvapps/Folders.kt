@@ -71,6 +71,8 @@ interface HostOps {
     fun addToFolder(id: String)
     fun openVersions(e: Entry)
     fun openUpdates(e: Entry)
+    /** Окно приёма файлов по Wi‑Fi (отдельное окно, пункт контекстного меню). */
+    fun openWifiReceive() { WifiReceive.open = true }
     fun openDeskPick(e: Entry)
 }
 

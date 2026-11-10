@@ -67,6 +67,8 @@ object Cfg {
     var ghToken by mutableStateOf(""); private set
     /** Проверять обновления в фоне по расписанию (по умолчанию выключено). */
     var autoUpd by mutableStateOf(false); private set
+    /** Сообщать о новых версиях самой программы (правило 17): раз в сутки, окно один раз на версию; по умолчанию включено. */
+    var selfUpd by mutableStateOf(true); private set
     /** Как часто проверять, часов: 6, 24 или 72. */
     var autoUpdHours by mutableIntStateOf(24); private set
     /** Ставить найденные обновления сами (только с root/ADB; по умолчанию выключено). */
@@ -151,6 +153,7 @@ object Cfg {
         } ?: setOf("fdroid", "izzy", "aptoide", "github", "gitlab", "codeberg")
         ghToken = sp.getString("gh_token", "") ?: ""
         autoUpd = sp.getBoolean("auto_upd", false)
+        selfUpd = sp.getBoolean("self_upd", true)
         autoUpdHours = sp.getInt("auto_upd_hours", 24).let { if (it == 6 || it == 24 || it == 72) it else 24 }
         autoInstall = sp.getBoolean("auto_install", false)
         updFound = sp.getInt("upd_found", 0)
@@ -268,6 +271,11 @@ object Cfg {
         updSkip = if (pkg in updSkip) updSkip - pkg else updSkip + pkg
         sp.edit().putStringSet("upd_skip", updSkip).apply()
     }
+    fun changeSelfUpd(v: Boolean) { selfUpd = v; sp.edit().putBoolean("self_upd", v).apply() }
+    fun selfUpdDismissed(): String = sp.getString("self_upd_dismissed", "") ?: ""
+    fun setSelfUpdDismissed(v: String) { sp.edit().putString("self_upd_dismissed", v).apply() }
+    fun selfUpdLast(): Long = sp.getLong("self_upd_last", 0L)
+    fun setSelfUpdLast(v: Long) { sp.edit().putLong("self_upd_last", v).apply() }
     fun changeAutoUpd(v: Boolean) { autoUpd = v; sp.edit().putBoolean("auto_upd", v).apply() }
     fun changeAutoUpdHours(v: Int) { autoUpdHours = v; sp.edit().putInt("auto_upd_hours", v).apply() }
     fun changeAutoInstall(v: Boolean) { autoInstall = v; sp.edit().putBoolean("auto_install", v).apply() }

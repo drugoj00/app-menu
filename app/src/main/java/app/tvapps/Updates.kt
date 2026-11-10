@@ -383,17 +383,17 @@ object Updates {
     private fun versionCodeOf(pi: PackageInfo): Long = if (Build.VERSION.SDK_INT >= 28) pi.longVersionCode else pi.versionCode.toLong()
 
     /** Проверяет одно приложение по всем источникам. Ошибка одного источника не мешает остальным. */
-    suspend fun check(ctx: Context, pkg: String, force: Boolean = false): AppUpd = withContext(Dispatchers.IO) {
+    suspend fun check(ctx: Context, pkg: String, force: Boolean = false, only: Set<String>? = null): AppUpd = withContext(Dispatchers.IO) {
         val pm = ctx.packageManager
         val pi = pm.getPackageInfo(pkg, 0)
         val label = pi.applicationInfo?.let { pm.getApplicationLabel(it).toString() } ?: pkg
         val instName = pi.versionName ?: "0"
         val instCode = versionCodeOf(pi)
-        if (!force) readCache(ctx, pkg, instCode)?.let { return@withContext AppUpd(pkg, label, instName, instCode, it, emptyList()) }
+        if (!force && only == null) readCache(ctx, pkg, instCode)?.let { return@withContext AppUpd(pkg, label, instName, instCode, it, emptyList()) }
         val errors = ArrayList<String>()
         fun <T> guard(name: String, f: () -> T?): T? = try { f() } catch (e: Exception) { synchronized(errors) { errors.add("$name: ${e.message ?: e.javaClass.simpleName}") }; null }
         val token = Cfg.ghToken
-        val on = Cfg.updSources
+        val on = only ?: Cfg.updSources
         val cands = coroutineScope {
             val fd = async { if ("fdroid" in on) guard("F-Droid") { fdroidLike(pkg, "fdroid", "https://f-droid.org/api/v1/packages/", "https://f-droid.org/repo/") } else null }
             val iz = async { if ("izzy" in on) guard("IzzyOnDroid") { fdroidLike(pkg, "izzy", "https://apt.izzysoft.de/fdroid/api/v1/packages/", "https://apt.izzysoft.de/fdroid/repo/") } else null }
@@ -410,7 +410,7 @@ object Updates {
             listOfNotNull(f, i, gh, gl, cb, ap.await(), pure.await(), agal.await(), rust.await())
         }
         // кешируем только полный ответ: после ошибки сети повторная проверка должна сходить в сеть снова
-        if (errors.isEmpty()) writeCache(ctx, pkg, instCode, cands)
+        if (errors.isEmpty() && only == null) writeCache(ctx, pkg, instCode, cands)
         AppUpd(pkg, label, instName, instCode, cands, errors)
     }
 
@@ -449,6 +449,11 @@ object Updates {
         } else pi.signatures?.forEach { out.add(sha256(it.toByteArray())) }
         return out
     }
+
+    @Suppress("DEPRECATION")
+    private fun archiveSigs(pm: PackageManager, path: String): Set<String> = runCatching {
+        pm.getPackageArchiveInfo(path, PackageManager.GET_SIGNATURES)?.signatures?.map { sha256(it.toByteArray()) }?.toSet() ?: emptySet()
+    }.getOrDefault(emptySet())
 
     @Suppress("DEPRECATION")
     private val sigFlags get() = if (Build.VERSION.SDK_INT >= 28) PackageManager.GET_SIGNING_CERTIFICATES else PackageManager.GET_SIGNATURES
@@ -498,8 +503,12 @@ object Updates {
                 if (Build.VERSION.SDK_INT >= 24 && (ai.applicationInfo?.minSdkVersion ?: 0) > Build.VERSION.SDK_INT) { verdict = "minsdk"; continue }
                 val newCode = versionCodeOf(ai)
                 if (newCode <= app.instCode) { verdict = "uptodate"; continue }
-                val newCerts = certs(ai)
-                if (instCerts.isEmpty() || newCerts.isEmpty() || newCerts.intersect(instCerts).isEmpty()) return@withContext "sig"
+                // Android 9 и старше: у файла вне системы сертификаты через GET_SIGNING_CERTIFICATES не читаются, берём прежний способ GET_SIGNATURES
+                val newCerts = certs(ai).ifEmpty { archiveSigs(pm, file.path) }
+                if (instCerts.isEmpty() || newCerts.isEmpty() || newCerts.intersect(instCerts).isEmpty()) {
+                    android.util.Log.w("Updates", "sig mismatch pkg=${app.pkg} inst=${instCerts.map { it.take(8) }} new=${newCerts.map { it.take(8) }} file=${file.length()}")
+                    return@withContext "sig"
+                }
                 // копия прежней версии (если включено): к ней можно вернуться через «Версии»
                 if (Cfg.backupOnDelete) runCatching { AppBackups.save(ctx, app.pkg) }
                 val copy = AppBackups.importApk(ctx, file) ?: return@withContext "fail:" + ctx.getString(R.string.ver_not_apk)

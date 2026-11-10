@@ -87,6 +87,7 @@ internal fun HomeDialogs(
                 if (!auto) {
                     add(Opt(stringResource(R.string.d_move)) { close(); startMove(dlg.itemId) })
                     add(Opt(stringResource(R.string.d_to_row)) { setDlg(Dlg.MoveToRow(dlg.itemId)) })
+                    add(Opt(stringResource(R.string.icon_edit)) { setDlg(Dlg.IconEdit(dlg.rowId, dlg.itemId)) })
                     add(Opt(stringResource(R.string.d_look)) { setDlg(Dlg.Look(dlg.rowId, dlg.itemId)) })
                 }
                 if (entry != null) add(Opt(stringResource(if (Cfg.isFavorite(entry.pkg)) R.string.d_unfav else R.string.d_fav)) { Cfg.toggleFavorite(entry.pkg); close() })
@@ -105,6 +106,8 @@ internal fun HomeDialogs(
             }
             ListDialog(name, opts, close, footer = updatesFooter)
         }
+
+        is Dlg.IconEdit -> IconEditDialog(dlg, pickImage, setDlg, close)
 
         is Dlg.Look -> {
             val row = HomeStore.row(dlg.rowId)
@@ -675,22 +678,29 @@ internal fun BgDialogHost(menu: Boolean, onClose: () -> Unit) {
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     fun cur() = if (menu) HomeStore.menuBg else HomeStore.layout.bg
     fun put(b: HBg) { if (menu) HomeStore.changeMenuBg(b) else HomeStore.setBg(b) }
-    val picker = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.GetContent()) { uri ->
-        val kind = pickKind
-        pickKind = null
+    var ownPick by remember { mutableStateOf<String?>(null) }
+    fun saveBg(uri: android.net.Uri?, kind: String?) {
         if (uri != null && kind != null) scope.launch {
             val ok = withContext(Dispatchers.IO) { if (kind == "image") HomeBgFiles.saveImage(ctx, uri, menu) else HomeBgFiles.saveMedia(ctx, uri, menu) }
             if (ok) put(cur().copy(type = kind))
             Toast.makeText(ctx, ctx.getString(if (ok) R.string.icon_saved else R.string.failed), Toast.LENGTH_SHORT).show()
         }
     }
-    fun pick(kind: String) {
+    val picker = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.GetContent()) { uri ->
+        val kind = pickKind
+        pickKind = null
+        saveBg(uri, kind)
+    }
+    fun systemPick(kind: String) {
         pickKind = kind
         runCatching { picker.launch(if (kind == "video") "video/*" else "image/*") }.onFailure {
             pickKind = null
             Toast.makeText(ctx, ctx.getString(R.string.icon_no_picker), Toast.LENGTH_LONG).show()
         }
     }
+    // свой выбор из папок wallpaper, DCIM, Pictures, Download; системное окно (на части приставок пустое) остаётся запасным
+    fun pick(kind: String) { ownPick = kind }
+    ownPick?.let { k -> FilePickDialog(k, onPick = { u -> ownPick = null; saveBg(u, k) }, onSystem = { ownPick = null; systemPick(k) }, onClose = { ownPick = null }) }
     val bg = cur()
     when (step) {
         "color" -> {
@@ -731,4 +741,17 @@ internal fun BgDialogHost(menu: Boolean, onClose: () -> Unit) {
             ListDialog(stringResource(if (menu) R.string.bg_menu_title else R.string.bg_title) + ": " + typeName, opts, onClose, stringResource(R.string.bg_hint))
         }
     }
+}
+
+
+/** «Изменить значок…» у плитки или строки «Дома»: своя картинка (файл hm_<id>.png входит в резервную копию) или сброс. Вынесено из HomeDialogs: функция не помещалась в лимит размера метода JVM. */
+@Composable
+private fun IconEditDialog(dlg: Dlg.IconEdit, pickImage: (String) -> Unit, setDlg: (Dlg?) -> Unit, close: () -> Unit) {
+    val item = HomeStore.row(dlg.rowId)?.items?.firstOrNull { it.id == dlg.itemId }
+    if (item == null) { close(); return }
+    val opts = buildList {
+        add(Opt(stringResource(R.string.icon_pick_tile)) { close(); pickImage(item.id) })
+        if (item.img) add(Opt(stringResource(R.string.icon_reset)) { HomeImg.delete(item.id); HomeStore.updateItem(dlg.rowId, item.id) { it.copy(img = false) }; close() })
+    }
+    ListDialog(stringResource(R.string.icon_edit), opts, { setDlg(Dlg.ItemD(dlg.rowId, dlg.itemId)) })
 }

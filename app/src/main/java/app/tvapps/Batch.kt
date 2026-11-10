@@ -6,6 +6,7 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import androidx.core.content.FileProvider
 import java.io.File
+import kotlinx.coroutines.async
 
 /** APK-файл из выбранной папки или из распакованного архива (тогда [file] задан). */
 data class ApkFile(
@@ -96,18 +97,52 @@ object Batch {
 
     /** Тихая установка по ADB. Возвращает (удачно, неудачно). */
     suspend fun installViaAdb(ctx: Context, files: List<ApkFile>): Pair<Int, Int> {
-        var ok = 0
-        var bad = 0
-        for (f0 in files) {
-            if (f0.parts != null) { if (runCatching { Bundles.installAdb(ctx, f0) }.getOrDefault(false)) ok++ else bad++; continue }
-            val f = runCatching { materialize(f0) }.getOrDefault(f0)
-            val res = runCatching {
-                val input = if (f.file != null) f.file.inputStream() else ctx.contentResolver.openInputStream(f.uri)!!
-                input.use { Adb.installApk(it, f.size) }
-            }.getOrDefault("")
-            if (res.contains("Success", true)) ok++ else bad++
+        val r = installDetailed(ctx, files) { _, _, _, _ -> }
+        return r.count { it.ok } to r.count { !it.ok }
+    }
+
+    /** Долгая установка одного файла прерывается, чтобы пачка не висела: 8 минут (файлы до 200 МБ по слабому ADB). */
+    private const val ONE_TIMEOUT_MS = 8 * 60_000L
+
+    /**
+     * Установка по ADB по одному файлу: [onStep] получает (сколько готово, всего, имя текущего или пусто, результаты). Итог каждого файла считается
+     * по системе: «Success» в ответе или версия уже стоит на устройстве; каждый результат пишется в журнал [InstallLog].
+     */
+    suspend fun installDetailed(ctx: Context, files: List<ApkFile>, onStep: (Int, Int, String, List<InstallRes>) -> Unit): List<InstallRes> {
+        val out = ArrayList<InstallRes>()
+        files.forEachIndexed { i, f0 ->
+            onStep(i, files.size, f0.name, out.toList())
+            val r = installOne(ctx, f0)
+            out.add(r)
+            InstallLog.add(ctx, r)
+            onStep(i + 1, files.size, "", out.toList())
         }
-        return ok to bad
+        return out
+    }
+
+    private suspend fun installOne(ctx: Context, f0: ApkFile): InstallRes = kotlinx.coroutines.coroutineScope {
+        var pkg = f0.pkg.orEmpty()
+        var code = 0L
+        val job = async(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                if (f0.parts != null) {
+                    InstallLog.meta(ctx, f0.parts)?.let { pkg = it.first; code = it.second }
+                    Bundles.installAdbText(ctx, f0)
+                } else {
+                    val f = runCatching { materialize(f0) }.getOrDefault(f0)
+                    f.file?.let { fl -> InstallLog.meta(ctx, listOf(fl))?.let { pkg = it.first; code = it.second } }
+                    val input = if (f.file != null) f.file.inputStream() else ctx.contentResolver.openInputStream(f.uri)!!
+                    input.use { Adb.installApk(it, f.size) }
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Throwable) { "ERROR " + (e.message ?: e.javaClass.simpleName) }
+        }
+        val text = kotlinx.coroutines.withTimeoutOrNull(ONE_TIMEOUT_MS) { job.await() } ?: "TIMEOUT"
+        when {
+            text.contains("Success", true) -> InstallRes(f0.name, pkg, true, if (text.contains("(")) ctx.getString(R.string.install_verified) else "")
+            InstallLog.installedByFact(ctx, pkg, code) -> InstallRes(f0.name, pkg, true, ctx.getString(R.string.install_verified))
+            text == "TIMEOUT" -> InstallRes(f0.name, pkg, false, ctx.getString(R.string.install_timeout))
+            else -> InstallRes(f0.name, pkg, false, text.lineSequence().map { it.trim() }.firstOrNull { it.isNotEmpty() }?.take(120).orEmpty().ifBlank { "?" })
+        }
     }
 
     /** Тихое удаление по ADB. Возвращает (удачно, неудачно). */

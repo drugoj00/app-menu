@@ -18,9 +18,11 @@ object Archives {
     private fun isApk(name: String) = name.lowercase().endsWith(".apk")
 
     fun extractApks(ctx: Context, uri: Uri): List<ApkFile> {
-        val dir = File(ctx.cacheDir, "batch")
-        dir.deleteRecursively()
-        dir.mkdirs()
+        // у каждого архива своя папка: раньше общая папка очищалась при разборе следующего файла и части первого пропадали
+        val root = File(ctx.cacheDir, "batch").apply { mkdirs() }
+        val now = System.currentTimeMillis()
+        root.listFiles()?.filter { it.isDirectory && it.name.startsWith("x") && now - it.lastModified() > 3_600_000L }?.forEach { it.deleteRecursively() }
+        val dir = File(root, "x" + System.nanoTime()).apply { mkdirs() }
         val src = File(dir, "_source.bin")
         ctx.contentResolver.openInputStream(uri)?.use { i -> src.outputStream().use { o -> i.copyTo(o) } } ?: return emptyList()
         val head = ByteArray(8)

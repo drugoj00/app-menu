@@ -290,20 +290,28 @@ object Bundles {
      * Установка по ADB: тихо, без окон. OBB копируются до установки (иначе, например, при обновлении самой программы
      * её процесс завершится раньше), при неудаче убираются. Возвращает true при успехе.
      */
-    suspend fun installAdb(ctx: Context, f: ApkFile): Boolean {
-        val parts = f.parts ?: return false
+    suspend fun installAdb(ctx: Context, f: ApkFile): Boolean = installAdbText(ctx, f).contains("Success", true)
+
+    /** Установка набора по ADB: текст ответа системы («Success» или причина отказа). */
+    suspend fun installAdbText(ctx: Context, f: ApkFile): String {
+        val parts = f.parts ?: return "no parts"
         if (f.obb.isNotEmpty()) {
             val n = copyObbAny(f.obb)
             if (n < 0) {
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                     Toast.makeText(ctx, ctx.getString(R.string.bundle_no_storage), Toast.LENGTH_LONG).show()
                 }
-                return false
+                return ctx.getString(R.string.bundle_no_storage)
             }
         }
         val r = Adb.installFiles(parts, "-r")
-        if (!r.contains("Success", true)) { deleteObb(f.obb); return false }
-        return true
+        // статус набора считается по факту: ответ мог быть с предупреждением или оборваться, а приложение уже поставлено
+        if (!r.contains("Success", true)) {
+            val m = InstallLog.meta(ctx, parts)
+            if (m != null && InstallLog.installedByFact(ctx, m.first, m.second)) return "Success (" + ctx.getString(R.string.install_verified) + ")"
+            deleteObb(f.obb)
+        }
+        return r
     }
 }
 
@@ -312,7 +320,8 @@ object Bundles {
  */
 object SessionInstaller {
     private const val ACTION = "app.tvapps.INSTALL_RESULT"
-    private val failed = HashMap<Int, () -> Unit>()
+    private class Info(val name: String, val pkg: String, val code: Long, val onFail: () -> Unit)
+    private val failed = HashMap<Int, Info>()
     private var registered = false
 
     private fun register(app: Context) {
@@ -329,22 +338,37 @@ object SessionInstaller {
                         runCatching { c.startActivity(next?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                     }
                     PackageInstaller.STATUS_SUCCESS -> {
-                        failed.remove(id)
+                        failed.remove(id)?.let { InstallLog.add(c, InstallRes(it.name, it.pkg, true, "")) }
                         Toast.makeText(c, c.getString(R.string.bundle_done), Toast.LENGTH_LONG).show()
                         Cfg.bumpIcons()
                     }
                     else -> {
-                        failed.remove(id)?.let { cb -> Thread { runCatching { cb() } }.start() }
+                        val info = failed.remove(id)
                         val msg = i.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE).orEmpty()
-                        Toast.makeText(c, c.getString(R.string.bundle_failed) + if (msg.isNotBlank()) ": $msg" else "", Toast.LENGTH_LONG).show()
+                        // отказ системы при уже установленном приложении (сборные пакеты с разными процессорами): считается по факту
+                        if (info != null && InstallLog.installedByFact(c, info.pkg, info.code)) {
+                            InstallLog.add(c, InstallRes(info.name, info.pkg, true, c.getString(R.string.install_verified)))
+                            Toast.makeText(c, c.getString(R.string.bundle_done), Toast.LENGTH_LONG).show()
+                            Cfg.bumpIcons()
+                        } else {
+                            if (info != null) {
+                                InstallLog.add(c, InstallRes(info.name, info.pkg, false, msg.ifBlank { "status $status" }))
+                                Thread { runCatching { info.onFail() } }.start()
+                            }
+                            Toast.makeText(c, c.getString(R.string.bundle_failed) + if (msg.isNotBlank()) ": $msg" else "", Toast.LENGTH_LONG).show()
+                        }
                     }
                 }
             }
         }
-        app.registerReceiver(r, IntentFilter(ACTION))
+        // Android 14+: приёмник не для системных рассылок обязан быть помечен как невнешний, иначе установка падает с SecurityException
+        runCatching {
+            if (Build.VERSION.SDK_INT >= 33) app.registerReceiver(r, IntentFilter(ACTION), Context.RECEIVER_NOT_EXPORTED)
+            else app.registerReceiver(r, IntentFilter(ACTION))
+        }.onFailure { registered = false; throw it }
     }
 
-    fun install(ctx: Context, parts: List<File>, onFail: () -> Unit = {}) {
+    fun install(ctx: Context, parts: List<File>, onFail: () -> Unit = {}, name: String = "") {
         val app = ctx.applicationContext
         register(app)
         val pi = app.packageManager.packageInstaller
@@ -358,7 +382,8 @@ object SessionInstaller {
                     }
                 }
             }
-            failed[id] = onFail
+            val meta = InstallLog.meta(app, parts)
+            failed[id] = Info(name.ifBlank { parts.firstOrNull()?.name.orEmpty() }, meta?.first.orEmpty(), meta?.second ?: 0L, onFail)
             val flags = PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0
             val pend = PendingIntent.getBroadcast(app, id, Intent(ACTION).setPackage(app.packageName), flags)
             s.commit(pend.intentSender)

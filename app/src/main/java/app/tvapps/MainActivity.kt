@@ -456,7 +456,9 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
         }
     }
     // нажатие на уведомление «Доступно обновлений»: сразу открываем окно «Обновления»
-    LaunchedEffect(UpdOpen.requested) { if (UpdOpen.requested) { updatesAll = true; UpdOpen.requested = false } }
+    LaunchedEffect(UpdOpen.requested) { if (UpdOpen.requested) { screen = "main"; updatesAll = true; UpdOpen.requested = false } }
+    SelfUpdHost()
+    ReceiveHost()
     // перетаскивание: над какой плиткой палец (и в центре ли) и готова ли папка принять значок
     var dragHover by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
     var mergeReady by remember { mutableStateOf<String?>(null) }
@@ -1005,11 +1007,14 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
         val headerButtons: @Composable () -> Unit = { leftButtons(); rightButtons() }
         if (twoRow) {
             // портрет: сверху «Приложения 128» и справа «Обновления» с шестерёнкой, под ними остальные кнопки в одну строку
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TitleMenuBox({ deskMenu = true }) { Text(stringResource(R.string.title).uppercase(), fontSize = btnSp(19), color = Color(0xFF4ADE80), maxLines = 1, softWrap = false) }
-                Text(stringResource(R.string.count, allShown.size), fontSize = btnSp(19), color = t.sub, maxLines = 1)
-                Spacer(Modifier.weight(1f))
-                rightButtons()
+            // ShrinkToFit: при трёхзначном счётчике на узком телефоне шестерёнка уезжала за край экрана
+            ShrinkToFit(Modifier.fillMaxWidth()) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TitleMenuBox({ deskMenu = true }) { Text(stringResource(R.string.title).uppercase(), fontSize = btnSp(19), color = Color(0xFF4ADE80), maxLines = 1, softWrap = false) }
+                    Text(stringResource(R.string.count, allShown.size), fontSize = btnSp(19), color = t.sub, maxLines = 1)
+                    Spacer(Modifier.weight(1f))
+                    rightButtons()
+                }
             }
             ShrinkToFit(Modifier.fillMaxWidth().padding(top = 8.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) { leftButtons() }

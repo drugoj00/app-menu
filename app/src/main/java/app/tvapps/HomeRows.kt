@@ -69,6 +69,7 @@ import kotlinx.coroutines.withContext
 sealed interface Dlg {
     data class ItemD(val rowId: String, val itemId: String) : Dlg
     data class Look(val rowId: String, val itemId: String) : Dlg
+    data class IconEdit(val rowId: String, val itemId: String) : Dlg
     data class Label(val rowId: String, val itemId: String) : Dlg
     data class RowD(val rowId: String) : Dlg
     data class AddRow(val afterId: String?) : Dlg

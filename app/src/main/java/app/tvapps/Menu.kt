@@ -34,6 +34,7 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Create
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Lock
@@ -290,6 +291,7 @@ fun AppMenu(e: Entry, hidden: Boolean, onToggleHide: () -> Unit, onSelect: () ->
     val host = LocalHost.current
     var screen by remember { mutableStateOf("main") }
     var busy by remember { mutableStateOf(false) }
+    var ownIconPick by remember { mutableStateOf(false) }
     val first = remember { FocusRequester() }
     // фокус на первый пункт: окно только что открылось и ещё не получило фокус ввода, поэтому запрос повторяется (до того, как пользователь успеет нажать стрелку)
     LaunchedEffect(screen) { runCatching { first.requestFocus() }; kotlinx.coroutines.delay(120); runCatching { first.requestFocus() }; kotlinx.coroutines.delay(250); runCatching { first.requestFocus() } }
@@ -301,6 +303,14 @@ fun AppMenu(e: Entry, hidden: Boolean, onToggleHide: () -> Unit, onSelect: () ->
         }
         onClose()
     }
+    // свой выбор картинки из папок wallpaper, DCIM, Pictures, Download (системное окно на части приставок пустое), системный выбор остаётся запасным
+    if (ownIconPick) FilePickDialog("image", onPick = { uri ->
+        ownIconPick = false
+        val ok = IconPacks.saveOwn(ctx, e.pkg, uri)
+        toast(ctx, ctx.getString(if (ok) R.string.icon_saved else R.string.failed))
+        Cfg.bumpIcons()
+        onClose()
+    }, onSystem = { ownIconPick = false; runCatching { picker.launch("image/*") }.onFailure { toast(ctx, ctx.getString(R.string.icon_no_picker)) } }, onClose = { ownIconPick = false })
     val shortcuts by produceState(emptyList<Shortcut>(), e.pkg) { value = withContext(Dispatchers.Default) { Shortcuts.load(ctx, e) } }
     val provider = remember { TailProvider(with(density) { 6.dp.roundToPx() }, with(density) { 8.dp.roundToPx() }) }
 
@@ -397,7 +407,7 @@ fun AppMenu(e: Entry, hidden: Boolean, onToggleHide: () -> Unit, onSelect: () ->
                             }
                         }
                         Row(Modifier.fillMaxWidth()) {
-                            ActionCell(Icons.Outlined.Create, stringResource(R.string.icon_cell), Modifier.weight(1f)) { screen = "icon" }
+                            ActionCell(Icons.Outlined.Create, stringResource(R.string.icon_edit_cell), Modifier.weight(1f)) { screen = "icon" }
                             ActionCell(Icons.Outlined.Check, stringResource(R.string.select), Modifier.weight(1f)) { onSelect(); onClose() }
                             ActionCell(IconMove, stringResource(R.string.move), Modifier.weight(1f)) { onMove(); onClose() }
                             ActionCell(IconFolder, stringResource(R.string.folder_cell), Modifier.weight(1f)) { screen = "folder" }
@@ -405,6 +415,7 @@ fun AppMenu(e: Entry, hidden: Boolean, onToggleHide: () -> Unit, onSelect: () ->
                         Row(Modifier.fillMaxWidth()) {
                             ActionCell(IconVersions, stringResource(R.string.versions_cell), Modifier.weight(1f)) { onClose(); host?.openVersions(e) }
                             ActionCell(IconUpdates, stringResource(R.string.upd_cell), Modifier.weight(1f)) { onClose(); host?.openUpdates(e) }
+                            ActionCell(Icons.Outlined.Share, stringResource(R.string.wifi_cell), Modifier.weight(1f)) { onClose(); host?.openWifiReceive() }
                             // избранное заметнее: звезда крупнее, при включённом закрашена жёлтым
                             val isFav = Cfg.isFavorite(e.pkg)
                             ActionCell(
@@ -430,9 +441,7 @@ fun AppMenu(e: Entry, hidden: Boolean, onToggleHide: () -> Unit, onSelect: () ->
                                 PopButton(stringResource(R.string.cancel)) { screen = "main" }
                             }
                             "icon" -> {
-                                PopButton(stringResource(R.string.icon_pick), Modifier.focusRequester(first)) {
-                                    runCatching { picker.launch("image/*") }.onFailure { toast(ctx, ctx.getString(R.string.icon_no_picker)) }
-                                }
+                                PopButton(stringResource(R.string.icon_pick), Modifier.focusRequester(first)) { ownIconPick = true }
                                 if (IconPacks.hasOwn(ctx, e.pkg)) PopButton(stringResource(R.string.icon_reset)) {
                                     IconPacks.removeOwn(ctx, e.pkg); Cfg.bumpIcons(); onClose()
                                 }

@@ -257,8 +257,7 @@ fun UploadDialog(onApks: (List<ApkFile>) -> Unit, onClose: () -> Unit) {
             Text(stringResource(R.string.wifi_received, files.size) + if (files.isNotEmpty()) ": " + files.joinToString(", ") { it.name }.take(160) else "", color = t.text, fontSize = 14.sp)
             if (busy) Text(stringResource(R.string.working), color = t.accent, fontSize = 13.sp)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Chip(stringResource(R.string.cancel), false, Modifier.focusRequester(fr)) { onClose() }
-                Chip(stringResource(R.string.wifi_check, files.size), true) {
+                Chip(stringResource(R.string.wifi_check, files.size), true, Modifier.focusRequester(fr)) {
                     if (files.isEmpty() || busy) return@Chip
                     scope.launch {
                         busy = true
@@ -267,6 +266,7 @@ fun UploadDialog(onApks: (List<ApkFile>) -> Unit, onClose: () -> Unit) {
                         onApks(list)
                     }
                 }
+                Chip(stringResource(R.string.cancel), false) { onClose() }
                 Chip(stringResource(R.string.wifi_clear), false) { UploadServer.dir?.listFiles()?.forEach { it.delete() }; files = emptyList() }
             }
         }

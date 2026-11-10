@@ -249,6 +249,8 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
     // положение в настройках помнится: раздел, прокрутка и кнопка в фокусе (MenuMemory); при выходе из меню кнопкой «Назад» сбрасывается
     var sub by remember { mutableStateOf(MenuMemory.init(ctx).settingsSub) }
     var adbDialog by remember { mutableStateOf(false) }
+    var appsUpd by remember { mutableStateOf(false) }
+    var instLog by remember { mutableStateOf(false) }
     val first = remember { FocusRequester() }
     val scroll = androidx.compose.foundation.rememberScrollState(if (sub == "main") MenuMemory.settingsScroll else 0)
     val chipReg = remember { SettingsChipReg() }
@@ -274,7 +276,7 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
     var wifi by remember { mutableStateOf(false) }
     var backups by remember { mutableStateOf(false) }
     var menuBgDlg by remember { mutableStateOf(false) }
-    val anyDialog = adbDialog || installFiles != null || browser || net || wifi || backups || menuBgDlg
+    val anyDialog = adbDialog || appsUpd || instLog || installFiles != null || browser || net || wifi || backups || menuBgDlg
     val dialogWasOpen = remember { booleanArrayOf(false) }
     LaunchedEffect(anyDialog) {
         if (!anyDialog && dialogWasOpen[0]) {
@@ -496,6 +498,7 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                     SectionHint(stringResource(R.string.install_hint))
                     Chip(stringResource(R.string.fb_open), true) { browser = true }
                     Chip(stringResource(R.string.wifi_open), true) { wifi = true }
+                    Chip(stringResource(R.string.install_log_btn), false) { instLog = true }
                     Chip(stringResource(R.string.net_open), true) { net = true }
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Chip(stringResource(R.string.install_tree), false) {
@@ -616,7 +619,9 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                         Chip(stringResource(R.string.about_tg), false) { openUrl(ctx, "https://t.me/PhoneInWindowSound") }
                         Chip(stringResource(R.string.about_gh), false) { openUrl(ctx, "https://github.com/drugoj00/app-menu") }
                         Chip(stringResource(R.string.about_all), false) { openUrl(ctx, "https://drugoj00.github.io/") }
-                        Chip(stringResource(R.string.about_check_upd), false) { UpdOpen.requested = true }
+                        Chip(stringResource(R.string.about_check_upd), false) { SelfUpd.checkNow(ctx.applicationContext, scope) }
+                        Chip(stringResource(R.string.about_apps_upd), false) { appsUpd = true }
+                        Chip(stringResource(R.string.self_upd_auto) + " · " + stringResource(if (Cfg.selfUpd) R.string.on else R.string.off), Cfg.selfUpd) { Cfg.changeSelfUpd(!Cfg.selfUpd) }
                     }
                     Text(stringResource(R.string.about_support), color = t.sub, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -635,6 +640,8 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
     }
     if (menuBgDlg) BgDialogHost(true) { menuBgDlg = false }
     if (adbDialog) AdbConnectDialog(onClose = { adbDialog = false; Conn.refresh() })
+    if (appsUpd) UpdatesAllDialog { appsUpd = false }
+    if (instLog) InstallLogDialog { instLog = false }
     installFiles?.let { files -> InstallDialog(files) { installFiles = null } }
     if (net) NetDialog { net = false }
     if (backups) BackupsDialog { backups = false }
@@ -651,7 +658,7 @@ private fun copyText(ctx: android.content.Context, text: String) {
     }
 }
 
-private fun openUrl(ctx: android.content.Context, url: String) {
+internal fun openUrl(ctx: android.content.Context, url: String) {
     runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
         .onFailure { Toast.makeText(ctx, ctx.getString(R.string.home_cant_open), Toast.LENGTH_SHORT).show() }
 }
@@ -740,87 +747,6 @@ private fun HiddenList(apps: List<Entry>) {
         }
     }
     @Suppress("UNUSED_EXPRESSION") anyHidden
-}
-
-
-/** Список найденных APK с отметками; установка тихо по ADB или по одному через системное окно. */
-@Composable
-private fun InstallDialog(files: List<ApkFile>, onClose: () -> Unit) {
-    val ctx = LocalContext.current
-    val t = LocalTh.current
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
-    var chosen by remember { mutableStateOf(files.map { it.name }.toSet()) }
-    var busy by remember { mutableStateOf(false) }
-    val fr = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { fr.requestFocus() } }
-    HDialog(onDismissRequest = { if (!busy) onClose() }) {
-        Column(
-            Modifier.clip(RoundedCornerShape(20.dp)).background(t.tile).border(1.dp, t.border, RoundedCornerShape(20.dp)).padding(18.dp).fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(stringResource(R.string.install_title, files.size), color = t.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            if (files.isEmpty()) Text(stringResource(R.string.install_none), color = t.sub, fontSize = 14.sp)
-            val instScroll = rememberScrollState()
-            Column(Modifier.heightIn(max = 340.dp).verticalScrollbar(instScroll).verticalScroll(instScroll).padding(end = ScrollbarMath.RESERVE_DP.dp)) {
-                files.forEach { f ->
-                    val on = f.name in chosen
-                    var focused by remember { mutableStateOf(false) }
-                    Row(
-                        Modifier.fillMaxWidth().padding(vertical = 2.dp)
-                            .onFocusChanged { focused = it.isFocused }
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(if (focused) t.tileFocus else androidx.compose.ui.graphics.Color.Transparent)
-                            .border(if (focused) 2.dp else 0.dp, if (focused) t.accent else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(10.dp))
-                            .toggleable(on, onValueChange = { v -> chosen = if (v) chosen + f.name else chosen - f.name })
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Text(f.name, color = t.text, fontSize = 14.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text((f.size / 1024 / 1024).toString() + " MB", color = t.hint, fontSize = 11.sp)
-                        Switch(on, null)
-                    }
-                }
-            }
-            if (busy) Text(stringResource(R.string.working), color = t.accent, fontSize = 13.sp)
-            Text(stringResource(if (Adb.isConnected) R.string.install_silent else R.string.install_dialogs), color = t.hint, fontSize = 12.sp)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Chip(stringResource(R.string.cancel), false, Modifier.focusRequester(fr)) { if (!busy) onClose() }
-                Chip(stringResource(R.string.install_go, chosen.size), true) {
-                    val picked = files.filter { it.name in chosen }
-                    if (picked.isEmpty() || busy) return@Chip
-                    if (Adb.isConnected) {
-                        busy = true
-                        scope.launch {
-                            val (ok, bad) = Batch.installViaAdb(ctx, picked)
-                            busy = false
-                            Toast.makeText(ctx, ctx.getString(R.string.install_result, ok, bad), Toast.LENGTH_LONG).show()
-                            Cfg.bumpIcons()
-                            onClose()
-                        }
-                    } else {
-                        busy = true
-                        scope.launch {
-                            picked.forEach {
-                                val parts = it.parts
-                                if (parts != null) {
-                                    // OBB кладём до установки, при неудаче убираем
-                                    val copied = if (it.obb.isEmpty()) 0 else Bundles.copyObbAny(it.obb)
-                                    if (copied < 0) Toast.makeText(ctx, ctx.getString(R.string.bundle_no_storage), Toast.LENGTH_LONG).show()
-                                    else runCatching { SessionInstaller.install(ctx, parts) { Bundles.deleteObb(it.obb) } }
-                                        .onFailure { e -> Bundles.deleteObb(it.obb); Toast.makeText(ctx, ctx.getString(R.string.bundle_failed) + ": " + (e.message ?: ""), Toast.LENGTH_LONG).show() }
-                                }
-                                else Pending.installs.add(Batch.shareUri(ctx, Batch.materialize(it)))
-                            }
-                            busy = false
-                            Pending.next(ctx)
-                            onClose()
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
 
