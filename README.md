@@ -14,17 +14,22 @@ App Menu replaces the stock app list with a big grid made for a remote and for t
 
 ## Download
 
-**Version 4.3.** [AppMenu-4.3.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
+**Version 5.0.** [AppMenu-5.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `1732c77a32d45d79d8bfb82e406a756b5eda1920536c62081e7dd0eb87f4fba5`
+SHA-256: `754d3c50b5f9c6e0a84dbc55d96ae5930c378a4ff01d95836d7baaa5a87e7deb`
 
-## What's new in 4.3
+## What's new in 5.0
 
-- New apps appear on Home by themselves in the “New apps” row (a separate switch in Settings, can be turned off).
-- In the widget dialog (long press) a new item “Widget settings”: opens the Android widget's own settings screen.
-- Replacing an Android widget with another one without removing the old one.
-- Backup: Android widgets come back (tap “Tap to add it again”).
-- The backup file is named after the program: AppMenu_date.zip (automatic backup: AppMenu_auto.zip); a backup from earlier versions is renamed by itself.
+- Updates of other apps open from Settings.
+- Batch APK install: progress for every file, “installed / failed” result with the reason, install log.
+- Split packages (APKM, APKS, XAPK).
+- Receive files over Wi-Fi: separate window and a context menu item.
+- Home and menu background: choose a picture from the folders wallpaper, DCIM, Pictures, Download; browse with arrow keys.
+- “Change icon…” in the long-press menu.
+- Fixed: installing packages without ADB and root on Android 14 and newer.
+- Fixed: when several archives were received in a row, the parts of the first one were lost.
+- Fixed: on Android 9 and older, app updates were rejected with “signature does not match”.
+- Fixed: on a phone in portrait the Settings button moved off the screen edge.
 
 ## Features
 
@@ -56,7 +61,7 @@ SHA-256: `1732c77a32d45d79d8bfb82e406a756b5eda1920536c62081e7dd0eb87f4fba5`
 
 ## Quick start
 
-1. Download AppMenu-4.3.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
+1. Download AppMenu-5.0.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
 2. Open it: apps are launched with OK or a tap, a long press (or holding OK, or the Menu key) opens the action card. To use it instead of the stock menu turn on “Launcher mode” in Settings.
 3. To act on other apps connect ADB: Settings → “Connect ADB”. Android 9 and older TV boxes with network ADB connect by themselves. Android 11+: turn on the “App Menu” service in Accessibility once, press “Connect automatically”. Android 10 and older: run adb tcpip 5555 once from a computer (repeat after a reboot). With root (Magisk) none of this is needed: allow root for the app once and it connects by itself.
 
