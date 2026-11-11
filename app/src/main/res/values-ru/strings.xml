@@ -834,4 +834,11 @@
     <string name="icon_edit">Изменить значок…</string>
     <string name="icon_edit_cell">Изменить значок</string>
     <string name="icon_pick_tile">Выбрать картинку для этой плитки…</string>
+    <string name="install_no_space">Мало места: свободно %1$d МБ, нужно около %2$d МБ</string>
+    <string name="install_err_sdk">Приложение требует более новый Android (на устройстве Android %1$s)</string>
+    <string name="install_err_space">Не удалось распаковать библиотеки: мало места или не подходит архитектура процессора</string>
+    <string name="install_err_abi">В приложении нет библиотек для процессора этого устройства</string>
+    <string name="install_err_downgrade">Установлена более новая версия, понижение этим способом невозможно</string>
+    <string name="install_err_sig">Подпись не совпадает с установленной версией</string>
+    <string name="install_err_bad">Файл повреждён или не является APK</string>
 </resources>
