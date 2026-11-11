@@ -419,11 +419,14 @@
     <string name="wg_ram">Оперативна пам’ять</string>
     <string name="wg_free">вільно</string>
     <string name="wg_loading">Завантаження...</string>
+    <string name="wg_weather_err">Немає відповіді від сервера погоди: перевірте інтернет і дату/час на пристрої</string>
+    <string name="net_err_tls">немає захищеного з’єднання: перевірте дату й час на пристрої</string>
+    <string name="net_err_dns">немає доступу до інтернету або сервер не відповідає</string>
     <string name="wg_title">Віджет</string>
     <string name="wg_type">Вид віджета</string>
     <string name="wg_city">Місто</string>
     <string name="wg_city_auto">авто (за інтернетом)</string>
-    <string name="wg_city_hint">Порожньо: місце визначиться само за інтернетом</string>
+    <string name="wg_city_hint">Назва міста або «широта, довгота». Порожньо: місце визначиться само за інтернетом</string>
     <string name="wg_days">Днів прогнозу</string>
     <string name="wg_refresh">Оновити зараз</string>
     <string name="wg_time_fmt">Формат часу</string>
