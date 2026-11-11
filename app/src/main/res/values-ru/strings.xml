@@ -419,11 +419,14 @@
     <string name="wg_ram">Оперативная память</string>
     <string name="wg_free">свободно</string>
     <string name="wg_loading">Загрузка...</string>
+    <string name="wg_weather_err">Нет ответа от сервера погоды: проверьте интернет и дату/время на устройстве</string>
+    <string name="net_err_tls">нет защищённого соединения: проверьте дату и время на устройстве</string>
+    <string name="net_err_dns">нет доступа в интернет или сервер не отвечает</string>
     <string name="wg_title">Виджет</string>
     <string name="wg_type">Вид виджета</string>
     <string name="wg_city">Город</string>
     <string name="wg_city_auto">авто (по интернету)</string>
-    <string name="wg_city_hint">Пусто: место определится само по интернету</string>
+    <string name="wg_city_hint">Название города или «широта, долгота». Пусто: место определится само по интернету</string>
     <string name="wg_days">Дней прогноза</string>
     <string name="wg_refresh">Обновить сейчас</string>
     <string name="wg_time_fmt">Формат времени</string>
