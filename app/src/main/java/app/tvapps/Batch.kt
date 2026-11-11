@@ -110,19 +110,52 @@ object Batch {
      */
     suspend fun installDetailed(ctx: Context, files: List<ApkFile>, onStep: (Int, Int, String, List<InstallRes>) -> Unit): List<InstallRes> {
         val out = ArrayList<InstallRes>()
-        files.forEachIndexed { i, f0 ->
-            onStep(i, files.size, f0.name, out.toList())
-            val r = installOne(ctx, f0)
-            out.add(r)
-            InstallLog.add(ctx, r)
-            onStep(i + 1, files.size, "", out.toList())
-        }
+        // пока идёт пачка, «Дом» и меню не перечитывают список после каждого файла (общий пересчёт в конце)
+        AppsMem.holdReload = true
+        try {
+            files.forEachIndexed { i, f0 ->
+                onStep(i, files.size, f0.name, out.toList())
+                // одна ошибка (в том числе нехватка памяти) не обрывает пачку и не роняет программу: запись в журнал и дальше
+                val r = try { installOne(ctx, f0) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Throwable) {
+                    InstallLog.err(ctx, f0.name, e)
+                    InstallRes(f0.name, f0.pkg.orEmpty(), false, friendlyReason(ctx, e.message ?: e.javaClass.simpleName))
+                }
+                out.add(r)
+                InstallLog.add(ctx, r)
+                onStep(i + 1, files.size, "", out.toList())
+            }
+        } finally { AppsMem.holdReload = false }
         return out
+    }
+
+    /** Понятная причина по коду отказа системы (код остаётся в скобках). */
+    internal fun friendlyReason(ctx: Context, raw: String): String {
+        val first = raw.lineSequence().map { it.trim() }.firstOrNull { it.isNotEmpty() }.orEmpty()
+        val code = Regex("INSTALL_[A-Z_]+").find(raw)?.value
+        val id = when {
+            raw.contains("OLDER_SDK") -> R.string.install_err_sdk
+            raw.contains("CONTAINER_ERROR") || raw.contains("INSUFFICIENT_STORAGE") -> R.string.install_err_space
+            raw.contains("NO_MATCHING_ABIS") -> R.string.install_err_abi
+            raw.contains("VERSION_DOWNGRADE") -> R.string.install_err_downgrade
+            raw.contains("UPDATE_INCOMPATIBLE") || raw.contains("SIGNATURES") -> R.string.install_err_sig
+            raw.contains("PARSE_FAILED") || raw.contains("INVALID_APK") -> R.string.install_err_bad
+            else -> 0
+        }
+        if (id == 0) return first.take(120).ifBlank { "?" }
+        val text = if (id == R.string.install_err_sdk) ctx.getString(id, android.os.Build.VERSION.RELEASE) else ctx.getString(id)
+        return if (code != null) "$text ($code)" else text
     }
 
     private suspend fun installOne(ctx: Context, f0: ApkFile): InstallRes = kotlinx.coroutines.coroutineScope {
         var pkg = f0.pkg.orEmpty()
         var code = 0L
+        // место в памяти устройства: файл копируется в сессию установки и распаковывается, нужно примерно вдвое больше его размера
+        val need = f0.parts?.sumOf { it.length() } ?: f0.size
+        if (need > 0) {
+            val free = runCatching { android.os.StatFs(android.os.Environment.getDataDirectory().path).availableBytes }.getOrDefault(Long.MAX_VALUE)
+            val want = need * 2 + 50L * 1024 * 1024
+            if (free < want) return@coroutineScope InstallRes(f0.name, pkg, false, ctx.getString(R.string.install_no_space, free / 1048576L, want / 1048576L))
+        }
         val job = async(kotlinx.coroutines.Dispatchers.IO) {
             try {
                 if (f0.parts != null) {
@@ -134,14 +167,14 @@ object Batch {
                     val input = if (f.file != null) f.file.inputStream() else ctx.contentResolver.openInputStream(f.uri)!!
                     input.use { Adb.installApk(it, f.size) }
                 }
-            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Throwable) { "ERROR " + (e.message ?: e.javaClass.simpleName) }
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Throwable) { InstallLog.err(ctx, f0.name, e); "ERROR " + (e.message ?: e.javaClass.simpleName) }
         }
         val text = kotlinx.coroutines.withTimeoutOrNull(ONE_TIMEOUT_MS) { job.await() } ?: "TIMEOUT"
         when {
             text.contains("Success", true) -> InstallRes(f0.name, pkg, true, if (text.contains("(")) ctx.getString(R.string.install_verified) else "")
             InstallLog.installedByFact(ctx, pkg, code) -> InstallRes(f0.name, pkg, true, ctx.getString(R.string.install_verified))
             text == "TIMEOUT" -> InstallRes(f0.name, pkg, false, ctx.getString(R.string.install_timeout))
-            else -> InstallRes(f0.name, pkg, false, text.lineSequence().map { it.trim() }.firstOrNull { it.isNotEmpty() }?.take(120).orEmpty().ifBlank { "?" })
+            else -> InstallRes(f0.name, pkg, false, friendlyReason(ctx, text))
         }
     }
 

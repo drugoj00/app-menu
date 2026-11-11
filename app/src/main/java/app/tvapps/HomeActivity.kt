@@ -47,6 +47,9 @@ import kotlinx.coroutines.withContext
 internal object AppsMem {
     @Volatile var list: List<Entry> = emptyList()
     @Volatile var stamp = 0L
+    /** Идёт пакетная установка: события «пакет добавлен» не перечитывают список после каждого файла, один общий пересчёт в конце. */
+    @Volatile var holdReload = false
+    val loadLock = Any()
 }
 
 /**
@@ -77,8 +80,16 @@ class HomeActivity : ComponentActivity() {
         return super.onKeyDown(keyCode, event)
     }
 
+    // события установки приходят пачкой (по одному на каждое приложение): список перечитывается один раз через 2 с после последнего,
+    // а во время пакетной установки не перечитывается совсем (иначе десятки одновременных загрузок значков съедали память слабой приставки)
+    private val pkgHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val pkgRefresh = Runnable { AppsMem.stamp = 0L; resumeTick.intValue++ }
     private val pkgReceiver = object : android.content.BroadcastReceiver() {
-        override fun onReceive(c: android.content.Context, i: Intent) { AppsMem.stamp = 0L; resumeTick.intValue++ }
+        override fun onReceive(c: android.content.Context, i: Intent) {
+            AppsMem.stamp = 0L
+            if (AppsMem.holdReload) return
+            pkgHandler.removeCallbacks(pkgRefresh); pkgHandler.postDelayed(pkgRefresh, 2000L)
+        }
     }
 
     private var langAtStart = ""
@@ -249,14 +260,18 @@ private fun HomeScreen(tick: Int, again: Int) {
     val layout = HomeStore.layout
 
     // список приложений: сначала то, что уже есть в памяти или в кэше, затем свежая загрузка (не чаще раза в полминуты)
-    LaunchedEffect(tick, Cfg.iconTick) {
+    val seenIcon = remember { intArrayOf(Cfg.iconTick) }
+    LaunchedEffect(tick, Cfg.iconTick, Cfg.listTick) {
         if (apps.isEmpty()) {
             val cached = withContext(Dispatchers.Default) { AppCache.load(ctx) }
             if (cached.isNotEmpty() && apps.isEmpty()) { apps = cached; AppsMem.list = cached }
         }
-        if (Cfg.iconTick > 0 || System.currentTimeMillis() - AppsMem.stamp > 30_000L || apps.isEmpty()) {
+        // значки заново для всех приложений только один раз после смены значков (раньше после первой же смены так шла каждая перезагрузка списка)
+        val forced = seenIcon[0] != Cfg.iconTick
+        seenIcon[0] = Cfg.iconTick
+        if (forced || System.currentTimeMillis() - AppsMem.stamp > 30_000L || apps.isEmpty()) {
             val before = apps
-            val fresh = withContext(Dispatchers.Default) { loadApps(ctx, before, reuse = Cfg.iconTick == 0) }
+            val fresh = withContext(Dispatchers.Default) { loadApps(ctx, before, reuse = !forced) }
             apps = fresh; AppsMem.list = fresh; AppsMem.stamp = System.currentTimeMillis()
         }
     }

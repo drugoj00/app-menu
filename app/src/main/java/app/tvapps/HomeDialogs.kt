@@ -102,6 +102,7 @@ internal fun HomeDialogs(
                 add(Opt(stringResource(R.string.d_add_here)) { setDlg(Dlg.AddItem(dlg.rowId)) })
                 add(Opt(stringResource(R.string.row_add_below)) { setDlg(Dlg.AddRow(dlg.rowId)) })
                 add(Opt(stringResource(R.string.d_row_settings)) { setDlg(Dlg.RowD(dlg.rowId)) })
+                add(Opt(stringResource(R.string.wifi_title) + "…") { close(); WifiReceive.open = true })
                 add(Opt(stringResource(R.string.d_android)) { close(); openSys(ctx, android.provider.Settings.ACTION_SETTINGS) })
             }
             ListDialog(name, opts, close, footer = updatesFooter)
@@ -465,6 +466,7 @@ internal fun HomeDialogs(
                 Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) },
                 Opt(stringResource(R.string.top_items)) { setDlg(Dlg.Top) },
                 Opt(stringResource(R.string.bg_title)) { setDlg(Dlg.Bg) },
+                Opt(stringResource(R.string.wifi_title) + "…") { close(); WifiReceive.open = true },
             )
             ListDialog(stringResource(R.string.empty_title), opts, close, footer = updatesFooter)
         }

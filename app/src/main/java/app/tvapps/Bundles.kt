@@ -340,7 +340,7 @@ object SessionInstaller {
                     PackageInstaller.STATUS_SUCCESS -> {
                         failed.remove(id)?.let { InstallLog.add(c, InstallRes(it.name, it.pkg, true, "")) }
                         Toast.makeText(c, c.getString(R.string.bundle_done), Toast.LENGTH_LONG).show()
-                        Cfg.bumpIcons()
+                        AppsMem.stamp = 0L; Cfg.bumpList()
                     }
                     else -> {
                         val info = failed.remove(id)
@@ -349,7 +349,7 @@ object SessionInstaller {
                         if (info != null && InstallLog.installedByFact(c, info.pkg, info.code)) {
                             InstallLog.add(c, InstallRes(info.name, info.pkg, true, c.getString(R.string.install_verified)))
                             Toast.makeText(c, c.getString(R.string.bundle_done), Toast.LENGTH_LONG).show()
-                            Cfg.bumpIcons()
+                            AppsMem.stamp = 0L; Cfg.bumpList()
                         } else {
                             if (info != null) {
                                 InstallLog.add(c, InstallRes(info.name, info.pkg, false, msg.ifBlank { "status $status" }))

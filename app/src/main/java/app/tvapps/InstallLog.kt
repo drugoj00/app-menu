@@ -39,6 +39,16 @@ object InstallLog {
         }.getOrDefault(emptyList())
     }
 
+    /** Подробная запись об исключении при установке (файл install_errors.log, до 60 КБ): для разбора вылетов и отказов. */
+    fun err(ctx: Context, name: String, e: Throwable) = synchronized(lock) {
+        runCatching {
+            val f = File(ctx.filesDir, "install_errors.log")
+            val line = java.text.SimpleDateFormat("dd.MM.yyyy HH:mm:ss", java.util.Locale.US).format(java.util.Date()) + " " + name + "\n" + android.util.Log.getStackTraceString(e).take(2000) + "\n"
+            val old = if (f.exists() && f.length() < 60_000) f.readText() else ""
+            f.writeText(old + line)
+        }
+    }
+
     fun clear(ctx: Context) = synchronized(lock) { runCatching { file(ctx).delete() } }
 
     /** Пакет и код версии основной части набора (или одного APK): по ним установка проверяется по факту. */

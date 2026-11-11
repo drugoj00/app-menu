@@ -333,7 +333,12 @@ class MainActivity : ComponentActivity() {
     private fun applyFullscreen() { SysBars.apply(this) }
 }
 
-internal fun loadApps(ctx: android.content.Context, prev: List<Entry> = emptyList(), reuse: Boolean = false): List<Entry> {
+/** Одна загрузка за раз (параллельные загрузки значков при пакетной установке съедали память), нехватка памяти не роняет программу: остаётся прежний список. */
+internal fun loadApps(ctx: android.content.Context, prev: List<Entry> = emptyList(), reuse: Boolean = false): List<Entry> = synchronized(AppsMem.loadLock) {
+    try { loadAppsImpl(ctx, prev, reuse) } catch (e: OutOfMemoryError) { System.gc(); android.util.Log.w("TVApps", "loadApps: нехватка памяти, список не обновлён"); prev }
+}
+
+private fun loadAppsImpl(ctx: android.content.Context, prev: List<Entry> = emptyList(), reuse: Boolean = false): List<Entry> {
     val pm = ctx.packageManager
     val seen = HashSet<String>()
     val out = ArrayList<Entry>()
@@ -492,7 +497,7 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     var reload by remember { mutableIntStateOf(0) }
     val seenIconTick = remember { intArrayOf(Cfg.iconTick) }
-    LaunchedEffect(tick, Cfg.iconTick, reload) {
+    LaunchedEffect(tick, Cfg.iconTick, Cfg.listTick, reload) {
         // первый кадр рисуется сразу, список из кэша подставляется из фона, затем настоящая загрузка обновляет его
         if (apps.isEmpty()) {
             // кэш читается с обычным приоритетом: с фоновым на слабой приставке при запуске он ждал 4 с (пока главный поток и остальной запуск занимали процессор),
@@ -507,7 +512,7 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
         // загрузка в фоне с пониженным приоритетом: не мешает кадрам; готовые значки неизменившихся приложений берутся из прежнего списка
         val fresh = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
             runCatching { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND) }
-            loadApps(ctx, before, reuse = !forced).also { AppCache.save(ctx, it, force = Cfg.iconTick > 0) }
+            loadApps(ctx, before, reuse = !forced).also { AppCache.save(ctx, it, force = forced) }
         }
         // при каждом возврате в меню список загружался заново и подменялся целиком: новые объекты и новые картинки перекомпоновывали и
         // перерисовывали все плитки разом (рывок на слабом железе). Если приложения те же (пакет, название, время обновления), остаётся прежний список.

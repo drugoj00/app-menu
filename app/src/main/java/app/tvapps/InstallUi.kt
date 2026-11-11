@@ -4,6 +4,13 @@ package app.tvapps
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -55,6 +62,28 @@ fun ReceiveHost() {
 }
 
 private fun timeText(ms: Long): String = SimpleDateFormat("dd.MM HH:mm", Locale.getDefault()).format(Date(ms))
+
+/** Строка журнала, на которую можно встать пультом: стрелки вверх и вниз листают список, фокус виден рамкой. */
+@Composable
+private fun FocusItem(content: @Composable () -> Unit) {
+    val t = LocalTh.current
+    var focused by remember { mutableStateOf(false) }
+    Column(
+        Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }.clip(RoundedCornerShape(8.dp))
+            .border(if (focused) 2.dp else 0.dp, if (focused) t.accent else Color.Transparent, RoundedCornerShape(8.dp))
+            .focusable().padding(horizontal = 4.dp, vertical = 2.dp),
+    ) { content() }
+}
+
+/** PageUp и PageDown листают список на экран. */
+private fun Modifier.pageKeys(sc: androidx.compose.foundation.ScrollState, scope: kotlinx.coroutines.CoroutineScope): Modifier = onPreviewKeyEvent { e ->
+    if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+    when (e.key) {
+        Key.PageDown -> { scope.launch { sc.animateScrollBy(320f) }; true }
+        Key.PageUp -> { scope.launch { sc.animateScrollBy(-320f) }; true }
+        else -> false
+    }
+}
 
 @Composable
 private fun ResRow(r: InstallRes) {
@@ -125,7 +154,7 @@ fun InstallDialog(files: List<ApkFile>, onClose: () -> Unit) {
                     color = if (busy) t.accent else t.text, fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis,
                 )
                 val sc = rememberScrollState()
-                Column(Modifier.heightIn(max = 340.dp).verticalScrollbar(sc).verticalScroll(sc).padding(end = ScrollbarMath.RESERVE_DP.dp)) { res.forEach { ResRow(it) } }
+                Column(Modifier.heightIn(max = 340.dp).pageKeys(sc, scope).verticalScrollbar(sc).verticalScroll(sc).padding(end = ScrollbarMath.RESERVE_DP.dp)) { res.forEach { FocusItem { ResRow(it) } } }
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (res == null) {
@@ -142,7 +171,7 @@ fun InstallDialog(files: List<ApkFile>, onClose: () -> Unit) {
                                 }
                                 results = all
                                 busy = false
-                                Cfg.bumpIcons()
+                                AppsMem.stamp = 0L; Cfg.bumpList()
                             }
                         } else {
                             busy = true
@@ -185,6 +214,7 @@ fun InstallLogDialog(onClose: () -> Unit) {
     val ctx = LocalContext.current
     val t = LocalTh.current
     var rows by remember { mutableStateOf(InstallLog.read(ctx)) }
+    val scope = rememberCoroutineScope()
     val fr = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { fr.requestFocus() } }
     HDialog(onDismissRequest = onClose) {
@@ -195,10 +225,12 @@ fun InstallLogDialog(onClose: () -> Unit) {
             Text(stringResource(R.string.install_log_title), color = t.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             if (rows.isEmpty()) Text(stringResource(R.string.install_log_empty), color = t.sub, fontSize = 14.sp)
             val sc = rememberScrollState()
-            Column(Modifier.heightIn(max = 360.dp).verticalScrollbar(sc).verticalScroll(sc).padding(end = ScrollbarMath.RESERVE_DP.dp)) {
+            Column(Modifier.heightIn(max = 360.dp).pageKeys(sc, scope).verticalScrollbar(sc).verticalScroll(sc).padding(end = ScrollbarMath.RESERVE_DP.dp)) {
                 rows.forEach { r ->
-                    Text(timeText(r.time), color = t.hint, fontSize = 10.sp)
-                    ResRow(r)
+                    FocusItem {
+                        Text(timeText(r.time), color = t.hint, fontSize = 10.sp)
+                        ResRow(r)
+                    }
                 }
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -79,6 +79,9 @@ object Cfg {
     var iconPack by mutableStateOf(""); private set
     /** Растёт при смене значков, чтобы список перезагрузился. */
     var iconTick by mutableIntStateOf(0); private set
+    /** Растёт, когда список приложений надо перечитать без пересоздания всех значков (после установки пачки). */
+    var listTick by mutableIntStateOf(0); private set
+    fun bumpList() { listTick++ }
     /** Свой порядок значков (сортировка «своя»). */
     var order by mutableStateOf<List<String>>(emptyList()); private set
     /** Готовить кэш значков при включении устройства. */

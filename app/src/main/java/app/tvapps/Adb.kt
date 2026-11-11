@@ -128,7 +128,7 @@ object Adb {
         Log.i("TVApps", "shell> ${cmd.take(300)}")
         val t0 = System.currentTimeMillis()
         val res = try {
-            runCatching { if (rootOn) rootRun(cmd, null, timeoutMs) else readAll(mgr.openStream("shell:$cmd"), timeoutMs, cmd) }
+            runCatching { if (rootOn) rootRun(cmd, null, timeoutMs) else readAll(mgr.openStream(AdbText.safe("shell:$cmd")), timeoutMs, cmd) }
         } finally { lock.unlock() }
         Log.i("TVApps", "shell< ${System.currentTimeMillis() - t0} мс, ${res.getOrNull()?.length ?: -1} симв: ${(res.getOrNull() ?: res.exceptionOrNull()?.message).orEmpty().take(300).replace("\n", " ⏎ ")}")
         res.getOrThrow()
@@ -189,7 +189,7 @@ object Adb {
                 p.waitFor()
                 return@withContext
             }
-            val s = mgr.openStream("exec:cat '" + path.replace("'", "'\\''") + "'")
+            val s = mgr.openStream(AdbText.safe("exec:cat '" + path.replace("'", "'\\''") + "'"))
             try {
                 s.openInputStream().use { i -> dest.outputStream().use { o -> i.copyTo(o) } }
             } finally { runCatching { s.close() } }
@@ -216,7 +216,7 @@ object Adb {
                 return@withContext rootRun("cmd package install ${withUser(flags)} -S ${tmp.length()} < " + q(tmp.absolutePath), null, 600_000)
             } finally { tmp.delete() }
         }
-        val s = mgr.openStream("exec:cmd package install ${withUser(flags)} -S $size")
+        val s = mgr.openStream(AdbText.safe("exec:cmd package install ${withUser(flags)} -S $size"))
         val out = s.openOutputStream()
         input.copyTo(out)
         out.flush()
@@ -232,7 +232,7 @@ object Adb {
             if (m != null) runCatching { rootRun("chown -R \$(stat -c %u:%g " + q(m.groupValues[1]) + ") " + q(m.groupValues[1] + "/" + m.groupValues[2]), null, 60_000) }
             return@withContext Unit
         }
-        val s = mgr.openStream("exec:head -c $size > " + q(dest))
+        val s = mgr.openStream(AdbText.safe("exec:head -c $size > " + q(dest)))
         val out = s.openOutputStream()
         input.copyTo(out)
         out.flush()
@@ -246,10 +246,12 @@ object Adb {
         if (files.size == 1) return files[0].inputStream().use { installApk(it, files[0].length(), flags) }
         val made = shell("cmd package install-create ${withUser(flags)} -S ${files.sumOf { it.length() }}")
         val id = Regex("\\[(\\d+)\\]").find(made)?.groupValues?.get(1) ?: return made
-        for (f in files) {
+        for ((idx, f) in files.withIndex()) {
+            // имя части в сессии: только ASCII и номер (кириллица, пробелы, скобки, апострофы и эмодзи в имени файла не попадают в команду)
+            val partName = idx.toString() + "_" + f.name.replace(Regex("[^A-Za-z0-9._-]"), "_").takeLast(60)
             val res = withContext(Dispatchers.IO) {
-                if (rootOn) return@withContext f.inputStream().use { rootRun("cmd package install-write -S ${f.length()} $id ${q(f.name)} - < " + q(f.absolutePath), null, 600_000) }
-                val s = mgr.openStream("exec:cmd package install-write -S ${f.length()} $id ${f.name} -")
+                if (rootOn) return@withContext f.inputStream().use { rootRun("cmd package install-write -S ${f.length()} $id ${q(partName)} - < " + q(f.absolutePath), null, 600_000) }
+                val s = mgr.openStream(AdbText.safe("exec:cmd package install-write -S ${f.length()} $id $partName -"))
                 val out = s.openOutputStream()
                 f.inputStream().use { it.copyTo(out) }
                 out.flush()
