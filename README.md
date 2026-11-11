@@ -14,18 +14,16 @@ App Menu replaces the stock app list with a big grid made for a remote and for t
 
 ## Download
 
-**Version 5.1.** [AppMenu-5.1.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
+**Version 5.2.** [AppMenu-5.2.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `4eb42adc5503b98274f9f74cc112729fd727d7f8bb6e2f5344230db842ded5ed`
+SHA-256: `42aef0ac34cfca2c4b08a7e14974f4f4da02672c36f295c2cbf649632ed1a37d`
 
-## What's new in 5.1
+## What's new in 5.2
 
-- The install log scrolls with a remote: arrow keys, PageUp and PageDown, the focused row is outlined
-- “Receive files over Wi-Fi…” in the tile menu on Home and in the empty-space menu, on a long press of OK
-- Batch install is more robust: one file at a time, an error in one does not stop the rest, free space is checked before each file, errors are written to install_errors.log
-- The log gives the reason if an app was not installed: old Android, not enough space, wrong processor, damaged file
-- Installing files with Cyrillic letters, parentheses, apostrophes and emoji in the name and path
-- Lower memory load when installing a batch: icons are redrawn once, the list is reloaded once
+- Weather and city search work on old Android (7.1 and older)
+- Fallback city search and entering “latitude, longitude”
+- Instead of an endless “Loading” the weather shows the reason
+- App update and downloads from GitHub and F-Droid work on old Android, error reasons are shown
 
 ## Features
 
@@ -57,7 +55,7 @@ SHA-256: `4eb42adc5503b98274f9f74cc112729fd727d7f8bb6e2f5344230db842ded5ed`
 
 ## Quick start
 
-1. Download AppMenu-5.1.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
+1. Download AppMenu-5.2.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
 2. Open it: apps are launched with OK or a tap, a long press (or holding OK, or the Menu key) opens the action card. To use it instead of the stock menu turn on “Launcher mode” in Settings.
 3. To act on other apps connect ADB: Settings → “Connect ADB”. Android 9 and older TV boxes with network ADB connect by themselves. Android 11+: turn on the “App Menu” service in Accessibility once, press “Connect automatically”. Android 10 and older: run adb tcpip 5555 once from a computer (repeat after a reboot). With root (Magisk) none of this is needed: allow root for the app once and it connects by itself.
 
