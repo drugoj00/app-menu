@@ -834,4 +834,11 @@
     <string name="icon_edit">Change icon…</string>
     <string name="icon_edit_cell">Change icon</string>
     <string name="icon_pick_tile">Choose a picture for this tile…</string>
+    <string name="install_no_space">Not enough space: %1$d MB free, about %2$d MB needed</string>
+    <string name="install_err_sdk">The app needs a newer Android (this device runs Android %1$s)</string>
+    <string name="install_err_space">Could not unpack libraries: not enough space or the processor architecture does not match</string>
+    <string name="install_err_abi">The app has no libraries for this device processor</string>
+    <string name="install_err_downgrade">A newer version is installed; downgrading this way is not possible</string>
+    <string name="install_err_sig">The signature does not match the installed version</string>
+    <string name="install_err_bad">The file is damaged or is not an APK</string>
 </resources>
