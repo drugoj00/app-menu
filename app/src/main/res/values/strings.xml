@@ -419,11 +419,14 @@
     <string name="wg_ram">RAM</string>
     <string name="wg_free">free</string>
     <string name="wg_loading">Loading...</string>
+    <string name="wg_weather_err">No answer from the weather server: check the internet and the date/time on the device</string>
+    <string name="net_err_tls">no secure connection: check the date and time on the device</string>
+    <string name="net_err_dns">no internet access or the server does not respond</string>
     <string name="wg_title">Widget</string>
     <string name="wg_type">Widget type</string>
     <string name="wg_city">City</string>
     <string name="wg_city_auto">auto (from the internet)</string>
-    <string name="wg_city_hint">Empty: the place is found automatically from the internet</string>
+    <string name="wg_city_hint">City name or “latitude, longitude”. Empty: the place is found automatically from the internet</string>
     <string name="wg_days">Forecast days</string>
     <string name="wg_refresh">Refresh now</string>
     <string name="wg_time_fmt">Time format</string>
