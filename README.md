@@ -14,22 +14,18 @@ App Menu replaces the stock app list with a big grid made for a remote and for t
 
 ## Download
 
-**Version 5.0.** [AppMenu-5.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
+**Version 5.1.** [AppMenu-5.1.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `754d3c50b5f9c6e0a84dbc55d96ae5930c378a4ff01d95836d7baaa5a87e7deb`
+SHA-256: `4eb42adc5503b98274f9f74cc112729fd727d7f8bb6e2f5344230db842ded5ed`
 
-## What's new in 5.0
+## What's new in 5.1
 
-- Updates of other apps open from Settings.
-- Batch APK install: progress for every file, “installed / failed” result with the reason, install log.
-- Split packages (APKM, APKS, XAPK).
-- Receive files over Wi-Fi: separate window and a context menu item.
-- Home and menu background: choose a picture from the folders wallpaper, DCIM, Pictures, Download; browse with arrow keys.
-- “Change icon…” in the long-press menu.
-- Fixed: installing packages without ADB and root on Android 14 and newer.
-- Fixed: when several archives were received in a row, the parts of the first one were lost.
-- Fixed: on Android 9 and older, app updates were rejected with “signature does not match”.
-- Fixed: on a phone in portrait the Settings button moved off the screen edge.
+- The install log scrolls with a remote: arrow keys, PageUp and PageDown, the focused row is outlined
+- “Receive files over Wi-Fi…” in the tile menu on Home and in the empty-space menu, on a long press of OK
+- Batch install is more robust: one file at a time, an error in one does not stop the rest, free space is checked before each file, errors are written to install_errors.log
+- The log gives the reason if an app was not installed: old Android, not enough space, wrong processor, damaged file
+- Installing files with Cyrillic letters, parentheses, apostrophes and emoji in the name and path
+- Lower memory load when installing a batch: icons are redrawn once, the list is reloaded once
 
 ## Features
 
@@ -61,7 +57,7 @@ SHA-256: `754d3c50b5f9c6e0a84dbc55d96ae5930c378a4ff01d95836d7baaa5a87e7deb`
 
 ## Quick start
 
-1. Download AppMenu-5.0.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
+1. Download AppMenu-5.1.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
 2. Open it: apps are launched with OK or a tap, a long press (or holding OK, or the Menu key) opens the action card. To use it instead of the stock menu turn on “Launcher mode” in Settings.
 3. To act on other apps connect ADB: Settings → “Connect ADB”. Android 9 and older TV boxes with network ADB connect by themselves. Android 11+: turn on the “App Menu” service in Accessibility once, press “Connect automatically”. Android 10 and older: run adb tcpip 5555 once from a computer (repeat after a reboot). With root (Magisk) none of this is needed: allow root for the app once and it connects by itself.
 
