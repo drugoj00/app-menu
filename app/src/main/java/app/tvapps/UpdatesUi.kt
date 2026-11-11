@@ -50,7 +50,7 @@ internal fun updResultText(ctx: android.content.Context, r: String): String = wh
     r == "hash" -> ctx.getString(R.string.upd_hash_bad)
     r == "uptodate" -> ctx.getString(R.string.upd_uptodate)
     r == "manual" -> ctx.getString(R.string.upd_manual)
-    r == "net" -> ctx.getString(R.string.net_failed)
+    r == "net" -> ctx.getString(R.string.net_failed) + NetErr.reason(ctx).let { if (it.isBlank()) "" else ": " + it }
     else -> ctx.getString(R.string.ver_failed) + r.removePrefix("fail").let { if (it.length > 1) ": " + it.removePrefix(":") else "" }
 }
 

@@ -152,17 +152,24 @@ private fun WeatherBody(w: HWidget, tick: Int, refreshTick: Int) {
     val ctx = LocalContext.current
     val lang = AppLoc.code()
     val seen = remember { intArrayOf(0) }
+    // после первой попытки без результата вместо вечной «Загрузка…» показывается причина (сертификаты, нет сети, город не найден)
+    var failed by remember(w.city, lang) { androidx.compose.runtime.mutableStateOf(false) }
     val weather by produceState<Weather?>(WeatherData.cached(ctx, w.city), tick, refreshTick, w.city, lang) {
         val old = value
         val force = refreshTick != seen[0]
         seen[0] = refreshTick
         value = withContext(Dispatchers.IO) { WeatherData.load(ctx, w.city, lang, force) ?: old }
+        failed = value == null
     }
     val wd = weather
     if (wd == null) {
         Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.Center) {
             Text(stringResource(R.string.wg_weather), color = t.sub, fontSize = 13.sp)
-            Text(stringResource(R.string.wg_loading), color = t.hint, fontSize = 14.sp)
+            if (failed) {
+                Text(stringResource(R.string.wg_weather_err), color = t.hint, fontSize = 13.sp, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                val why = WeatherData.lastError
+                if (!why.isNullOrBlank()) Text(why, color = t.hint, fontSize = 11.sp, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            } else Text(stringResource(R.string.wg_loading), color = t.hint, fontSize = 14.sp)
         }
         return
     }

@@ -156,11 +156,36 @@ data class WDay(val label: String, val code: Int, val max: Int, val min: Int)
 data class Weather(val city: String, val temp: Int, val code: Int, val wind: Int, val days: List<WDay>, val at: Long)
 
 object WeatherData {
+    /** Причина последней неудачи (для виджета: вместо вечной «Загрузка…»). */
+    @Volatile var lastError: String? = null
+
     private fun get(url: String): String {
-        val c = URL(url).openConnection() as HttpURLConnection
-        c.connectTimeout = 8000; c.readTimeout = 12000; c.setRequestProperty("User-Agent", "AppMenu")
-        return c.inputStream.bufferedReader().use { it.readText() }
+        var err: Exception? = null
+        for (attempt in 0..1) {
+            try {
+                val c = URL(url).openConnection() as HttpURLConnection
+                c.connectTimeout = 8000; c.readTimeout = 12000; c.setRequestProperty("User-Agent", "AppMenu")
+                try {
+                    if (c.responseCode !in 200..299) error("HTTP ${c.responseCode}")
+                    return c.inputStream.bufferedReader().use { it.readText() }
+                } finally { c.disconnect() }
+            } catch (e: Exception) {
+                err = e
+                NetErr.set(e)
+                // ошибка сертификата или имени сайта от повтора не пройдёт; сетевой сбой повторяем через паузу
+                if (e is javax.net.ssl.SSLException || e is java.net.UnknownHostException) break
+                try { Thread.sleep(700) } catch (_: InterruptedException) { }
+            }
+        }
+        throw err ?: IllegalStateException("нет ответа")
     }
+
+    /** Запасной поиск города (OpenStreetMap Nominatim), если геокодер погоды не ответил или не знает название. */
+    private fun nominatim(city: String, lang: String): Triple<Double, Double, String>? = runCatching {
+        val a = org.json.JSONArray(get("https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=" + lang + "&q=" + java.net.URLEncoder.encode(city, "UTF-8")))
+        val o = a.optJSONObject(0) ?: return@runCatching null
+        Triple(o.getString("lat").toDouble(), o.getString("lon").toDouble(), o.optString("name").ifBlank { o.optString("display_name", city).substringBefore(",") })
+    }.getOrNull()
 
     private fun key(city: String, lang: String) = "w_" + city.trim().lowercase().ifBlank { "auto" } + "_" + lang
 
@@ -209,15 +234,25 @@ object WeatherData {
                 val p = locateByIp(sp)!!
                 lat = p.first; lon = p.second; name = p.third
             } else {
-                // геокодер ищет название на выбранном языке: пробуем язык интерфейса, потом украинский, русский и английский
-                var r: JSONObject? = null
-                for (l in listOf(lang, "uk", "ru", "en").distinct()) {
-                    val g = JSONObject(get("https://geocoding-api.open-meteo.com/v1/search?name=" + java.net.URLEncoder.encode(city, "UTF-8") + "&count=1&language=" + l))
-                    r = g.optJSONArray("results")?.optJSONObject(0)
-                    if (r != null) break
+                val xy = Regex("^\\s*(-?\\d{1,3}(?:\\.\\d+)?)\\s*[,;\\s]\\s*(-?\\d{1,3}(?:\\.\\d+)?)\\s*$").matchEntire(city)
+                if (xy != null) {
+                    // место задано координатами: «широта, долгота»
+                    lat = xy.groupValues[1].toDouble(); lon = xy.groupValues[2].toDouble()
+                    name = java.lang.String.format(java.util.Locale.US, "%.2f, %.2f", lat, lon)
+                } else {
+                    // геокодер ищет название на выбранном языке: пробуем язык интерфейса, потом украинский, русский и английский
+                    var found: Triple<Double, Double, String>? = null
+                    try {
+                        for (l in listOf(lang, "uk", "ru", "en").distinct()) {
+                            val g = JSONObject(get("https://geocoding-api.open-meteo.com/v1/search?name=" + java.net.URLEncoder.encode(city, "UTF-8") + "&count=1&language=" + l))
+                            val r = g.optJSONArray("results")?.optJSONObject(0)
+                            if (r != null) { found = Triple(r.getDouble("latitude"), r.getDouble("longitude"), r.optString("name", city)); break }
+                        }
+                    } catch (e: Exception) { Log.w("TVApps", "геокодер погоды: ${e.message}") }
+                    if (found == null) found = nominatim(city, lang)
+                    val p = found ?: throw IllegalStateException("город не найден: " + city)
+                    lat = p.first; lon = p.second; name = p.third
                 }
-                r!!
-                lat = r.getDouble("latitude"); lon = r.getDouble("longitude"); name = r.optString("name", city)
             }
             val f = JSONObject(get("https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,weather_code,wind_speed_10m" +
                 "&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=5&wind_speed_unit=ms"))
@@ -233,8 +268,9 @@ object WeatherData {
             val j = JSONObject().put("shown", name).put("t", Math.round(cur.getDouble("temperature_2m")).toInt())
                 .put("c", cur.getInt("weather_code")).put("w", Math.round(cur.getDouble("wind_speed_10m")).toInt()).put("days", arr).put("at", System.currentTimeMillis())
             sp.edit().putString(key(city, lang), j.toString()).apply()
+            lastError = null
             parse(j, lang)
-        }.onFailure { Log.w("TVApps", "погода: ${it.message}") }.getOrNull()
+        }.onFailure { lastError = it.javaClass.simpleName + (it.message?.let { m -> ": " + m } ?: ""); Log.w("TVApps", "погода: ${it.message}") }.getOrNull()
     }
 
     /** Слово о погоде по коду Open-Meteo (WMO). */

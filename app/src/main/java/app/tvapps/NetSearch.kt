@@ -119,6 +119,6 @@ object NetSearch {
             } }
             c.disconnect()
             ApkFile(name, Uri.fromFile(out), out.length(), out)
-        }.getOrNull()
+        }.onFailure { NetErr.set(it) }.getOrNull()
     }
 }

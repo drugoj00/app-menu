@@ -13,6 +13,8 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        // корни Let's Encrypt для Android 7.1.0 и старше (погода, обновления, F-Droid)
+        TlsFix.install(this)
         // расписание фоновой проверки обновлений (если включено)
         Cfg.init(this)
         Lite.init(this)
