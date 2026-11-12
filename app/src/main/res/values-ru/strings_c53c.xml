@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="bkp_pick_title">Восстановить из копии</string>
+    <string name="bkp_pick_hint">Выберите копию: настройки заменятся данными из неё. Текущие настройки перед этим сохраняются в AppMenu_before_restore.zip в папке программы, так что восстановление можно отменить.</string>
+    <string name="bkp_pick_none">Копий не найдено. Положите файл копии (например tvapps-backup.zip) в память устройства или откройте системный выбор.</string>
+    <string name="bkp_pick_none_app">В папке программы копий пока нет</string>
+    <string name="backup_err_open">файл не открылся</string>
+    <string name="backup_err_notcopy">это не копия «Меню приложений»: настроек внутри нет</string>
+    <string name="backup_err_broken">файл повреждён или обрезан</string>
+    <string name="backup_err_other">настройки не удалось применить</string>
+    <string name="backup_restored_undo">Настройки восстановлены. Прежние сохранены в папке программы (AppMenu_before_restore.zip)</string>
+    <string name="bg_saving">Сохраняю фон…</string>
+    <string name="bg_err_decode">файл не открывается как картинка</string>
+    <string name="bg_err_mem">не хватило памяти, выберите картинку поменьше</string>
+    <string name="bg_err_read">файл не удалось прочитать</string>
+</resources>

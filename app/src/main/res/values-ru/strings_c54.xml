@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="bg_blur">Размытие</string>
+    <string name="wn_kind_image">Картинки</string>
+    <string name="wn_kind_video">Видео</string>
+    <string name="vid_link">Ссылка</string>
+    <string name="vid_link_label">Прямая ссылка на видеофайл (mp4, webm, mkv, 3gp)</string>
+    <string name="vid_link_bad">Введите ссылку, которая начинается с http</string>
+    <string name="vid_own">Свой файл из папки…</string>
+    <string name="vid_downloading">Скачиваю видео…</string>
+    <string name="vid_help">Видео-обои идут без звука, по кругу, с кадрированием по экрану. Без ключа: Wikimedia Commons (свободные лицензии) и NASA (общественное достояние). Pexels и Pixabay работают со своим ключом (хранится только на этом устройстве). Можно прямую ссылку или свой файл. Потолок 1080p (на слабых устройствах 720p), в кэше до 3 видео. Воспроизведение останавливается, когда экран выключен или сверху другое приложение. По умолчанию выключено.</string>
+    <string name="vid_warn_title">Включить видео-обои?</string>
+    <string name="vid_warn">Видео нагружает процессор и память, на слабых приставках лучше отключить.</string>
+    <string name="vid_warn_low">У этого устройства мало памяти (1 ГБ или меньше): видео может тормозить и закрывать другие приложения. Не рекомендуется.</string>
+    <string name="vid_enable">Включить</string>
+    <string name="vid_enable_anyway">Всё равно включить</string>
+    <string name="vid_err_decoder">Видео не удалось воспроизвести на этом устройстве: показан кадр</string>
+    <string name="wn_err_big">Файл слишком большой (больше 120 МБ)</string>
+    <string name="crop_btn">Сдвинуть / Масштаб…</string>
+    <string name="crop_title">Сдвинуть / Масштаб</string>
+    <string name="crop_none">Сначала поставьте картинку</string>
+    <string name="crop_mode_move">Сдвиг (ОК переключает на масштаб)</string>
+    <string name="crop_mode_zoom">Масштаб (ОК переключает на сдвиг)</string>
+    <string name="crop_reset">Сброс</string>
+    <string name="crop_done">Готово</string>
+    <string name="crop_saved">Кадр сохранён</string>
+</resources>
