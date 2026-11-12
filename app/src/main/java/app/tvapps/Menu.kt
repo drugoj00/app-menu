@@ -878,8 +878,8 @@ suspend fun autoConnect(ctx: android.content.Context) = autoConnectLock.withLock
     // вызывают и меню при запуске, и защита «Дома»: по одному, иначе два подключения мешают друг другу
     Adb.awaitReady()
     if (Adb.isConnected) { Conn.refresh(); return@withLock }
-    // root (Magisk) важнее ADB: компьютер и отладка по Wi-Fi не нужны (магнитолы, приставки)
-    if (Cfg.useRoot && Adb.tryRoot()) { Conn.refresh(); return@withLock }
+    // root важнее ADB: компьютер и отладка по Wi-Fi не нужны (магнитолы, приставки)
+    if (Cfg.useRoot && Adb.useCachedRoot()) { Conn.refresh(); return@withLock }
     val r = Adb.connectWireless(ctx, null)
     if (r.isFailure || !Adb.isConnected) Adb.connectLocal(5555)
     Conn.refresh()

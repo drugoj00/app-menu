@@ -23,6 +23,8 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -384,19 +386,20 @@ internal fun HomeTopBar(
                         onLong = { onStatusLong(s.id) },
                     ) {
                         val c = if (v.on) t.text else t.hint
-                        if (v.icon != null) Icon(v.icon, null, tint = c, modifier = Modifier.padding((if (big) 13f else 10f).times(sc).dp).size((if (big) 36f else 26f).times(sc).dp))
+                        if (v.icon != null) OutlinedIcon(v.icon, c, size = (if (big) 36f else 26f).times(sc).dp, pad = (if (big) 13f else 10f).times(sc).dp)
                         else if (v.l1 != null) Column(Modifier.padding(horizontal = (12f * sc).dp, vertical = (4f * sc).dp)) {
                             // на телефоне и планшете дата вдвое мельче, чем на ТВ
                             // на телефоне шрифт покрупнее, но строки плотно друг к другу
                             val lh = if (big || tv) androidx.compose.ui.unit.TextUnit.Unspecified else (10f * sc).sp
-                            Text(v.l1, color = c, fontSize = (if (big) 19f else if (tv) 14f else 9f).times(sc).sp, lineHeight = lh, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false)
-                            Text(v.l2.orEmpty(), color = c, fontSize = (if (big) 19f else if (tv) 14f else 9f).times(sc).sp, lineHeight = lh, maxLines = 1, softWrap = false)
+                            OutlinedText(androidx.compose.ui.text.AnnotatedString(v.l1), c, (if (big) 19f else if (tv) 14f else 9f).times(sc).sp, lineHeight = lh, fontWeight = FontWeight.Medium)
+                            OutlinedText(androidx.compose.ui.text.AnnotatedString(v.l2.orEmpty()), c, (if (big) 19f else if (tv) 14f else 9f).times(sc).sp, lineHeight = lh)
                         }
-                        else Text(
-                            if (s.id == "time") withSmallSeconds(v.text.orEmpty(), (s.opt and 2) != 0) else androidx.compose.ui.text.AnnotatedString(v.text.orEmpty()), color = c, fontSize = (if (s.id == "time") (if (big) 34f else 20f) else (if (big) 21f else 15f)).times(sc).sp,
+                        else OutlinedText(
+                            if (s.id == "time") withSmallSeconds(v.text.orEmpty(), (s.opt and 2) != 0) else androidx.compose.ui.text.AnnotatedString(v.text.orEmpty()), c,
+                            (if (s.id == "time") (if (big) 34f else 20f) else (if (big) 21f else 15f)).times(sc).sp,
                             fontWeight = if (s.id == "time") FontWeight.Bold else FontWeight.Normal,
                             style = androidx.compose.material3.LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
-                            modifier = Modifier.padding(horizontal = (if (big) 14f else 12f).times(sc).dp, vertical = (8f * sc).dp), maxLines = 1, softWrap = false,
+                            modifier = Modifier.padding(horizontal = (if (big) 14f else 12f).times(sc).dp, vertical = (8f * sc).dp),
                         )
                     }
                 }
@@ -405,5 +408,39 @@ internal fun HomeTopBar(
     }
     if (top.search && stack) Row(Modifier.fillMaxWidth().padding(top = 6.dp)) { SearchBar(big, onVoice, onSearch, onTopLong, Modifier.weight(1f)) }
     }
+    }
+}
+
+/** Контур значков и текста строки состояния: цвет противоположный цвету значка (светлому тёмный, тёмному светлый), чтобы их было видно на любом фоне без настроек. */
+private fun outlineOf(c: androidx.compose.ui.graphics.Color): androidx.compose.ui.graphics.Color =
+    if (c.luminance() > 0.5f) androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.85f) else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.85f)
+
+private val OUTLINE_DIRS = listOf(1f to 0f, -1f to 0f, 0f to 1f, 0f to -1f, 0.7f to 0.7f, -0.7f to 0.7f, 0.7f to -0.7f, -0.7f to -0.7f)
+
+/** Значок с контуром: под ним восемь смещённых копий цвета контура. */
+@Composable
+private fun OutlinedIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, tint: androidx.compose.ui.graphics.Color, size: androidx.compose.ui.unit.Dp, pad: androidx.compose.ui.unit.Dp) {
+    val o = outlineOf(tint)
+    Box(Modifier.padding(pad)) {
+        for ((dx, dy) in OUTLINE_DIRS) Icon(icon, null, tint = o, modifier = Modifier.size(size).offset((dx * 1.4f).dp, (dy * 1.4f).dp))
+        Icon(icon, null, tint = tint, modifier = Modifier.size(size))
+    }
+}
+
+/** Текст с контуром: сначала обводка цветом контура (штрих), поверх обычный текст. */
+@Composable
+private fun OutlinedText(
+    text: androidx.compose.ui.text.AnnotatedString, color: androidx.compose.ui.graphics.Color, fontSize: androidx.compose.ui.unit.TextUnit,
+    modifier: Modifier = Modifier, fontWeight: FontWeight? = null, lineHeight: androidx.compose.ui.unit.TextUnit = androidx.compose.ui.unit.TextUnit.Unspecified,
+    style: androidx.compose.ui.text.TextStyle = androidx.compose.material3.LocalTextStyle.current,
+) {
+    val o = outlineOf(color)
+    val strokePx = with(androidx.compose.ui.platform.LocalDensity.current) { fontSize.toPx() * 0.2f }
+    Box(modifier) {
+        Text(
+            text, color = o, fontSize = fontSize, fontWeight = fontWeight, lineHeight = lineHeight, maxLines = 1, softWrap = false,
+            style = style.copy(drawStyle = androidx.compose.ui.graphics.drawscope.Stroke(width = strokePx, join = androidx.compose.ui.graphics.StrokeJoin.Round)),
+        )
+        Text(text, color = color, fontSize = fontSize, fontWeight = fontWeight, lineHeight = lineHeight, maxLines = 1, softWrap = false, style = style)
     }
 }

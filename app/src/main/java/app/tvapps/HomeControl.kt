@@ -53,9 +53,52 @@ object HomeControl {
         )
     }
 
-    private suspend fun setDefault(ctx: Context): Boolean {
-        val out = runCatching { Adb.shell("cmd package set-home-activity ${ctx.packageName}/$ALIAS") }.getOrDefault("")
-        return out.contains("Success", true)
+    private suspend fun setDefault(ctx: Context): Boolean = setHomeCmd("${ctx.packageName}/$ALIAS")
+
+    /** Назначает главный экран: сначала «cmd package», а если не вышло (Android 7 и некоторые прошивки), запасной «pm set-home-activity». Результат пишется в журнал. */
+    suspend fun setHomeCmd(component: String): Boolean {
+        val out1 = runCatching { Adb.shell("cmd package set-home-activity $component") }.getOrDefault("")
+        if (out1.contains("Success", true)) return true
+        Log.w("TVApps", "cmd package set-home-activity: ${out1.take(160).replace('\n', ' ')}; пробую pm")
+        val out2 = runCatching { Adb.shell("pm set-home-activity $component") }.getOrDefault("")
+        val ok = out2.contains("Success", true)
+        Log.i("TVApps", "pm set-home-activity: ${out2.take(160).replace('\n', ' ')} -> ${if (ok) "готово" else "не вышло"}")
+        return ok
+    }
+
+    private fun fgPrefs(ctx: Context) = ctx.getSharedPreferences("tvapps_fg", Context.MODE_PRIVATE)
+
+    /** «Дом» на экране (true) или ушёл с экрана (false, со временем): нужно, чтобы после обновления вернуть человека на «Дом», а не оставить в предыдущей задаче. */
+    fun noteVisible(ctx: Context, on: Boolean) {
+        runCatching { fgPrefs(ctx).edit().putBoolean("home_vis", on).also { if (!on) it.putLong("home_pause_at", System.currentTimeMillis()) }.commit() }
+    }
+
+    /**
+     * После обновления Android убивает программу и откатывается к предыдущей задаче (часто это настройки, открытые с «Дома»).
+     * Открываем «Дом» снова, только если он был на экране (процесс убит на экране) или человек недавно ушёл с него в системные настройки или установщик.
+     * Если человек был в другом приложении, экран не перехватываем.
+     */
+    suspend fun reopenAfterUpdate(ctx: Context) {
+        val fg = fgPrefs(ctx)
+        val vis = fg.getBoolean("home_vis", false)
+        val recent = System.currentTimeMillis() - fg.getLong("home_pause_at", 0L) < 10 * 60_000L
+        if (currentHome(ctx) != ctx.packageName) { Log.i("TVApps", "после обновления: главный экран не наш, «Дом» не открываю"); return }
+        var focus = ""; var top = ""
+        if (Adb.isConnected) {
+            focus = runCatching { Adb.shell("dumpsys window | grep mCurrentFocus", 8_000) }.getOrDefault("")
+            // верхняя задача после обновления: туда Android откатился (пустой фокус в первые секунды ненадёжен)
+            top = Regex("""Recent #0: \S+ #\d+ A=([^ ]+)""").find(runCatching { Adb.shell("dumpsys activity recents | grep -m1 'Recent #0'", 8_000) }.getOrDefault(""))?.groupValues?.get(1).orEmpty()
+        }
+        if (focus.contains(ctx.packageName)) { Log.i("TVApps", "после обновления: программа уже на экране, ничего не запускаю"); return }
+        val sysTop = Regex("settings|packageinstaller|permissioncontroller", RegexOption.IGNORE_CASE).containsMatchIn(top)
+        // другое приложение сверху: человек там, экран не перехватываем; «Дом» был на экране при убийстве: открываем, если ADB/root нет и проверить нечем
+        val go = if (top.isNotEmpty()) (top == ctx.packageName || sysTop) && (vis || recent) else vis
+        Log.i("TVApps", "после обновления: «Дом» был на экране=$vis, недавно=$recent, верхняя задача=$top, фокус=${focus.trim().take(100)} -> ${if (go) "открываю" else "не трогаю"}")
+        if (!go) return
+        val started = if (Adb.isConnected) runCatching { Adb.shell("am start -a android.intent.action.MAIN -c android.intent.category.HOME -n ${ctx.packageName}/$ALIAS") }.map { !it.contains("Error", true) }.getOrDefault(false) else false
+        if (!started) runCatching {
+            ctx.startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).setClassName(ctx.packageName, ALIAS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }.onFailure { Log.w("TVApps", "после обновления: запуск «Дома» не вышел: ${it.message}") }
     }
 
     /**
@@ -138,7 +181,7 @@ object HomeControl {
         // назначаем прежний родной экран главным
         val native = Cfg.nativeHome.ifEmpty { list.first() }
         val ri = nativeHomes(ctx).firstOrNull { it.activityInfo.packageName == native } ?: nativeHomes(ctx).firstOrNull()
-        if (ri != null) runCatching { Adb.shell("cmd package set-home-activity ${ri.activityInfo.packageName}/${ri.activityInfo.name}") }
+        if (ri != null) runCatching { setHomeCmd("${ri.activityInfo.packageName}/${ri.activityInfo.name}") }
         runCatching { Adb.shell("rm -f $RESTORE_FILE") }
         return if (left.isEmpty()) "" else "partial"
     }

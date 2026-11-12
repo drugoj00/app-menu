@@ -27,6 +27,15 @@ object Lan {
         return null
     }
 
+    /** Адрес этого устройства в группе Wi‑Fi Direct (интерфейс p2p-…), если группа создана. */
+    fun p2pAddress(): String? {
+        val list = runCatching { NetworkInterface.getNetworkInterfaces()?.toList().orEmpty() }.getOrDefault(emptyList())
+        for (ni in list.filter { it.isUp && it.name.startsWith("p2p") }) {
+            for (a in ni.interfaceAddresses) { val ip = a.address; if (ip is Inet4Address) return ip.hostAddress }
+        }
+        return null
+    }
+
     /** Ищет в сети устройства с открытым портом общих папок SMB (445). Возвращает их адреса. */
     suspend fun scanSmb(): List<String> = withContext(Dispatchers.IO) {
         val me = myAddress() ?: return@withContext emptyList()
@@ -80,6 +89,7 @@ async function go(){
         dir = File(ctx.cacheDir, "received").apply { mkdirs() }
         val ss = ServerSocket(PORT)
         server = ss
+        Announcer.start(ctx)
         Thread {
             while (!ss.isClosed) {
                 val c = runCatching { ss.accept() }.getOrNull() ?: break
@@ -91,6 +101,7 @@ async function go(){
     fun stop() {
         runCatching { server?.close() }
         server = null
+        Announcer.stop()
     }
 
     fun received(): List<File> = dir?.listFiles()?.filter { it.isFile }?.sortedBy { it.name.lowercase() }.orEmpty()
@@ -136,8 +147,83 @@ async function go(){
                 }
             }
             reply("200 OK", "text/plain; charset=utf-8", "ok".toByteArray())
+        } else if (path.startsWith("/whoami")) {
+            reply("200 OK", "application/json; charset=utf-8", Announcer.json().toByteArray())
         } else {
             reply("200 OK", "text/html; charset=utf-8", page.toByteArray())
         }
+    }
+}
+
+
+/**
+ * Автообнаружение приёмника в локальной сети, без ручного ввода адреса. Пока открыто окно приёма, устройство:
+ *  1) объявляет себя по mDNS/DNS-SD: тип «_tvapps-recv._tcp», имя = имя устройства, порт 8765 (NsdManager);
+ *  2) отвечает на UDP-запрос «TVAPPS-RECV?» (широковещательный, порт 47330) строкой JSON с именем и портом;
+ *  3) отдаёт тот же JSON по адресу /whoami на порту приёма (для поиска перебором подсети по открытому порту 8765).
+ * Ответ: {"app":"tvapps-recv","name":"...","port":8765,"v":1}
+ */
+object Announcer {
+    const val TYPE = "_tvapps-recv._tcp"
+    const val UDP_PORT = 47330
+    @Volatile private var nsd: android.net.nsd.NsdManager? = null
+    @Volatile private var reg: android.net.nsd.NsdManager.RegistrationListener? = null
+    @Volatile private var lock: android.net.wifi.WifiManager.MulticastLock? = null
+    @Volatile private var udp: java.net.DatagramSocket? = null
+    @Volatile private var name: String = ""
+
+    fun deviceName(ctx: Context): String {
+        val n = runCatching { android.provider.Settings.Global.getString(ctx.contentResolver, "device_name") }.getOrNull()
+        return (n ?: android.os.Build.MODEL ?: "TV").trim().ifBlank { "TV" }.take(40)
+    }
+
+    fun displayName(): String = name
+
+    fun json(): String = "{\"app\":\"tvapps-recv\",\"name\":\"" + name.replace("\\", "\\\\").replace("\"", "\\\"") + "\",\"port\":" + UploadServer.PORT + ",\"v\":1}"
+
+    @Synchronized fun start(ctx0: Context) {
+        if (udp != null) return
+        val ctx = ctx0.applicationContext
+        name = deviceName(ctx)
+        runCatching {
+            val wm = ctx.getSystemService(Context.WIFI_SERVICE) as android.net.wifi.WifiManager
+            lock = wm.createMulticastLock("tvapps-recv").also { it.setReferenceCounted(false); it.acquire() }
+        }
+        runCatching {
+            val m = ctx.getSystemService(Context.NSD_SERVICE) as android.net.nsd.NsdManager
+            val info = android.net.nsd.NsdServiceInfo().apply { serviceName = name; serviceType = TYPE; port = UploadServer.PORT }
+            val l = object : android.net.nsd.NsdManager.RegistrationListener {
+                override fun onServiceRegistered(i: android.net.nsd.NsdServiceInfo) { name = i.serviceName }
+                override fun onRegistrationFailed(i: android.net.nsd.NsdServiceInfo, code: Int) {}
+                override fun onServiceUnregistered(i: android.net.nsd.NsdServiceInfo) {}
+                override fun onUnregistrationFailed(i: android.net.nsd.NsdServiceInfo, code: Int) {}
+            }
+            m.registerService(info, android.net.nsd.NsdManager.PROTOCOL_DNS_SD, l)
+            nsd = m; reg = l
+        }
+        runCatching {
+            val s = java.net.DatagramSocket(null).apply { reuseAddress = true; bind(java.net.InetSocketAddress(UDP_PORT)); broadcast = true }
+            udp = s
+            Thread {
+                val buf = ByteArray(256)
+                while (!s.isClosed) {
+                    val p = java.net.DatagramPacket(buf, buf.size)
+                    if (runCatching { s.receive(p) }.isFailure) break
+                    if (String(p.data, 0, p.length).trim().startsWith("TVAPPS-RECV?")) {
+                        val out = json().toByteArray()
+                        runCatching { s.send(java.net.DatagramPacket(out, out.size, p.address, p.port)) }
+                    }
+                }
+            }.also { it.isDaemon = true }.start()
+        }
+    }
+
+    @Synchronized fun stop() {
+        runCatching { reg?.let { nsd?.unregisterService(it) } }
+        reg = null; nsd = null
+        runCatching { udp?.close() }
+        udp = null
+        runCatching { lock?.release() }
+        lock = null
     }
 }

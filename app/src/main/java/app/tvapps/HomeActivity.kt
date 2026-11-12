@@ -153,8 +153,14 @@ class HomeActivity : ComponentActivity() {
         // язык сменили в настройках, пока «Дом» стоял позади: пересоздаём, чтобы все подписи, даты и погода стали на новом языке
         if (AppLoc.changedSince(langAtStart, sysAtStart)) { recreate(); return }
         homeShown = true
+        HomeControl.noteVisible(this, true)
         SysBars.apply(this)
         resumeTick.intValue++
+    }
+
+    override fun onPause() {
+        super.onPause()
+        HomeControl.noteVisible(this, false)
     }
 
     override fun onNewIntent(intent: Intent) {

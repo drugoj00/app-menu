@@ -1752,13 +1752,26 @@ internal fun goHome(ctx: android.content.Context) {
     (ctx as? android.app.Activity)?.overridePendingTransition(0, 0)
 }
 
-/** Перезапуск программы: новый запуск назначается через будильник, затем текущий процесс завершается. */
+/** Перезапуск программы: новый запуск назначается через будильник, затем текущий процесс завершается. Любой сбой системных вызовов пишется в журнал TVApps. */
 private fun restartApp(ctx: android.content.Context) {
-    val intent = Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-    val pi = android.app.PendingIntent.getActivity(ctx, 77, intent, android.app.PendingIntent.FLAG_CANCEL_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE)
-    (ctx.getSystemService(android.content.Context.ALARM_SERVICE) as android.app.AlarmManager)
-        .set(android.app.AlarmManager.RTC, System.currentTimeMillis() + 400, pi)
-    Toast.makeText(ctx, ctx.getString(R.string.restarting), Toast.LENGTH_SHORT).show()
+    val pm = ctx.packageManager
+    // запускаем обычную точку входа программы (лаунчерный intent); при её отсутствии — меню напрямую
+    val intent = (runCatching { pm.getLaunchIntentForPackage(ctx.packageName) }.getOrNull() ?: Intent(ctx, MainActivity::class.java))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+    var scheduled = false
+    runCatching {
+        val flags = android.app.PendingIntent.FLAG_CANCEL_CURRENT or (if (android.os.Build.VERSION.SDK_INT >= 23) android.app.PendingIntent.FLAG_IMMUTABLE else 0)
+        val pi = android.app.PendingIntent.getActivity(ctx, 77, intent, flags)
+        (ctx.getSystemService(android.content.Context.ALARM_SERVICE) as android.app.AlarmManager).set(android.app.AlarmManager.RTC, System.currentTimeMillis() + 400, pi)
+        scheduled = true
+    }.onFailure { android.util.Log.w("TVApps", "перезапуск: будильник не поставлен: ${it.javaClass.simpleName}: ${it.message}") }
+    runCatching { Toast.makeText(ctx, ctx.getString(R.string.restarting), Toast.LENGTH_SHORT).show() }
+    if (!scheduled) {
+        // запасной вариант без убийства процесса: просто открыть программу заново
+        runCatching { ctx.startActivity(intent) }.onFailure { android.util.Log.w("TVApps", "перезапуск: запуск не вышел: ${it.message}") }
+        return
+    }
+    android.util.Log.i("TVApps", "перезапуск: будильник через 400 мс, процесс завершается")
     android.os.Process.killProcess(android.os.Process.myPid())
 }
 

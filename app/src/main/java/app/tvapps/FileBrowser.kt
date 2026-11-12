@@ -4,6 +4,13 @@ package app.tvapps
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Environment
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -225,7 +232,21 @@ private fun FileRow(name: String, info: String, folder: Boolean, onClick: () -> 
     }
 }
 
-/** Приём файлов по Wi‑Fi: страница для загрузки открывается в браузере телефона или компьютера. */
+/** QR-код (тёмные модули на белом поле с рамкой, чтобы читался и в тёмной теме). */
+@Composable
+fun QrView(text: String, size: androidx.compose.ui.unit.Dp) {
+    val m = remember(text) { Qr.encode(text) }
+    if (m == null) return
+    Canvas(Modifier.size(size)) {
+        drawRect(Color.White)
+        val n = m.size
+        val quiet = 2
+        val cell = this.size.minDimension / (n + quiet * 2)
+        for (y in 0 until n) for (x in 0 until n) if (m[y][x]) drawRect(Color.Black, Offset((x + quiet) * cell, (y + quiet) * cell), Size(cell + 0.6f, cell + 0.6f))
+    }
+}
+
+/** Приём файлов: через общую сеть (страница в браузере) или напрямую по Wi‑Fi Direct без роутера. */
 @Composable
 fun UploadDialog(onApks: (List<ApkFile>) -> Unit, onClose: () -> Unit) {
     val ctx = LocalContext.current
@@ -236,9 +257,28 @@ fun UploadDialog(onApks: (List<ApkFile>) -> Unit, onClose: () -> Unit) {
     var busy by remember { mutableStateOf(false) }
     val addr = remember { Lan.myAddress()?.first }
     val fr = remember { FocusRequester() }
+    val canDirect = remember { DirectGroup.supported(ctx) }
+    val modePrefs = remember { ctx.getSharedPreferences("tvapps_recv", Context.MODE_PRIVATE) }
+    var direct by remember { mutableStateOf(canDirect && modePrefs.getString("mode", "net") == "direct") }
+    var dInfo by remember { mutableStateOf<DirectGroup.Info?>(null) }
+    var dErr by remember { mutableStateOf("") }
+    var dBusy by remember { mutableStateOf(false) }
+    var permTick by remember { mutableStateOf(0) }
+    val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permTick++ }
     androidx.compose.runtime.DisposableEffect(Unit) {
         runCatching { UploadServer.start(ctx) }.onFailure { error = it.message.orEmpty() }
-        onDispose { UploadServer.stop() }
+        onDispose { UploadServer.stop(); DirectGroup.stop() }
+    }
+    androidx.compose.runtime.DisposableEffect(direct) { onDispose { DirectGroup.stop() } }
+    LaunchedEffect(direct, permTick) {
+        if (!direct) { dInfo = null; dErr = ""; dBusy = false; return@LaunchedEffect }
+        dInfo = null; dErr = ""
+        if (!DirectGroup.hasPermissions(ctx)) {
+            if (permTick == 0) { dBusy = true; permLauncher.launch(DirectGroup.permissions()) } else { dBusy = false; dErr = "noperm" }
+            return@LaunchedEffect
+        }
+        dBusy = true
+        DirectGroup.start(ctx) { i, e -> dBusy = false; dInfo = i; dErr = e.orEmpty() }
     }
     LaunchedEffect(Unit) {
         runCatching { fr.requestFocus() }
@@ -250,9 +290,42 @@ fun UploadDialog(onApks: (List<ApkFile>) -> Unit, onClose: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(stringResource(R.string.wifi_title), color = t.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Text(stringResource(R.string.wifi_hint), color = t.sub, fontSize = 13.sp)
-            if (addr != null) Text("http://$addr:${UploadServer.PORT}", color = t.accent, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-            else Text(stringResource(R.string.wifi_no_net), color = Color(0xFFF59E0B), fontSize = 14.sp)
+            if (canDirect) FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Chip(stringResource(R.string.wifi_mode_net), !direct) { direct = false; modePrefs.edit().putString("mode", "net").apply() }
+                Chip(stringResource(R.string.wifi_mode_direct), direct) { direct = true; modePrefs.edit().putString("mode", "direct").apply() }
+            }
+            if (!direct) {
+                Text(stringResource(R.string.wifi_hint), color = t.sub, fontSize = 13.sp)
+                if (addr != null) Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    QrView("http://$addr:${UploadServer.PORT}", 130.dp)
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("http://$addr:${UploadServer.PORT}", color = t.accent, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.wifi_discover, Announcer.deviceName(ctx)), color = t.sub, fontSize = 12.sp)
+                    }
+                }
+                else Text(stringResource(R.string.wifi_no_net), color = Color(0xFFF59E0B), fontSize = 14.sp)
+            } else {
+                Text(stringResource(R.string.wifi_direct_hint), color = t.sub, fontSize = 13.sp)
+                val di = dInfo
+                if (di != null) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        QrView(DirectGroup.wifiQr(di), 150.dp)
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(stringResource(R.string.wifi_direct_ssid, di.ssid), color = t.text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.wifi_direct_pass, di.pass), color = t.text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            Text("http://${di.ip}:${UploadServer.PORT}", color = t.accent, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                } else if (dErr.isNotEmpty()) {
+                    val msg = when {
+                        dErr == "noperm" -> stringResource(R.string.wifi_direct_err_perm)
+                        dErr == "busy" || dErr == "p2p-unsupported" -> stringResource(R.string.wifi_direct_err_busy)
+                        dErr == "timeout" -> stringResource(R.string.wifi_direct_err_timeout)
+                        else -> stringResource(R.string.wifi_direct_err_other, dErr)
+                    }
+                    Text(msg, color = Color(0xFFF59E0B), fontSize = 14.sp)
+                } else if (dBusy) Text(stringResource(R.string.wifi_direct_starting), color = t.accent, fontSize = 14.sp)
+            }
             if (error.isNotEmpty()) Text(error, color = Color(0xFFF87171), fontSize = 12.sp)
             Text(stringResource(R.string.wifi_received, files.size) + if (files.isNotEmpty()) ": " + files.joinToString(", ") { it.name }.take(160) else "", color = t.text, fontSize = 14.sp)
             if (busy) Text(stringResource(R.string.working), color = t.accent, fontSize = 13.sp)
@@ -266,6 +339,7 @@ fun UploadDialog(onApks: (List<ApkFile>) -> Unit, onClose: () -> Unit) {
                         onApks(list)
                     }
                 }
+                if (direct && (dInfo != null || dErr.isNotEmpty())) Chip(stringResource(R.string.wifi_direct_stop), false) { direct = false; modePrefs.edit().putString("mode", "net").apply() }
                 Chip(stringResource(R.string.cancel), false) { onClose() }
                 Chip(stringResource(R.string.wifi_clear), false) { UploadServer.dir?.listFiles()?.forEach { it.delete() }; files = emptyList() }
             }
