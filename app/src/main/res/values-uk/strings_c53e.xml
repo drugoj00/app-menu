@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="wsrc_vc">Visual Crossing (свій ключ)</string>
+    <string name="wsrc_wb">Weatherbit (свій ключ)</string>
+    <string name="wsrc_mb">Meteoblue (свій ключ)</string>
+    <string name="wsrc_acc">AccuWeather (потрібен платний ключ)</string>
+</resources>

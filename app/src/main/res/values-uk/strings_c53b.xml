@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="net_hint_gh">GitHub: введіть імʼя власника (наприклад drugoj00), назву репозиторію, власник/репозиторій або імʼя пакета (app.tvapps)</string>
+    <string name="net_nothing_gh">Нічого не знайдено. Спробуйте імʼя власника, назву репозиторію або власник/репозиторій</string>
+    <string name="net_gh_rate">GitHub обмежує пошук (близько 10 запитів на хвилину без токена). Зачекайте хвилину або введіть токен нижче</string>
+    <string name="net_gh_token_bad">GitHub не прийняв токен. Перевірте його або очистіть поле</string>
+    <string name="net_err_code">Каталог відповів помилкою %1$d</string>
+    <string name="net_gh_token_show">Токен GitHub (необовʼязково)…</string>
+    <string name="net_gh_token_hide">Сховати токен</string>
+    <string name="net_gh_token_label">Токен GitHub (зберігається лише на цьому пристрої)</string>
+    <string name="adbn_btn">Увімкнути ADB по мережі…</string>
+    <string name="adbn_title">ADB по мережі</string>
+    <string name="adbn_usb">Налагодження по USB</string>
+    <string name="adbn_port">Порт мережевого ADB</string>
+    <string name="adbn_ip">IP-адреса цього пристрою</string>
+    <string name="adbn_reach">Порт 5555 відповідає</string>
+    <string name="adbn_root">Права root</string>
+    <string name="adbn_yes">так</string>
+    <string name="adbn_no">ні</string>
+    <string name="adbn_unknown">невідомо</string>
+    <string name="adbn_dev">Відкрити «Для розробників»</string>
+    <string name="adbn_dev_fail">Розділ «Для розробників» недоступний. Відкрийте Налаштування, «Про систему» і 7 разів натисніть «Номер збірки»</string>
+    <string name="adbn_root_btn">Підняти ADB на порту 5555 (root)</string>
+    <string name="adbn_check">Перевірити знову</string>
+    <string name="adbn_copy">Скопіювати команду</string>
+    <string name="adbn_cmd">На комп’ютері: adb connect %1$s:5555. Якщо порт закритий, один раз підключіть приставку по USB і виконайте: adb tcpip 5555</string>
+    <string name="adbn_noroot">Без root і без підключення до комп’ютера по USB програма сама мережевий ADB увімкнути не може</string>
+    <string name="adbn_ok">Мережевий ADB піднято: %1$s:5555</string>
+    <string name="adbn_fail">Порт 5555 поки закритий</string>
+    <string name="adbn_working">Виконую…</string>
+    <string name="adbn_close">Закрити</string>
+</resources>

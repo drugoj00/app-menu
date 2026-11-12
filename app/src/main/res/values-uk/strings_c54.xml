@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="bg_blur">Розмиття</string>
+    <string name="wn_kind_image">Зображення</string>
+    <string name="wn_kind_video">Відео</string>
+    <string name="vid_link">Посилання</string>
+    <string name="vid_link_label">Пряме посилання на відеофайл (mp4, webm, mkv, 3gp)</string>
+    <string name="vid_link_bad">Введіть посилання, що починається з http</string>
+    <string name="vid_own">Свій файл із теки…</string>
+    <string name="vid_downloading">Завантажую відео…</string>
+    <string name="vid_help">Відео-шпалери йдуть без звуку, по колу, з кадруванням за екраном. Без ключа: Wikimedia Commons (вільні ліцензії) і NASA (суспільне надбання). Pexels і Pixabay працюють зі своїм ключем (зберігається лише на цьому пристрої). Можна пряме посилання або свій файл. Стеля 1080p (на слабких пристроях 720p), у кеші до 3 відео. Відтворення зупиняється, коли екран вимкнено або зверху інший застосунок. Типово вимкнено.</string>
+    <string name="vid_warn_title">Увімкнути відео-шпалери?</string>
+    <string name="vid_warn">Відео навантажує процесор і памʼять, на слабких приставках краще вимкнути.</string>
+    <string name="vid_warn_low">У цього пристрою мало памʼяті (1 ГБ або менше): відео може гальмувати й закривати інші застосунки. Не рекомендується.</string>
+    <string name="vid_enable">Увімкнути</string>
+    <string name="vid_enable_anyway">Усе одно увімкнути</string>
+    <string name="vid_err_decoder">Відео не вдалося відтворити на цьому пристрої: показано кадр</string>
+    <string name="wn_err_big">Файл завеликий (понад 120 МБ)</string>
+    <string name="crop_btn">Зсунути / Масштаб…</string>
+    <string name="crop_title">Зсунути / Масштаб</string>
+    <string name="crop_none">Спершу поставте зображення</string>
+    <string name="crop_mode_move">Зсув (ОК перемикає на масштаб)</string>
+    <string name="crop_mode_zoom">Масштаб (ОК перемикає на зсув)</string>
+    <string name="crop_reset">Скинути</string>
+    <string name="crop_done">Готово</string>
+    <string name="crop_saved">Кадр збережено</string>
+</resources>
