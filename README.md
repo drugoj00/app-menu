@@ -14,32 +14,28 @@ App Menu replaces the stock app list with a big grid made for a remote and for t
 
 ## Download
 
-**Version 6.0.** [AppMenu-6.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
+**Version 6.2.** [AppMenu-6.2.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `17cd3af256e81ae81d33ceb31158f9822f0850f938883a834150625193653e71`
+SHA-256: `f34aa917162371aa90501b238831b2f12e713e20ec46b77cd0c183e8cae3175e`
 
-## What's new in 6.0
+## What's new in 6.2
 
-- The clock and weather widget is configurable: sizes, colors, time and date format, regular and seven-segment digits, custom fonts, one-tap style presets
-- Forecast block: hourly, 5 days, week; switches on press
-- Weather source of your choice: Open-Meteo, MET Norway, wttr.in or your own key (OpenWeatherMap, WeatherAPI.com, Tomorrow.io, Visual Crossing, Weatherbit, Meteoblue, AccuWeather); “Auto” falls back by itself
-- “Clock and weather” screensaver: system one and own idle one over any app, a setup wizard for car stereos, diagnostics; a picture or a video can be set on the screensaver
-- The clock keeps exact time: no second drift, survives sleep, time and time zone changes
-- Wallpapers from the internet for Home, the menu and the screensaver separately (Wikimedia Commons, NASA, Openverse; Pexels and Unsplash with your own key): topics, portrait and landscape, picture of the day, change once a day, author credit; nothing changes until you choose
-- Video wallpapers on Home, in the menu and on the screensaver (own file, link, Wikimedia Commons, NASA; Pexels and Pixabay with your own key): no sound, looped, paused when another app is on top or the screen is off, 1080p limit (720p on weak devices), a warning when turned on; off by default
-- Background blur for pictures and video; “Move / Zoom” for the picture frame
-- Wallpaper preview in a TV or phone frame with a clock and icons
-- The app remembers the Home screen choice after an update (needs ADB or root): a switch and a “Make this the Home screen now” button in the settings
-- GitHub search and the remote control in “Find and install from the internet”; a wizard for turning on ADB over network
-- Settings restore: own list of copies, daily automatic copies, undo of a restore
+- Two ways to receive files: “Over local network” (address and QR code in the window, as before) and “Direct (Wi-Fi Direct)”: no router needed, the device creates its own network and shows the network name, password, a QR code to connect and the page address
+- On the local network the device is visible by name (mDNS, type _tvapps-recv._tcp; fallbacks: a UDP request on port 47330 and the /whoami address), so programs can find it without typing the address
+- The chosen receiving mode is remembered
+- Icons, date and time in the Home top bar have an outline: visible on any background, no settings
+- “Wallpapers from the Internet” window: the status and the download error text are shown at the top of the window; the app log records the download, the “Apply” press, the result and the reason of a failure
+- The “Use root for the idle sensor” switch (off by default)
 
 **Fixed:**
 
-- After an update the app restores its role as the Home screen by itself and does not ask for a choice
-- GitHub search by name, owner and package finds repositories
-- Switching F-Droid and GitHub in “Find and install from the internet” works with the remote, focus no longer jumps
-- Clear error reasons instead of an endless “Loading…” (search, download, weather)
-- Settings restore and background saving report the reason of a failure; a copy is made before a restore
+- Crash at launch after choosing the “Picture of the day” or “Random” wallpaper mode (version 6.0 on GitHub was replaced with a file without this bug)
+- After the app is updated, Home opens again instead of the previous window (for example Settings)
+- Wallpapers from the Internet: after an image loads, “Apply” is first and focused with a hint at the top; closing without “Apply” asks; an unsuitable image is replaced by another up to 3 times
+- Root certificates for old Android (7.1 and older): wallpapers, weather and updates work with more sites
+- Restoring from a backup: the background and banners show on screen at once (before, only after a restart); Android widgets are bound again automatically
+- root is requested only for an action that needs it: no background launches (before, on some devices a root notification popped up every 30 seconds), one persistent process
+- More reliable “Restart” button
 
 ## Features
 
@@ -51,7 +47,7 @@ SHA-256: `17cd3af256e81ae81d33ceb31158f9822f0850f938883a834150625193653e71`
 - **Icon plates.** The plate under an icon can be turned on or off.
 - **App shortcuts.** In a separate panel next to the action card.
 - **Folders.** Drag one icon onto another to make a folder, drag icons into it or add them from inside; rename and delete. The folder window is a 5×5 grid.
-- **Install from anywhere.** APK, split packages (APKS, APKM, XAPK, ZIP with APK and OBB: the parts that fit the device are chosen automatically), from a folder or an archive (ZIP, 7z, RAR, TAR), from the built-in file manager, from USB drives (through ADB, when the system hides them), from network folders (SMB, with search in the local network), from a phone or a computer over Wi‑Fi (a page in the browser) and from the internet (F-Droid, GitHub, a direct link). Batch install and batch delete.
+- **Install from anywhere.** APK, split packages (APKS, APKM, XAPK, ZIP with APK and OBB: the parts that fit the device are chosen automatically), from a folder or an archive (ZIP, 7z, RAR, TAR), from the built-in file manager, from USB drives (through ADB, when the system hides them), from network folders (SMB, with search in the local network), from a phone or a computer over the local Wi‑Fi network (a page in the browser) or directly over Wi‑Fi Direct without a router (the device is visible on the network by name) and from the internet (F-Droid, GitHub, a direct link). Batch install and batch delete.
 - **Backups and any version.** Before an app is deleted its APK is saved. Install any saved version, a version from the F-Droid catalogue or your own file, an older one too (the current version is saved first).
 - **Launcher mode.** Home shows this menu, a second press of Home opens the native home screen, Back returns from an app to the menu. Turn it on and off in Settings.
 - **App updates.** An “Updates” button on an icon card and in the header: versions by source (F-Droid, IzzyOnDroid, Aptoide, GitHub, Codeberg; AppGallery and RuStore optional), “Update” and “Update all”. Before installing, the package, CPU, version and signature are checked, and the previous version is saved as a copy. The scheduled check is off until you turn it on.
@@ -71,19 +67,19 @@ SHA-256: `17cd3af256e81ae81d33ceb31158f9822f0850f938883a834150625193653e71`
 
 ## Quick start
 
-1. Download AppMenu-6.0.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
+1. Download AppMenu-6.2.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
 2. Open it: apps are launched with OK or a tap, a long press (or holding OK, or the Menu key) opens the action card. To use it instead of the stock menu turn on “Launcher mode” in Settings.
-3. To act on other apps connect ADB: Settings → “Connect ADB”. Android 9 and older TV boxes with network ADB connect by themselves. Android 11+: turn on the “App Menu” service in Accessibility once, press “Connect automatically”. Android 10 and older: run adb tcpip 5555 once from a computer (repeat after a reboot). With root (Magisk) none of this is needed: allow root for the app once and it connects by itself.
+3. To act on other apps connect ADB: Settings → “Connect ADB”. Android 9 and older TV boxes with network ADB connect by themselves. Android 11+: turn on the “App Menu” service in Accessibility once, press “Connect automatically”. Android 10 and older: run adb tcpip 5555 once from a computer (repeat after a reboot). With root none of this is needed: allow root for the app once and it connects by itself.
 
 ## Requirements
 
-Android 6.0 or newer (ARMv7, ARM64, x86). ADB (or root with Magisk) of the same device is needed only for actions on other apps (stop, cache, data, permissions, special access, silent install and uninstall, OBB on Android 11+, downgrade); the menu, folders, sorting and launching work without it. Tested on a TV box with Android 9, 11 and 12, Samsung S9 (Android 10) and A14 (Android 15).
+Android 6.0 or newer (ARMv7, ARM64, x86). ADB (or root) of the same device is needed only for actions on other apps (stop, cache, data, permissions, special access, silent install and uninstall, OBB on Android 11+, downgrade); the menu, folders, sorting and launching work without it. Tested on a TV box with Android 9, 11 and 12, Samsung S9 (Android 10) , A14 (Android 15) and an Android 7.1.1 emulator.
 
 ## Limitations and warnings
 
-- Actions on other apps need ADB debugging of the same device or root (Magisk). App Menu works locally and sends nothing anywhere; the only network requests are the ones you start yourself (F-Droid and GitHub search, a link you type, an update check); the scheduled check stays off until you turn it on.
+- Actions on other apps need ADB debugging of the same device or root. App Menu works locally and sends nothing anywhere; the only network requests are the ones you start yourself (F-Droid and GitHub search, a link you type, an update check); the scheduled check stays off until you turn it on.
 - The automatic ADB connection on Android 11+ uses an accessibility service. It reads only the system settings windows and acts only for three minutes after you press “Connect automatically”. It is tested on Samsung One UI; other firmwares may word the settings differently, then use the manual way.
-- Real Wi‑Fi Direct is not used: files are received over a page in a browser in the same network or through the hotspot of a phone. OBB files on Android 11 and newer can only be copied through ADB.
+- Receiving files: over a page in a browser in the same network or directly (Wi‑Fi Direct, no router; the device itself must support Wi‑Fi Direct, and on devices with a single Wi‑Fi radio the connection to the router may drop during the transfer). OBB files on Android 11 and newer can only be copied through ADB.
 - System apps cannot be uninstalled. Not on Google Play: download the APK here; Android may warn about an unknown source.
 - Tested on Android 9, 10, 11, 12 and 15. Android 13 and 14 and other makers’ firmwares are not tested yet; reports are welcome. Known: Samsung Dual Messenger copies show up as separate icons.
 
