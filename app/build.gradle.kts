@@ -14,8 +14,8 @@ android {
         applicationId = "app.tvapps"
         minSdk = 23
         targetSdk = 34
-        versionCode = 24
-        versionName = "5.3"
+        versionCode = 25
+        versionName = "5.4"
         // ABI НЕ ограничиваем (слово владелицы 06.11): программа должна ставиться на всё, куда ставилась раньше, в том числе на x86-приставки
         // системные строки библиотек (material/compose/activity) только на трёх языках программы
         resourceConfigurations += listOf("ru", "uk", "en")
