@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="home_keep_title">Помнить выбор домашнего экрана после обновления</string>
+    <string name="home_remember_hint">После обновления Android забывает, какое приложение главный экран, и спрашивает заново. Когда включено и программа была главным экраном, она сама возвращает себе эту роль (нужен ADB или root). Если выбран другой экран, ничего не меняется.</string>
+    <string name="home_now">Сделать домашним экраном сейчас</string>
+    <string name="home_now_ok">Готово: программа главный экран</string>
+    <string name="home_now_fail">Не получилось: подключите ADB или включите root в настройках</string>
+    <string name="home_keep_pick">В окне выбора главного экрана выберите «Всегда»</string>
+</resources>
