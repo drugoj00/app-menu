@@ -31,7 +31,7 @@ object Adb {
         appCtx = context.applicationContext
     }
 
-    /** Команды идут через root (Magisk), а не через ADB: магнитолам и приставкам без компьютера ADB не нужен. */
+    /** Команды идут через root, а не через ADB: магнитолам и приставкам без компьютера ADB не нужен. */
     @Volatile private var rootOn = false
     val isRoot: Boolean get() = rootOn
 
@@ -39,18 +39,34 @@ object Adb {
     val isConnected: Boolean get() = Integrity.ok() && (rootOn || (mgrInst?.isConnected == true))
 
     /**
-     * Проверяет, дал ли Magisk (или другой su) права root этому приложению. При первом запуске на экране появится запрос Magisk:
+     * Проверяет, дал ли менеджер root (или другой su) права root этому приложению. При первом запуске на экране появится запрос менеджере root:
      * ждём ответа до 30 секунд. Успех включает режим root для всех команд ниже.
      */
     suspend fun tryRoot(): Boolean = withContext(Dispatchers.IO) {
         val ok = runCatching { rootRun("id", null, 30_000).contains("uid=0") }
             .onFailure { Log.i("TVApps", "root недоступен: ${it.message}") }.getOrDefault(false)
         rootOn = ok
+        saveRootCache(ok)
         Log.i("TVApps", "root=$ok")
         ok
     }
 
-    fun disableRoot() { rootOn = false }
+    /** Результат прошлой проверки root хранится, чтобы не запускать su при старте программы «на всякий случай». */
+    private fun rootPrefs() = appCtx?.getSharedPreferences("tvapps_root", android.content.Context.MODE_PRIVATE)
+    private fun saveRootCache(ok: Boolean) { runCatching { rootPrefs()?.edit()?.putBoolean("granted", ok)?.apply() } }
+
+    /**
+     * Без запуска su включает режим root, если раньше он уже был выдан и подтверждён. Сам su запустится позже, лениво, при первой команде,
+     * которая реально требует root. Возвращает true, если режим root включён по сохранённому признаку.
+     */
+    fun useCachedRoot(): Boolean {
+        if (rootOn) return true
+        val granted = runCatching { rootPrefs()?.getBoolean("granted", false) }.getOrNull() == true
+        if (granted) { rootOn = true; Log.i("TVApps", "root: по сохранённому признаку, su не запускается до первой команды") }
+        return granted
+    }
+
+    fun disableRoot() { rootOn = false; synchronized(rsLock) { rsStop() } }
 
     private fun q(p: String) = "'" + p.replace("'", "'\\''") + "'"
 
@@ -58,7 +74,57 @@ object Adb {
      * Выполняет команду от root: `su -c`. [input] (если есть) подаётся в стандартный ввод команды (для установки пакета и записи файла).
      * Возвращает объединённый вывод; по тайм-ауту процесс убивается.
      */
+    // Один постоянный root-процесс на все команды без ввода: su запускается один раз, а не на каждую команду
+    // (каждый запуск su показывал у части систем уведомление «права суперпользователя предоставлены»).
+    private val rsLock = Any()
+    private var rsProc: Process? = null
+    private var rsIn: java.io.OutputStream? = null
+    private var rsQueue: java.util.concurrent.LinkedBlockingQueue<String>? = null
+
+    private fun rsStop() {
+        runCatching { rsProc?.destroy() }
+        rsProc = null; rsIn = null; rsQueue = null
+    }
+
+    private fun rsEnsure(): Boolean {
+        if (rsProc != null && runCatching { rsProc!!.exitValue() }.isFailure) return true
+        rsStop()
+        return runCatching {
+            val p = ProcessBuilder("su").redirectErrorStream(true).start()
+            val q = java.util.concurrent.LinkedBlockingQueue<String>()
+            Thread {
+                runCatching { p.inputStream.bufferedReader().forEachLine { q.put(it) } }
+                q.put("\u0000EOF")
+            }.also { it.isDaemon = true; it.name = "root-shell-reader" }.start()
+            rsProc = p; rsIn = p.outputStream; rsQueue = q
+            true
+        }.getOrDefault(false)
+    }
+
+    /** Команда в постоянной root-оболочке. null: оболочка недоступна (запасной путь — отдельный su). */
+    private fun rootShellRun(cmd: String, timeoutMs: Long): String? = synchronized(rsLock) {
+        if (!rsEnsure()) return null
+        val q = rsQueue!!
+        q.clear()
+        val mark = "__TVA_" + System.nanoTime() + "__"
+        val sb = StringBuilder()
+        try {
+            rsIn!!.write("(\n$cmd\n) </dev/null 2>&1\necho\necho $mark\n".toByteArray(Charsets.UTF_8)); rsIn!!.flush()
+        } catch (_: Throwable) { rsStop(); return null }
+        val t0 = System.currentTimeMillis()
+        while (true) {
+            val left = timeoutMs - (System.currentTimeMillis() - t0)
+            if (left <= 0) { Log.w("TVApps", "timeout root: ${cmd.take(100)}"); rsStop(); break }
+            val line = q.poll(left, java.util.concurrent.TimeUnit.MILLISECONDS) ?: continue
+            if (line == "\u0000EOF") { rsStop(); if (sb.isEmpty() && rootOn) { Log.w("TVApps", "root: su закрылся без ответа, признак сброшен"); rootOn = false; saveRootCache(false) }; break }
+            if (line.contains(mark)) break
+            sb.append(line).append('\n')
+        }
+        sb.toString().trim()
+    }
+
     private fun rootRun(cmd: String, input: InputStream?, timeoutMs: Long): String {
+        if (input == null) rootShellRun(cmd, timeoutMs)?.let { return it }
         val p = ProcessBuilder("su", "-c", cmd).redirectErrorStream(true).start()
         val out = java.io.ByteArrayOutputStream()
         val reader = Thread { runCatching { p.inputStream.copyTo(out) } }

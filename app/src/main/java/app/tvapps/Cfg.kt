@@ -61,7 +61,7 @@ object Cfg {
     var rememberHome by mutableStateOf(true); private set
     /** Необязательный токен GitHub для поиска (без токена GitHub пускает около 10 поисковых запросов в минуту); хранится только на устройстве. */
     var githubToken by mutableStateOf(""); private set
-    /** Пробовать права root (Magisk) вместо ADB, если они есть. */
+    /** Пробовать права root вместо ADB, если они есть. */
     var useRoot by mutableStateOf(true); private set
     /** Приложения, которые не нужно предлагать обновить. */
     var updSkip by mutableStateOf<Set<String>>(emptySet()); private set

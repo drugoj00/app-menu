@@ -22,6 +22,8 @@ class BootReceiver : BroadcastReceiver() {
                         HomeControl.restoreDefault(app, 3000)
                         // ещё раз позже: система в первые секунды после установки может быть занята
                         if (HomeControl.currentHome(app) != app.packageName) { delay(15_000); HomeControl.restoreDefault(app) }
+                        // после обновления вернуть человека на «Дом», если он был на экране (иначе Android оставит предыдущую задачу, например настройки)
+                        if (intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) HomeControl.reopenAfterUpdate(app)
                     }
                 }
             }.start()

@@ -158,11 +158,46 @@ object Backup {
         Cfg.reload()
         HomeStore.init(ctx)
         HomeStore.reload()
+        // фон и баннеры из копии сразу видны на экране (раньше картинка появлялась только после перезапуска программы)
+        HomeStore.bumpImg()
         Cfg.bumpIcons()
+        rebindWidgets(ctx)
         true
     }.getOrElse {
         lastFail = if (it is java.util.zip.ZipException || it is org.json.JSONException || it is java.io.EOFException) "broken" else "other"
         android.util.Log.w("TVApps", "восстановление: " + it.javaClass.simpleName + ": " + it.message)
         false
+    }
+
+    /**
+     * Номера Android-виджетов (ref) привязаны к устройству: на другой приставке их нет, и виджет показывал «Нажми, чтобы добавить снова».
+     * После восстановления привязываем каждый виджет заново по его поставщику (prov) и подставляем новый номер.
+     * Если системного разрешения на привязку нет, виджет остаётся прежним (его добавляют вручную, как раньше).
+     */
+    private fun rebindWidgets(ctx: Context) {
+        runCatching {
+            val mgr = android.appwidget.AppWidgetManager.getInstance(ctx)
+            val host = AppWidgets.host(ctx)
+            val layout = HomeStore.layout
+            var changed = false
+            // без системного разрешения привязку разрешает ADB или root: «appwidget grantbind» (Android 9 и старше) и appops BIND_APPWIDGET (новее)
+            if (layout.rows.any { r -> r.slots.any { it.type == "appwidget" && it.prov.isNotBlank() } } && Adb.isConnected) {
+                val pkg = ctx.packageName
+                runCatching { kotlinx.coroutines.runBlocking { kotlinx.coroutines.withTimeout(8_000) { Adb.shell("appwidget grantbind --package $pkg --user 0 >/dev/null 2>&1; appops set $pkg BIND_APPWIDGET allow >/dev/null 2>&1", 7_000) } } }
+            }
+            val rows = layout.rows.map { row ->
+                if (row.slots.none { it.type == "appwidget" && it.prov.isNotBlank() }) row
+                else row.copy(slots = row.slots.map { w ->
+                    val cn = if (w.type == "appwidget" && w.prov.isNotBlank()) android.content.ComponentName.unflattenFromString(w.prov) else null
+                    if (cn == null) w
+                    else {
+                        val id = host.allocateAppWidgetId()
+                        val ok = runCatching { mgr.bindAppWidgetIdIfAllowed(id, cn) }.getOrDefault(false)
+                        if (ok) { changed = true; w.copy(ref = id.toString()) } else { runCatching { host.deleteAppWidgetId(id) }; w }
+                    }
+                })
+            }
+            if (changed) HomeStore.set(layout.copy(rows = rows))
+        }
     }
 }

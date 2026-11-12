@@ -13,6 +13,9 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        // Состояние Compose (mutableStateOf) у объектов создаётся здесь, в главном потоке и вне рисования: если объект впервые создаётся
+        // во время рисования или в фоновом потоке, возможна ошибка «Reading a state that was created after the snapshot was taken»
+        warmComposeState()
         // корни Let's Encrypt для Android 7.1.0 и старше (погода, обновления, F-Droid)
         TlsFix.install(this)
         // расписание фоновой проверки обновлений (если включено)
@@ -26,5 +29,10 @@ class App : Application() {
         // заставка по бездействию: если включена, служба и сторож поднимаются вместе с процессом программы
         runCatching { SaverGuard.startIfEnabled(this, "процесс программы") }
         Integrity.warm(this)
+    }
+
+    private fun warmComposeState() {
+        val all = listOf<Any>(CardStore, Cfg, Desks, HomeNav, HomeStore, WifiReceive, LabelCache, NavReq, Conn, TopUi, Pairing, Lite, DenseGrid, SelfUpd, UpdOpen, Voice, WxSrc)
+        android.util.Log.i("TVApps", "состояние Compose подготовлено: " + all.size)
     }
 }

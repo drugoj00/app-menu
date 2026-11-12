@@ -77,14 +77,12 @@ object AppWidgets {
             view.postDelayed({ runCatching { view.updateAppWidgetSize(null, wDp, hDp, wDp, hDp) } }, 400)
         }
         val cn = info.provider ?: return
-        if (!Adb.isConnected) return
+        // при root сигнал не посылается: каждая такая команда запускала su (уведомление менеджера root); хватает смены размера выше
+        if (!Adb.isConnected || Adb.isRoot) return
         kickQueue.execute {
             try {
                 val cmd = "am broadcast -a android.appwidget.action.APPWIDGET_UPDATE -n " + cn.flattenToShortString() + " --eia appWidgetIds " + id
-                if (Adb.isRoot) {
-                    val p = ProcessBuilder("su", "-c", cmd).redirectErrorStream(true).start()
-                    p.inputStream.bufferedReader().readText(); p.waitFor()
-                } else kotlinx.coroutines.runBlocking { Adb.shell(cmd, 8_000) }
+                kotlinx.coroutines.runBlocking { Adb.shell(cmd, 8_000) }   // при root идёт в общий постоянный root-процесс
             } catch (_: Throwable) {
             }
         }
