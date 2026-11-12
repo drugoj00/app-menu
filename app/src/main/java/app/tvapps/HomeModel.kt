@@ -120,6 +120,8 @@ data class HBg(
     val fit: String = "crop",
     /** затемнение поверх фона, % */
     val dim: Int = 0,
+    /** размытие картинки и видео, % (0: нет) */
+    val blur: Int = 0,
 )
 
 /** rowGap: расстояние между строками «Дома», dp. */
@@ -155,7 +157,7 @@ private fun JSONObject.toRow(): HRow {
 private fun HLayout.toJson() = JSONObject()
     .put("v", 1).put("rg", rowGap)
     .put("voice", top.voice).put("big", top.big).put("search", top.search).put("menu", top.menu).put("recent", top.recent).put("hdmi", top.hdmi).put("clean", top.clean)
-    .put("bg", JSONObject().put("t", bg.type).put("c", bg.color).put("f", bg.fit).put("d", bg.dim))
+    .put("bg", JSONObject().put("t", bg.type).put("c", bg.color).put("f", bg.fit).put("d", bg.dim).put("b", bg.blur))
     .put("st", JSONArray(top.status.map { JSONObject().put("id", it.id).put("v", it.visible).put("o", it.opt) }))
     .put("rows", JSONArray(rows.map { it.toJson() }))
 
@@ -175,7 +177,7 @@ private fun parseLayout(s: String): HLayout? = runCatching {
     val st1 = if (others.isEmpty()) st else if (ti >= 0) st.take(ti) + others + st.drop(ti) else st + others
     val stFull = if (newNotif.isEmpty()) st1 else newNotif + st1
     val b = j.optJSONObject("bg")
-    val bg = if (b == null) HBg() else HBg(b.optString("t", "none"), b.optLong("c", 0xFF0B0B10), b.optString("f", "crop"), b.optInt("d"))
+    val bg = if (b == null) HBg() else HBg(b.optString("t", "none"), b.optLong("c", 0xFF0B0B10), b.optString("f", "crop"), b.optInt("d"), b.optInt("b"))
     HLayout(HTop(j.optBoolean("voice", true), stFull, j.optBoolean("big", true), j.optBoolean("search", true), true, j.optBoolean("recent", true), j.optBoolean("hdmi", true), j.optBoolean("clean", true)), rows, bg, j.optInt("rg", 8))
 }.getOrNull()
 
@@ -195,13 +197,13 @@ object HomeStore {
 
     fun changeMenuBg(b: HBg) {
         menuBg = b
-        sp.edit().putString("menu_bg", JSONObject().put("t", b.type).put("c", b.color).put("f", b.fit).put("d", b.dim).toString()).apply()
+        sp.edit().putString("menu_bg", JSONObject().put("t", b.type).put("c", b.color).put("f", b.fit).put("d", b.dim).put("b", b.blur).toString()).apply()
         dirty = true
     }
 
     private fun loadMenuBg() {
         val j = runCatching { JSONObject(sp.getString("menu_bg", "") ?: "") }.getOrNull()
-        menuBg = if (j == null) HBg() else HBg(j.optString("t", "none"), j.optLong("c", 0xFF0B0B10), j.optString("f", "crop"), j.optInt("d"))
+        menuBg = if (j == null) HBg() else HBg(j.optString("t", "none"), j.optLong("c", 0xFF0B0B10), j.optString("f", "crop"), j.optInt("d"), j.optInt("b"))
     }
 
     /** Растёт, когда меняется своя картинка: плитки перечитывают файл. */
@@ -590,28 +592,52 @@ object HomeImg {
 
 /** Файлы фона: картинка лежит рядом со значками (её забирает резервная копия), видео и анимация в папке программы. menu: фон меню. */
 object HomeBgFiles {
-    fun image(ctx: Context, menu: Boolean = false) = File(File(ctx.filesDir, "icons").apply { mkdirs() }, if (menu) "hm_mbg.png" else "hm_bg.png")
+    /** Файл картинки фона; portrait: отдельная картинка для портретного экрана (телефон), если её выбирали (имя входит в резервную копию как значки). */
+    fun image(ctx: Context, menu: Boolean = false, portrait: Boolean = false) =
+        File(File(ctx.filesDir, "icons").apply { mkdirs() }, (if (menu) "hm_mbg" else "hm_bg") + (if (portrait) "_p" else "") + ".png")
     fun media(ctx: Context, menu: Boolean = false) = File(ctx.filesDir, if (menu) "menu_bg_media" else "home_bg_media")
 
-    fun saveImage(ctx: Context, uri: Uri, menu: Boolean = false): Boolean = runCatching {
-        fun open() = ctx.contentResolver.openInputStream(uri)!!
+    /** Причина последней неудачи сохранения фона: "" (нет), "read" (файл не открылся), "decode" (не картинка), "mem" (не хватило памяти). */
+    @Volatile var lastFail: String = ""
+
+    fun saveImage(ctx: Context, uri: Uri, menu: Boolean = false, portrait: Boolean = false): Boolean = runCatching {
+        lastFail = ""
+        val t0 = android.os.SystemClock.elapsedRealtime()
+        fun open() = ctx.contentResolver.openInputStream(uri) ?: run { lastFail = "read"; error("open") }
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         open().use { BitmapFactory.decodeStream(it, null, bounds) }
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) { lastFail = "decode"; error("decode") }
         var s = 1
         while (maxOf(bounds.outWidth, bounds.outHeight) / (s * 2) >= 1920) s *= 2
-        val bmp = open().use { BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = s }) } ?: error("decode")
-        image(ctx, menu).outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        val bmp = open().use { BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = s }) } ?: run { lastFail = "decode"; error("decode") }
+        // файл называется .png, но фото без прозрачности пишем как JPEG: на слабых приставках PNG-сжатие 1920x1080 занимает секунды, а файл выходит в разы больше
+        // (читается любым декодером независимо от имени; резервная копия берёт файл по имени)
+        val tmp = File(image(ctx, menu).parentFile, "bg_img.tmp")
+        tmp.outputStream().use { bmp.compress(if (bmp.hasAlpha()) Bitmap.CompressFormat.PNG else Bitmap.CompressFormat.JPEG, if (bmp.hasAlpha()) 100 else 92, it) }
+        val dst = image(ctx, menu, portrait)
+        dst.delete()
+        if (!tmp.renameTo(dst)) { tmp.copyTo(dst, overwrite = true); tmp.delete() }
         HomeStore.bumpImg()
+        android.util.Log.i("TVApps", "фон: сохранён за " + (android.os.SystemClock.elapsedRealtime() - t0) + " мс, " + dst.length() / 1024 + " КБ")
         true
-    }.getOrDefault(false)
+    }.getOrElse {
+        if (lastFail.isEmpty()) lastFail = if (it is OutOfMemoryError) "mem" else "read"
+        android.util.Log.w("TVApps", "фон: " + it.javaClass.simpleName + ": " + it.message)
+        false
+    }
 
     fun saveMedia(ctx: Context, uri: Uri, menu: Boolean = false): Boolean = runCatching {
+        lastFail = ""
         val tmp = File(ctx.filesDir, "bg_media.tmp")
         ctx.contentResolver.openInputStream(uri)!!.use { i -> tmp.outputStream().use { o -> i.copyTo(o) } }
         val f = media(ctx, menu)
         f.delete()
-        tmp.renameTo(f)
+        if (!tmp.renameTo(f)) { tmp.copyTo(f, overwrite = true); tmp.delete() }
         HomeStore.bumpImg()
         true
-    }.getOrDefault(false)
+    }.getOrElse {
+        lastFail = if (it is OutOfMemoryError) "mem" else "read"
+        android.util.Log.w("TVApps", "фон (видео): " + it.javaClass.simpleName + ": " + it.message)
+        false
+    }
 }

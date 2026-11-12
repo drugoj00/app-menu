@@ -509,6 +509,8 @@ object Updates {
                     android.util.Log.w("Updates", "sig mismatch pkg=${app.pkg} inst=${instCerts.map { it.take(8) }} new=${newCerts.map { it.take(8) }} file=${file.length()}")
                     return@withContext "sig"
                 }
+                // обновление самой программы: служба заставки снимается с учёта заранее (иначе после замены файла Android 9 и старше её не подключает до перезагрузки)
+                if (app.pkg == ctx.packageName) SaverGuard.releaseBeforeSelfUpdate(ctx)
                 // копия прежней версии (если включено): к ней можно вернуться через «Версии»
                 if (Cfg.backupOnDelete) runCatching { AppBackups.save(ctx, app.pkg) }
                 val copy = AppBackups.importApk(ctx, file) ?: return@withContext "fail:" + ctx.getString(R.string.ver_not_apk)

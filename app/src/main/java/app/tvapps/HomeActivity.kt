@@ -49,6 +49,8 @@ internal object AppsMem {
     @Volatile var stamp = 0L
     /** Идёт пакетная установка: события «пакет добавлен» не перечитывают список после каждого файла, один общий пересчёт в конце. */
     @Volatile var holdReload = false
+    /** Когда пультом или мышью последний раз нажимали: пока человек двигает курсор, список приложений не подменяется (установка приложений идёт в этот момент). */
+    @Volatile var lastKeyAt = 0L
     val loadLock = Any()
 }
 
@@ -72,7 +74,10 @@ class HomeActivity : ComponentActivity() {
     private val againTick = mutableIntStateOf(0)
 
     // кнопка микрофона на пульте или аэромыши (клавиши «Поиск», «Голосовой ассистент», «Ассистент»)
-    override fun dispatchKeyEvent(ev: android.view.KeyEvent): Boolean = Voice.onKey(this, ev) || super.dispatchKeyEvent(ev)
+    override fun dispatchKeyEvent(ev: android.view.KeyEvent): Boolean {
+        if (ev.action == android.view.KeyEvent.ACTION_DOWN) AppsMem.lastKeyAt = System.currentTimeMillis()
+        return Voice.onKey(this, ev) || super.dispatchKeyEvent(ev)
+    }
 
     // клавиша «Меню» (или «Инфо») на пульте, когда элемент не выбран и никто её не обработал: меню пустого места («Добавить строку», настройки)
     override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean {
@@ -118,6 +123,7 @@ class HomeActivity : ComponentActivity() {
             return
         }
         HomeStore.init(this)
+        WallNet.autoRefresh(this)
         val c = WindowInsetsControllerCompat(window, window.decorView)
         SysBars.apply(this)       // по умолчанию скрыты на ТВ/приставке и видны на телефоне; переключатель в настройках
         MouseAsTouch.install(window)
@@ -272,7 +278,13 @@ private fun HomeScreen(tick: Int, again: Int) {
         if (forced || System.currentTimeMillis() - AppsMem.stamp > 30_000L || apps.isEmpty()) {
             val before = apps
             val fresh = withContext(Dispatchers.Default) { loadApps(ctx, before, reuse = !forced) }
-            apps = fresh; AppsMem.list = fresh; AppsMem.stamp = System.currentTimeMillis()
+            if (forced || !sameApps(apps, fresh)) {
+                // пока курсор двигают, ждём тишины 2,5 с: плитки не перестраиваются под пальцами, фокус остаётся на своём значке
+                var waited = 0
+                while (!forced && System.currentTimeMillis() - AppsMem.lastKeyAt < 2500L && waited < 40) { delay(400); waited++ }
+                apps = fresh
+            }
+            AppsMem.list = apps; AppsMem.stamp = System.currentTimeMillis()
         }
     }
     // тяжёлое подключение ADB и первичная расстановка каналов — после первого кадра

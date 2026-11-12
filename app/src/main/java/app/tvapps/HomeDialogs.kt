@@ -653,11 +653,21 @@ internal fun BgDialogHost(menu: Boolean, onClose: () -> Unit) {
     fun cur() = if (menu) HomeStore.menuBg else HomeStore.layout.bg
     fun put(b: HBg) { if (menu) HomeStore.changeMenuBg(b) else HomeStore.setBg(b) }
     var ownPick by remember { mutableStateOf<String?>(null) }
-    fun saveBg(uri: android.net.Uri?, kind: String?) {
+    var videoWarn by remember { mutableStateOf<(() -> Unit)?>(null) }
+    fun saveBg(uri: android.net.Uri?, kind: String?, from: WallPic? = null, confirmed: Boolean = false) {
+        // видео нагружает устройство: при включении спрашиваем (кнопки «Включить» / «Отмена»)
+        if (uri != null && kind == "video" && !confirmed && cur().type != "video") { videoWarn = { saveBg(uri, kind, from, true) }; return }
         if (uri != null && kind != null) scope.launch {
-            val ok = withContext(Dispatchers.IO) { if (kind == "image") HomeBgFiles.saveImage(ctx, uri, menu) else HomeBgFiles.saveMedia(ctx, uri, menu) }
+            // на слабых приставках сохранение занимает несколько секунд: без сообщения кажется, что выбор не сработал
+            Toast.makeText(ctx, ctx.getString(R.string.bg_saving), Toast.LENGTH_SHORT).show()
+            val port = from?.portrait == true
+            val ok = withContext(Dispatchers.IO) { if (kind == "image") HomeBgFiles.saveImage(ctx, uri, menu, port) else HomeBgFiles.saveMedia(ctx, uri, menu) }
             if (ok) put(cur().copy(type = kind))
-            Toast.makeText(ctx, ctx.getString(if (ok) R.string.icon_saved else R.string.failed), Toast.LENGTH_SHORT).show()
+            // подпись автора: только у картинки из интернета; любой другой выбор её снимает
+            if (ok && kind == "video") WallNet.setCredit(ctx, (if (menu) "menu" else "home") + "_v", from, from?.let { HomeBgFiles.media(ctx, menu) })
+            if (ok && kind == "image") WallNet.setCredit(ctx, (if (menu) "menu" else "home") + (if (port) "_p" else ""), from, from?.let { HomeBgFiles.image(ctx, menu, port) })
+            val why = when (HomeBgFiles.lastFail) { "decode" -> R.string.bg_err_decode; "mem" -> R.string.bg_err_mem; "read" -> R.string.bg_err_read; else -> 0 }
+            Toast.makeText(ctx, if (ok) ctx.getString(R.string.icon_saved) else ctx.getString(R.string.failed) + if (why != 0) ": " + ctx.getString(why) else "", if (ok) Toast.LENGTH_SHORT else Toast.LENGTH_LONG).show()
         }
     }
     val picker = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.GetContent()) { uri ->
@@ -675,8 +685,10 @@ internal fun BgDialogHost(menu: Boolean, onClose: () -> Unit) {
     // свой выбор из папок wallpaper, DCIM, Pictures, Download; системное окно (на части приставок пустое) остаётся запасным
     fun pick(kind: String) { ownPick = kind }
     ownPick?.let { k -> FilePickDialog(k, onPick = { u -> ownPick = null; saveBg(u, k) }, onSystem = { ownPick = null; systemPick(k) }, onClose = { ownPick = null }) }
+    videoWarn?.let { w -> VideoWarnDialog(onYes = { videoWarn = null; w() }, onNo = { videoWarn = null }) }
     val bg = cur()
     when (step) {
+        "net" -> WallNetDialog(if (menu) "menu" else "home", onOwn = { step = "main"; pick("image") }, onOwnVideo = { step = "main"; pick("video") }, onClose = { step = "main" })
         "color" -> {
             val presets = listOf(
                 0xFF000000 to R.string.c_black, 0xFF0B0B10 to R.string.c_dark, 0xFF1E293B to R.string.c_slate, 0xFF0F2A44 to R.string.c_navy,
@@ -704,11 +716,15 @@ internal fun BgDialogHost(menu: Boolean, onClose: () -> Unit) {
                 add(Opt(stringResource(R.string.bg_color), if (bg.type == "color") "✓" else "") { step = "color" })
                 add(Opt(stringResource(R.string.bg_gradient), if (bg.type == "gradient") "✓" else "") { put(bg.copy(type = "gradient")) })
                 add(Opt(stringResource(R.string.bg_image), if (bg.type == "image") "✓" else "") { pick("image") })
+                add(Opt(stringResource(R.string.bg_net), "") { step = "net" })
                 add(Opt(stringResource(R.string.bg_video), if (bg.type == "video") "✓" else "") { pick("video") })
                 add(Opt(stringResource(R.string.bg_anim), if (bg.type == "anim") "✓" else "") { pick("anim") })
                 if (bg.type == "image" || bg.type == "video" || bg.type == "anim")
                     add(Opt(stringResource(R.string.bg_fit), if (bg.fit == "stretch") stringResource(R.string.bg_fit_stretch) else stringResource(R.string.bg_fit_crop),
                         onClick = { put(bg.copy(fit = if (bg.fit == "stretch") "crop" else "stretch")) }))
+                // размытие картинки и видео: дешёвое (уменьшенное чтение), на слабых устройствах нагрузки не добавляет
+                if (bg.type == "image" || bg.type == "video" || bg.type == "anim") add(Opt(stringResource(R.string.bg_blur), "${bg.blur}%",
+                    { put(bg.copy(blur = (bg.blur - 5).coerceAtLeast(0))) }, { put(bg.copy(blur = (bg.blur + 5).coerceAtMost(100))) }))
                 if (bg.type != "none") add(Opt(stringResource(R.string.bg_dim), "${bg.dim}%",
                     { put(bg.copy(dim = (bg.dim - 1).coerceAtLeast(0))) }, { put(bg.copy(dim = (bg.dim + 1).coerceAtMost(80))) }))
             }
@@ -736,43 +752,82 @@ private fun IconEditDialog(dlg: Dlg.IconEdit, pickImage: (String) -> Unit, setDl
 private fun HomeScreenDialog(setDlg: (Dlg?) -> Unit, close: () -> Unit, disableHome: () -> Unit) {
     val ctx = LocalContext.current
     val on = stringResource(R.string.on)
-    val off = stringResource(R.string.off)
-            var sureReset by remember { mutableStateOf(false) }
-            var sureOff by remember { mutableStateOf(false) }
-            // значения переключателей лежат в настройках, а не в состоянии Compose: счётчик заставляет окно перерисоваться после нажатия
-            var rev by remember { mutableStateOf(0) }
-            val ringAccent = LocalTh.current.accent
-            val homeRingSwatch = remember(Cfg.homeRing, ringAccent) {
-                colorDot(if (Cfg.homeRing == 0) ringAccent.toArgb() else Cfg.RING_COLORS[Cfg.homeRing].toInt())
-            }
-            val modeName = { v: Int, show: Int, hide: Int, auto: Int -> ctx.getString(when (v) { 1 -> show; 2 -> hide; else -> auto }) }
-            val opts = listOf(
-                // простые «Вкл / Выкл»; без выбора пользователя по умолчанию на ТВ полоска включена, а системные панели выключены, на телефоне наоборот
-                Opt(stringResource(R.string.top_mode), (rev * 0).let { if (TopMode.visible(ctx)) on else off },
-                    onClick = { TopMode.set(ctx, if (TopMode.visible(ctx)) 2 else 1); rev++ }),
-                Opt(stringResource(R.string.sb_status), (rev * 0).let { if (SysBars.hidden(ctx, false)) off else on },
-                    onClick = { SysBars.set(ctx, false, if (SysBars.hidden(ctx, false)) 1 else 2); (ctx as? android.app.Activity)?.let { SysBars.apply(it) }; rev++ }),
-                Opt(stringResource(R.string.sb_nav), (rev * 0).let { if (SysBars.hidden(ctx, true)) off else on },
-                    onClick = { SysBars.set(ctx, true, if (SysBars.hidden(ctx, true)) 1 else 2); (ctx as? android.app.Activity)?.let { SysBars.apply(it) }; rev++ }),
-                Opt(stringResource(R.string.top_items)) { setDlg(Dlg.Top) },
-                // раздел «Виджет часов и погоды»: настройки вида первого виджета часов или погоды на «Доме» (у каждого виджета свои, они же в меню виджета)
+    val off = stringResource(R.string.off)
+
+            var sureReset by remember { mutableStateOf(false) }
+
+            var sureOff by remember { mutableStateOf(false) }
+
+            // значения переключателей лежат в настройках, а не в состоянии Compose: счётчик заставляет окно перерисоваться после нажатия
+
+            var rev by remember { mutableStateOf(0) }
+
+            val ringAccent = LocalTh.current.accent
+
+            val homeRingSwatch = remember(Cfg.homeRing, ringAccent) {
+
+                colorDot(if (Cfg.homeRing == 0) ringAccent.toArgb() else Cfg.RING_COLORS[Cfg.homeRing].toInt())
+
+            }
+
+            val modeName = { v: Int, show: Int, hide: Int, auto: Int -> ctx.getString(when (v) { 1 -> show; 2 -> hide; else -> auto }) }
+
+            val opts = listOf(
+
+                // простые «Вкл / Выкл»; без выбора пользователя по умолчанию на ТВ полоска включена, а системные панели выключены, на телефоне наоборот
+
+                Opt(stringResource(R.string.top_mode), (rev * 0).let { if (TopMode.visible(ctx)) on else off },
+
+                    onClick = { TopMode.set(ctx, if (TopMode.visible(ctx)) 2 else 1); rev++ }),
+
+                Opt(stringResource(R.string.sb_status), (rev * 0).let { if (SysBars.hidden(ctx, false)) off else on },
+
+                    onClick = { SysBars.set(ctx, false, if (SysBars.hidden(ctx, false)) 1 else 2); (ctx as? android.app.Activity)?.let { SysBars.apply(it) }; rev++ }),
+
+                Opt(stringResource(R.string.sb_nav), (rev * 0).let { if (SysBars.hidden(ctx, true)) off else on },
+
+                    onClick = { SysBars.set(ctx, true, if (SysBars.hidden(ctx, true)) 1 else 2); (ctx as? android.app.Activity)?.let { SysBars.apply(it) }; rev++ }),
+
+                Opt(stringResource(R.string.top_items)) { setDlg(Dlg.Top) },
+
+                // раздел «Виджет часов и погоды»: настройки вида первого виджета часов или погоды на «Доме» (у каждого виджета свои, они же в меню виджета)
+
                 Opt(stringResource(R.string.ws_section)) { val f = firstStyledWidget(); if (f != null) setDlg(Dlg.WidgetStyle(f.first, f.second)) else toastNoWidget(ctx) },
-                Opt(stringResource(R.string.sv_title)) { ctx.startActivity(android.content.Intent(ctx, SaverSettingsActivity::class.java)) },
-                Opt(stringResource(R.string.screen_row_gap), "${HomeStore.layout.rowGap}",
-                    { HomeStore.set(HomeStore.layout.copy(rowGap = (HomeStore.layout.rowGap - 1).coerceAtLeast(0))); rev++ },
-                    { HomeStore.set(HomeStore.layout.copy(rowGap = (HomeStore.layout.rowGap + 1).coerceAtMost(60))); rev++ }),
-                // цвет рамки выделения «Дома» (меню настраивается отдельно в настройках меню); у плитки или виджета свой цвет важнее
-                Opt(stringResource(R.string.home_ring_title), stringResource(if (Cfg.homeRing == 0) R.string.ring_default else BORDER_NAMES[Cfg.homeRing]),
-                    { Cfg.changeHomeRing((Cfg.homeRing + Cfg.RING_COLORS.size - 1) % Cfg.RING_COLORS.size) },
-                    { Cfg.changeHomeRing((Cfg.homeRing + 1) % Cfg.RING_COLORS.size) },
-                    icon = homeRingSwatch),
-                Opt(stringResource(R.string.bg_title)) { setDlg(Dlg.Bg) },
-                Opt(if (sureReset) stringResource(R.string.screen_reset_sure) else stringResource(R.string.screen_reset), danger = true) {
-                    if (sureReset) { HomeStore.resetLayout(); close() } else sureReset = true
-                },
-                Opt(if (sureOff) stringResource(R.string.screen_off_sure) else stringResource(R.string.screen_off_home), danger = true) {
-                    if (sureOff) { close(); disableHome() } else sureOff = true
-                },
-            )
-            ListDialog(stringResource(R.string.screen_title), opts, close)
-        }
+                Opt(stringResource(R.string.sv_title)) { ctx.startActivity(android.content.Intent(ctx, SaverSettingsActivity::class.java)) },
+
+                Opt(stringResource(R.string.screen_row_gap), "${HomeStore.layout.rowGap}",
+
+                    { HomeStore.set(HomeStore.layout.copy(rowGap = (HomeStore.layout.rowGap - 1).coerceAtLeast(0))); rev++ },
+
+                    { HomeStore.set(HomeStore.layout.copy(rowGap = (HomeStore.layout.rowGap + 1).coerceAtMost(60))); rev++ }),
+
+                // цвет рамки выделения «Дома» (меню настраивается отдельно в настройках меню); у плитки или виджета свой цвет важнее
+
+                Opt(stringResource(R.string.home_ring_title), stringResource(if (Cfg.homeRing == 0) R.string.ring_default else BORDER_NAMES[Cfg.homeRing]),
+
+                    { Cfg.changeHomeRing((Cfg.homeRing + Cfg.RING_COLORS.size - 1) % Cfg.RING_COLORS.size) },
+
+                    { Cfg.changeHomeRing((Cfg.homeRing + 1) % Cfg.RING_COLORS.size) },
+
+                    icon = homeRingSwatch),
+
+                Opt(stringResource(R.string.bg_title)) { setDlg(Dlg.Bg) },
+
+                Opt(if (sureReset) stringResource(R.string.screen_reset_sure) else stringResource(R.string.screen_reset), danger = true) {
+
+                    if (sureReset) { HomeStore.resetLayout(); close() } else sureReset = true
+
+                },
+
+                Opt(if (sureOff) stringResource(R.string.screen_off_sure) else stringResource(R.string.screen_off_home), danger = true) {
+
+                    if (sureOff) { close(); disableHome() } else sureOff = true
+
+                },
+
+            )
+
+            ListDialog(stringResource(R.string.screen_title), opts, close)
+
+        }
+

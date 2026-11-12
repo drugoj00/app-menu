@@ -171,6 +171,7 @@ data class Weather(
 object WeatherData {
     /** Причина последней неудачи (для виджета: вместо вечной «Загрузка…»). */
     @Volatile var lastError: String? = null
+    @Volatile private var appCtx: Context? = null
 
     internal fun get(url: String, headers: Map<String, String> = emptyMap()): String {
         var err: Exception? = null
@@ -293,6 +294,13 @@ object WeatherData {
         WxSrc.OWM -> WxProviders.owm(p, key, ::get, now)
         WxSrc.WAPI -> WxProviders.wapi(p, key, ::get, now)
         WxSrc.TOMORROW -> WxProviders.tomorrow(p, key, ::get, now)
+        WxSrc.VISUAL -> WxProviders.visual(p, key, ::get, now)
+        WxSrc.WEATHERBIT -> WxProviders.weatherbit(p, key, ::get, now)
+        WxSrc.METEOBLUE -> WxProviders.meteoblue(p, key, ::get, now)
+        WxSrc.ACCU -> {
+            val sp = appCtx?.getSharedPreferences("tvapps_weather", Context.MODE_PRIVATE)
+            WxProviders.accu(p, key, ::get, now, { sp?.getString("accu_loc_$it", null) }, { k, v -> sp?.edit()?.putString("accu_loc_$k", v)?.apply() })
+        }
         else -> throw IllegalArgumentException("источник $id")
     }
 
@@ -304,7 +312,7 @@ object WeatherData {
         val sp = ctx.getSharedPreferences("tvapps_weather", Context.MODE_PRIVATE)
         val sel = WxSrc.id(ctx)
         val old = cached(ctx, city, lang)
-        old?.let { if (!force && System.currentTimeMillis() - it.at < 30 * 60_000L && it.at >= WxSrc.forceAfter(ctx) && (sel == WxSrc.AUTO || it.src == sel)) return it }
+        old?.let { if (!force && System.currentTimeMillis() - it.at < WxSrc.ttlMs(sel) && it.at >= WxSrc.forceAfter(ctx) && (sel == WxSrc.AUTO || it.src == sel)) return it }
         return runCatching {
             val place: WxPlace
             if (city.isBlank()) {
@@ -331,6 +339,7 @@ object WeatherData {
                 }
             }
             val apiKey = WxSrc.key(ctx)
+            appCtx = ctx.applicationContext
             Log.i("TVApps", "погода: выбран источник $sel, ключ ${if (apiKey.isBlank()) "пуст" else "задан"}")
             val order = if (sel == WxSrc.AUTO || (WxSrc.needsKey(sel) && apiKey.isBlank())) listOf(WxSrc.OPEN_METEO, WxSrc.MET, WxSrc.WTTR) else listOf(sel)
             var j: JSONObject? = null

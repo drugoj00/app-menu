@@ -247,8 +247,11 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
     val t = LocalTh.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     // положение в настройках помнится: раздел, прокрутка и кнопка в фокусе (MenuMemory); при выходе из меню кнопкой «Назад» сбрасывается
-    var sub by remember { mutableStateOf(MenuMemory.init(ctx).settingsSub) }
+    // окна внутри настроек («Скрытые приложения», «Исключения») не запоминают положение: открываются сверху; помнится только основной экран настроек
+    MenuMemory.init(ctx)
+    var sub by remember { mutableStateOf("main") }
     var adbDialog by remember { mutableStateOf(false) }
+    var adbNet by remember { mutableStateOf(false) }
     var appsUpd by remember { mutableStateOf(false) }
     var instLog by remember { mutableStateOf(false) }
     val first = remember { FocusRequester() }
@@ -276,7 +279,8 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
     var wifi by remember { mutableStateOf(false) }
     var backups by remember { mutableStateOf(false) }
     var menuBgDlg by remember { mutableStateOf(false) }
-    val anyDialog = adbDialog || appsUpd || instLog || installFiles != null || browser || net || wifi || backups || menuBgDlg
+    var bkpPick by remember { mutableStateOf<String?>(null) }
+    val anyDialog = adbDialog || adbNet || appsUpd || instLog || installFiles != null || browser || net || wifi || backups || menuBgDlg || bkpPick != null
     val dialogWasOpen = remember { booleanArrayOf(false) }
     LaunchedEffect(anyDialog) {
         if (!anyDialog && dialogWasOpen[0]) {
@@ -295,8 +299,9 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
     }
     val loadBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
-            val ok = runCatching { ctx.contentResolver.openInputStream(uri)?.use { Backup.restore(ctx, it) } == true }.getOrDefault(false)
-            Toast.makeText(ctx, ctx.getString(if (ok) R.string.backup_restored else R.string.failed), Toast.LENGTH_LONG).show()
+            val ok = runCatching { ctx.contentResolver.openInputStream(uri)?.use { Backup.restore(ctx, it) } == true }.getOrElse { Backup.lastFail = "open"; false }
+            val why = when (Backup.lastFail) { "notcopy" -> R.string.backup_err_notcopy; "broken" -> R.string.backup_err_broken; "open" -> R.string.backup_err_open; else -> R.string.backup_err_other }
+            Toast.makeText(ctx, if (ok) ctx.getString(R.string.backup_restored_undo) else ctx.getString(R.string.failed) + ": " + ctx.getString(why), Toast.LENGTH_LONG).show()
         }
     }
     val pickApkTree = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -586,25 +591,20 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                         Chip(stringResource(R.string.backup_save), false) {
                             runCatching { saveBackup.launch(Backup.fileName(ctx)) }.onFailure { Toast.makeText(ctx, ctx.getString(R.string.icon_no_picker), Toast.LENGTH_LONG).show() }
                         }
-                        Chip(stringResource(R.string.backup_load), false) {
-                            runCatching { loadBackup.launch(arrayOf("*/*")) }.onFailure { Toast.makeText(ctx, ctx.getString(R.string.icon_no_picker), Toast.LENGTH_LONG).show() }
-                        }
+                        Chip(stringResource(R.string.backup_load), false) { bkpPick = "file" }
                     }
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Chip(stringResource(R.string.backup_here), false) {
                             Backup.autoSave(ctx)
                             Toast.makeText(ctx, ctx.getString(R.string.backup_here_done, Backup.autoFile(ctx)?.absolutePath.orEmpty()), Toast.LENGTH_LONG).show()
                         }
-                        Chip(stringResource(R.string.backup_restore_here), false) {
-                            val f = Backup.autoFile(ctx)
-                            val ok = f != null && f.exists() && runCatching { f.inputStream().use { Backup.restore(ctx, it) } }.getOrDefault(false)
-                            Toast.makeText(ctx, ctx.getString(if (ok) R.string.backup_restored else R.string.failed), Toast.LENGTH_LONG).show()
-                        }
+                        Chip(stringResource(R.string.backup_restore_here), false) { bkpPick = "app" }
                     }
                 }
                 Section(stringResource(R.string.adb_title)) {
                     Text(stringResource(Conn.statusRes), color = if (Conn.connected) t.accent else t.sub, fontSize = 14.sp)
                     Chip(stringResource(R.string.adb_connect_btn), false) { adbDialog = true }
+                    Chip(stringResource(R.string.adbn_btn), false) { adbNet = true }
                     Text(stringResource(R.string.root_use_title), color = t.sub, fontSize = 13.sp)
                     Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.useRoot) {
                         Cfg.changeUseRoot(it)
@@ -639,7 +639,18 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
         }
     }
     if (menuBgDlg) BgDialogHost(true) { menuBgDlg = false }
+    bkpPick?.let { k ->
+        BackupPickDialog(
+            onlyApp = k == "app",
+            onSystem = if (k == "file") ({
+                bkpPick = null
+                runCatching { loadBackup.launch(arrayOf("*/*")) }.onFailure { Toast.makeText(ctx, ctx.getString(R.string.icon_no_picker), Toast.LENGTH_LONG).show() }
+            }) else null,
+            onClose = { bkpPick = null },
+        )
+    }
     if (adbDialog) AdbConnectDialog(onClose = { adbDialog = false; Conn.refresh() })
+    if (adbNet) AdbNetWizardDialog { adbNet = false; Conn.refresh() }
     if (appsUpd) UpdatesAllDialog { appsUpd = false }
     if (instLog) InstallLogDialog { instLog = false }
     installFiles?.let { files -> InstallDialog(files) { installFiles = null } }

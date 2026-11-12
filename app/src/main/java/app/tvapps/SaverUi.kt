@@ -180,6 +180,7 @@ private fun SaverRoot(first: String) {
                 "wizard" -> WizardScreen(ctx) { screen = it }
                 "diag" -> DiagScreen(ctx) { screen = it }
                 "log" -> LogScreen(ctx)
+                "wall" -> { MainScreen(ctx) { screen = it }; WallNetDialog("saver", onOwn = { }, onOwnVideo = { }, onClose = { screen = "main" }) }
                 else -> MainScreen(ctx) { screen = it }
             }
         }
@@ -224,6 +225,7 @@ private fun MainScreen(ctx: Context, go: (String) -> Unit) {
         }
         item { Item(stringResource(R.string.sv_wizard), sub = stringResource(R.string.sv_wizard_sub), onClick = { go("wizard") }) }
         item { Item(stringResource(R.string.sv_diag), sub = stringResource(R.string.sv_diag_sub), onClick = { go("diag") }) }
+        item { Item(stringResource(R.string.sv_wall), if (WallNet.saverOn(ctx)) on else off, stringResource(R.string.sv_wall_sub), onClick = { go("wall") }) }
         item { Head(stringResource(R.string.sv_g_when)) }
         item { Item(stringResource(R.string.sv_idle), stringResource(R.string.sv_min, cfg.idleMin), onDec = { upd { it.copy(idleMin = cycle(idles, it.idleMin, -1)) } }, onInc = { upd { it.copy(idleMin = cycle(idles, it.idleMin, 1)) } }) }
         item { Item(stringResource(R.string.sv_way), ways[cfg.way.coerceIn(0, 2)], stringResource(R.string.sv_way_sub), onDec = { upd { it.copy(way = cycle(listOf(0, 1, 2), it.way, -1)) } }, onInc = { upd { it.copy(way = cycle(listOf(0, 1, 2), it.way, 1)) } }) }

@@ -19,6 +19,11 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -45,19 +50,45 @@ internal fun HomeBackground(bg: HBg, menu: Boolean = false) {
             "color" -> Box(Modifier.fillMaxSize().background(Color(bg.color.toInt())))
             "gradient" -> LiveGradient(Color(bg.color.toInt()))
             "image" -> {
-                val img by produceState<ImageBitmap?>(if (menu) BgMem.menuImage else BgMem.image, HomeStore.imgTick) {
+                // на портретном экране (телефон) берётся своя картинка, если она есть; при повороте экрана подставляется файл из памяти, без новой загрузки
+                val portrait = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+                val blur = bg.blur
+                val img by produceState<ImageBitmap?>(if (portrait || blur > 0) null else if (menu) BgMem.menuImage else BgMem.image, HomeStore.imgTick, portrait, blur) {
                     value = withContext(Dispatchers.IO) {
-                        val f = HomeBgFiles.image(ctx, menu)
-                        if (!f.exists()) null else runCatching { decodeBg(f.path)?.asImageBitmap() }.getOrNull()
+                        val f = HomeBgFiles.image(ctx, menu, portrait).takeIf { portrait && it.exists() } ?: HomeBgFiles.image(ctx, menu)
+                        if (!f.exists()) null
+                        else if (blur > 0) WallNet.decode(f.path, 1920, blur)?.asImageBitmap()   // размытие: дешёвое, через уменьшенное чтение
+                        else runCatching { decodeBg(f.path)?.asImageBitmap() }.getOrNull()
                     }
-                    if (menu) BgMem.menuImage = value else BgMem.image = value
+                    if (!portrait && blur == 0) { if (menu) BgMem.menuImage = value else BgMem.image = value }
                 }
-                img?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = if (bg.fit == "stretch") ContentScale.FillBounds else ContentScale.Crop) }
+                // «Сдвинуть / Масштаб»: запоминается для поверхности и ориентации
+                val crop = remember(HomeStore.imgTick, menu, portrait) { WallNet.crop(ctx, if (menu) "menu" else "home", portrait) }
+                img?.let {
+                    Image(
+                        it, null,
+                        Modifier.fillMaxSize().graphicsLayer { scaleX = crop.zoom; scaleY = crop.zoom; transformOrigin = androidx.compose.ui.graphics.TransformOrigin((crop.ox + 1f) / 2f, (crop.oy + 1f) / 2f) },
+                        contentScale = if (bg.fit == "stretch") ContentScale.FillBounds else ContentScale.Crop,
+                        alignment = androidx.compose.ui.BiasAlignment(crop.ox, crop.oy),
+                    )
+                }
             }
-            "video" -> VideoBg(HomeBgFiles.media(ctx, menu).path, bg.fit == "stretch", HomeStore.imgTick)
+            "video" -> VideoBg(HomeBgFiles.media(ctx, menu).path, bg.fit == "stretch", HomeStore.imgTick, bg.blur)
             "anim" -> AnimBg(HomeBgFiles.media(ctx, menu).path, bg.fit == "stretch", HomeStore.imgTick)
         }
         if (bg.dim > 0) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = bg.dim.coerceAtMost(90) / 100f)))
+        if (bg.type == "image" || bg.type == "video") {
+            // подпись «автор · источник · лицензия» у картинки или видео из интернета (в настройках обоев её можно скрыть)
+            val portrait = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+            val isVideo = bg.type == "video"
+            val credit = remember(HomeStore.imgTick, menu, portrait, isVideo) { if (isVideo) WallNet.credit(ctx, (if (menu) "menu" else "home") + "_v", false) else WallNet.credit(ctx, (if (menu) "menu" else "home"), portrait) }
+            if (credit.isNotEmpty()) Box(Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.BottomEnd) {
+                Text(
+                    credit, color = Color.White.copy(alpha = 0.8f), fontSize = 10.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(8.dp).background(Color.Black.copy(alpha = 0.35f), androidx.compose.foundation.shape.RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
+                )
+            }
+        }
     }
 }
 
@@ -119,31 +150,61 @@ private fun fitVideo(v: TextureView, vw: Int, vh: Int, stretch: Boolean) {
     v.setTransform(m)
 }
 
+/**
+ * Видео-фон: MediaPlayer на TextureView позади интерфейса, зацикливание, без звука, аппаратное декодирование системой.
+ * Пауза, когда окно уходит с экрана (другое приложение, выключенный экран), продолжение при возврате. Не запускается при экономии батареи и низком заряде:
+ * вместо него кадр из ролика. При ошибке декодера тоже кадр и сообщение. blur: на Android 12+ размывается средствами системы (на старых без размытия).
+ */
 @Composable
-private fun VideoBg(path: String, stretch: Boolean, version: Int) {
+internal fun VideoBg(path: String, stretch: Boolean, version: Int, blur: Int = 0) {
+    val ctx = LocalContext.current
+    val owner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    val allowed = remember(path, version) { WallNet.videoAllowed(ctx) }
+    var failed by androidx.compose.runtime.remember(path, version) { androidx.compose.runtime.mutableStateOf(false) }
+    val mpRef = remember { arrayOfNulls<MediaPlayer>(1) }
+    androidx.compose.runtime.DisposableEffect(owner) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            when (e) {
+                androidx.lifecycle.Lifecycle.Event.ON_PAUSE -> runCatching { mpRef[0]?.pause() }
+                androidx.lifecycle.Lifecycle.Event.ON_RESUME -> runCatching { mpRef[0]?.start() }
+                else -> {}
+            }
+        }
+        owner.lifecycle.addObserver(obs)
+        onDispose { owner.lifecycle.removeObserver(obs) }
+    }
+    if (!allowed || failed) {
+        val still by produceState<ImageBitmap?>(null, path, version) { value = withContext(Dispatchers.IO) { WallNet.videoStill(path)?.asImageBitmap() } }
+        androidx.compose.runtime.LaunchedEffect(failed) { if (failed) android.widget.Toast.makeText(ctx, ctx.getString(R.string.vid_err_decoder), android.widget.Toast.LENGTH_LONG).show() }
+        still?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = if (stretch) ContentScale.FillBounds else ContentScale.Crop) }
+        return
+    }
     androidx.compose.runtime.key(path, version) {
         AndroidView(
             factory = { c ->
                 val tv = TextureView(c)
-                var mp: MediaPlayer? = null
                 var vw = 0
                 var vh = 0
                 tv.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
                     override fun onSurfaceTextureAvailable(st: SurfaceTexture, w: Int, h: Int) {
                         runCatching {
-                            mp = MediaPlayer().apply {
+                            mpRef[0] = MediaPlayer().apply {
                                 setSurface(Surface(st)); setDataSource(path); isLooping = true; setVolume(0f, 0f)
                                 setOnVideoSizeChangedListener { _, a, b -> vw = a; vh = b; fitVideo(tv, a, b, stretch) }
                                 setOnPreparedListener { it.start() }
+                                setOnErrorListener { _, _, _ -> failed = true; true }
                                 prepareAsync()
                             }
-                        }
+                        }.onFailure { failed = true }
                     }
                     override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, w: Int, h: Int) { fitVideo(tv, vw, vh, stretch) }
-                    override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean { runCatching { mp?.release() }; mp = null; return true }
+                    override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean { runCatching { mpRef[0]?.release() }; mpRef[0] = null; return true }
                     override fun onSurfaceTextureUpdated(st: SurfaceTexture) {}
                 }
                 tv
+            },
+            update = { tv ->
+                if (Build.VERSION.SDK_INT >= 31) tv.setRenderEffect(if (blur > 0) android.graphics.RenderEffect.createBlurEffect(blur * 0.4f + 1f, blur * 0.4f + 1f, android.graphics.Shader.TileMode.CLAMP) else null)
             },
             modifier = Modifier.fillMaxSize(),
         )

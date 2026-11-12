@@ -62,11 +62,67 @@ object Backup {
             val f = autoFile(ctx) ?: return
             f.parentFile?.mkdirs()
             f.outputStream().use { write(ctx, it) }
+            // суточные копии: после сброса настроек «последняя» копия уже новая, а копия за прошлые дни остаётся (хранятся 7 последних)
+            val day = File(f.parentFile, DAY_PREFIX + java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date()) + ".zip")
+            f.copyTo(day, overwrite = true)
+            f.parentFile?.listFiles { x -> x.name.startsWith(DAY_PREFIX) && x.name.endsWith(".zip") }?.sortedByDescending { it.name }?.drop(7)?.forEach { it.delete() }
         }
     }
 
+    private const val DAY_PREFIX = "AppMenu_auto_"
+    private const val BEFORE = "AppMenu_before_restore.zip"
+
+    /** Копия настроек перед восстановлением: чтобы восстановление можно было отменить. */
+    private fun saveBeforeRestore(ctx: Context) {
+        runCatching {
+            val dir = ctx.getExternalFilesDir("backup") ?: return
+            dir.mkdirs()
+            File(dir, BEFORE).outputStream().use { write(ctx, it) }
+        }
+    }
+
+    /** Файл копии: пригодным считается ZIP с settings.json внутри. */
+    private fun isCopy(f: File): Boolean = runCatching {
+        f.isFile && f.length() in 100..300_000_000L && java.util.zip.ZipFile(f).use { it.getEntry(SETTINGS) != null }
+    }.getOrDefault(false)
+
+    /**
+     * Копии, которые можно восстановить. onlyApp: только папка программы (автокопии и копия перед восстановлением);
+     * иначе ещё память устройства и накопители (корень, Download, Documents, Backup, AppMenuBackups), где лежат копии, сохранённые вручную.
+     * Новые файлы идут первыми.
+     */
+    fun findCopies(ctx: Context, onlyApp: Boolean): List<File> {
+        val out = LinkedHashMap<String, File>()
+        fun scan(d: File?, deep: Int) {
+            val items = d?.listFiles() ?: return
+            for (f in items) {
+                if (out.size >= 60) return
+                if (f.isFile && f.name.endsWith(".zip", ignoreCase = true)) {
+                    val n = f.name.lowercase()
+                    if (!onlyApp && !(n.contains("tvapps") || n.contains("appmenu") || n.contains("menu") || n.contains("backup") || n.contains("копи"))) continue
+                    if (isCopy(f)) out[f.absolutePath] = f
+                } else if (f.isDirectory && deep > 0 && !f.name.startsWith(".")) scan(f, deep - 1)
+            }
+        }
+        scan(ctx.getExternalFilesDir("backup"), 0)
+        if (!onlyApp) {
+            val roots = ArrayList<File>()
+            roots.add(android.os.Environment.getExternalStorageDirectory())
+            File("/storage").listFiles()?.filter { it.isDirectory && it.name != "self" && it.name != "emulated" && it.canRead() }?.forEach { roots.add(it) }
+            for (r in roots) {
+                scan(r, 0)
+                for (n in listOf("Download", "Documents", "Backup", "Backups", "AppMenuBackups", "AppMenu", "Резервные копии", "Копии")) scan(File(r, n), 1)
+            }
+        }
+        return out.values.sortedByDescending { it.lastModified() }
+    }
+
+    /** Причина последней неудачи восстановления: "" (нет), "open", "notcopy", "broken", "other". */
+    @Volatile var lastFail: String = ""
+
     /** Восстановление: настройки заменяются на сохранённые, свои значки добавляются. Возвращает true при успехе. */
     fun restore(ctx: Context, input: InputStream): Boolean = runCatching {
+        lastFail = ""
         var settings: JSONObject? = null
         val icons = HashMap<String, ByteArray>()
         ZipInputStream(input).use { z ->
@@ -81,7 +137,9 @@ object Backup {
                 e = z.nextEntry
             }
         }
-        val prefsJson = settings?.getJSONObject("prefs") ?: return false
+        val prefsJson = settings?.optJSONObject("prefs")
+        if (prefsJson == null) { lastFail = "notcopy"; return false }
+        saveBeforeRestore(ctx)
         val ed = ctx.getSharedPreferences("tvapps", Context.MODE_PRIVATE).edit().clear()
         prefsJson.keys().forEach { k ->
             val e = prefsJson.getJSONObject(k)
@@ -102,5 +160,9 @@ object Backup {
         HomeStore.reload()
         Cfg.bumpIcons()
         true
-    }.getOrDefault(false)
+    }.getOrElse {
+        lastFail = if (it is java.util.zip.ZipException || it is org.json.JSONException || it is java.io.EOFException) "broken" else "other"
+        android.util.Log.w("TVApps", "восстановление: " + it.javaClass.simpleName + ": " + it.message)
+        false
+    }
 }

@@ -55,9 +55,9 @@ object FilePick {
     private fun roots(): List<File> {
         val base = Environment.getExternalStorageDirectory()
         val out = ArrayList<File>()
-        for (n in listOf("wallpaper", "Wallpaper", "wallpapers", "Wallpapers", "DCIM", "Pictures", "Movies", "Download")) out.add(File(base, n))
+        for (n in listOf("wallpaper", "Wallpaper", "wallpapers", "Wallpapers", "Обои", "обои", "Картинки", "Изображения", "Фото", "DCIM", "Pictures", "Movies", "Download", "Загрузки")) out.add(File(base, n))
         // подключённые накопители: та же папка wallpaper
-        File("/storage").listFiles()?.filter { it.isDirectory && it.name != "self" && it.name != "emulated" && it.canRead() }?.forEach { out.add(File(it, "wallpaper")); out.add(File(it, "Wallpapers")) }
+        File("/storage").listFiles()?.filter { it.isDirectory && it.name != "self" && it.name != "emulated" && it.canRead() }?.forEach { out.add(File(it, "wallpaper")); out.add(File(it, "Wallpapers")); out.add(File(it, "Обои")) }
         return out
     }
 

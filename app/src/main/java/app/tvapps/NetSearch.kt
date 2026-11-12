@@ -22,26 +22,85 @@ data class NetApp(val name: String, val summary: String, val source: String, val
 object NetSearch {
     private const val UA = "TVApps/1.0 (Android)"
 
+    /** Ошибка каталога с понятным видом: rate (лимит запросов GitHub), token (токен не принят), http (другой код ответа). */
+    class NetSearchError(val kind: String, val code: Int = 0, msg: String = "") : Exception(msg)
+
     private fun get(url: String, accept: String = "application/json"): String {
         val c = URL(url).openConnection() as HttpURLConnection
         c.connectTimeout = 15_000
         c.readTimeout = 25_000
         c.setRequestProperty("User-Agent", UA)
-        c.setRequestProperty("Accept", accept)
+        c.setRequestProperty("Accept", if (url.startsWith("https://api.github.com/")) "application/vnd.github+json" else accept)
+        if (url.startsWith("https://api.github.com/") && Cfg.githubToken.isNotBlank()) c.setRequestProperty("Authorization", "Bearer " + Cfg.githubToken)
         return try {
-            if (c.responseCode !in 200..299) error("HTTP ${c.responseCode}")
+            val code = c.responseCode
+            if (code !in 200..299) {
+                if (url.startsWith("https://api.github.com/")) {
+                    val left = c.getHeaderField("X-RateLimit-Remaining")
+                    if (code == 429 || (code == 403 && (left == "0" || (runCatching { c.errorStream?.bufferedReader()?.use { it.readText() } }.getOrNull().orEmpty().contains("rate limit", true))))) throw NetSearchError("rate", code, "HTTP $code")
+                    if (code == 401) throw NetSearchError("token", code, "HTTP 401")
+                }
+                throw NetSearchError("http", code, "HTTP $code")
+            }
             c.inputStream.bufferedReader().use { it.readText() }
         } finally { c.disconnect() }
+    }
+
+    /** Наши программы: по имени пакета сразу находится их репозиторий (в README и описаниях имени пакета нет, поиск GitHub по нему ничего не даёт). */
+    private val knownPackages = mapOf(
+        "app.tvapps" to "drugoj00/app-menu",
+        "app.adbphon" to "drugoj00/adb-phon",
+        "app.adbphon.clouds" to "drugoj00/adb-phon",
+    )
+
+    /** Вид запроса: имя пакета (app.tvapps), «владелец/репозиторий», готовый вид user:… или обычное слово/имя владельца. */
+    private fun githubQueries(s: String): List<String> {
+        val q = s.trim()
+        val low = q.lowercase()
+        val out = LinkedHashSet<String>()
+        val owner = Regex("^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$")
+        val pkg = Regex("^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)+\$")
+        knownPackages[low]?.let { out += "repo:$it" }
+        when {
+            Regex("^(user|org|repo|topic|in|language|stars):").containsMatchIn(low) -> out += q
+            q.contains('/') && !q.contains(' ') -> { out += "repo:$q"; out += "$q in:name" }
+            pkg.matches(low) -> { out += "\"$q\" in:readme,description,name"; out += q.substringAfterLast('.') + " in:name"; out += "topic:" + q.replace('.', '-') }
+            owner.matches(q) -> { out += "user:$q"; out += "$q in:name,description"; out += "topic:" + low }
+            else -> { out += "$q in:name,description,readme" }
+        }
+        return out.toList()
     }
 
     suspend fun search(q: String, source: String): List<NetApp> = withContext(Dispatchers.IO) {
         val enc = URLEncoder.encode(q.trim(), "UTF-8")
         when (source) {
             "github" -> {
-                val items = JSONObject(get("https://api.github.com/search/repositories?q=$enc+topic:android&per_page=15")).optJSONArray("items") ?: JSONArray()
-                (0 until items.length()).map { items.getJSONObject(it) }.map {
-                    NetApp(it.optString("name"), it.optString("description", "").takeIf { d -> d != "null" }.orEmpty(), "github", it.getString("full_name"))
+                val found = LinkedHashMap<String, NetApp>()
+                var firstError: Exception? = null
+                var okCount = 0
+                for (qq in githubQueries(q)) {
+                    try {
+                        val e = URLEncoder.encode(qq, "UTF-8")
+                        val items = JSONObject(get("https://api.github.com/search/repositories?q=$e&sort=stars&per_page=20")).optJSONArray("items") ?: JSONArray()
+                        okCount++
+                        for (k in 0 until items.length()) {
+                            val it = items.getJSONObject(k)
+                            val full = it.optString("full_name")
+                            if (full.isBlank() || found.containsKey(full)) continue
+                            val d = it.optString("description", "").takeIf { x -> x != "null" }.orEmpty()
+                            val st = it.optInt("stargazers_count")
+                            found[full] = NetApp(full, (if (st > 0) "★$st " else "") + d, "github", full)
+                        }
+                    } catch (e: NetSearchError) {
+                        if (e.kind == "rate" || e.kind == "token") { if (found.isNotEmpty()) break else throw e }
+                        if (firstError == null) firstError = e
+                    } catch (e: Exception) {
+                        if (firstError == null) firstError = e
+                    }
+                    if (found.size >= 30) break
                 }
+                if (found.isEmpty() && okCount == 0 && firstError != null) throw firstError
+                found.values.toList()
             }
             else -> {
                 val apps = JSONObject(get("https://search.f-droid.org/api/search_apps?q=$enc&lang=ru")).optJSONArray("apps") ?: JSONArray()
@@ -56,10 +115,18 @@ object NetSearch {
     /** Адреса APK для выбранного приложения: сначала самый подходящий, дальше запасные (для других процессоров). */
     suspend fun apkUrls(app: NetApp): List<String> = withContext(Dispatchers.IO) {
         if (app.source == "github") {
-            val assets = JSONObject(get("https://api.github.com/repos/${app.id}/releases/latest")).optJSONArray("assets") ?: JSONArray()
-            val urls = (0 until assets.length()).map { assets.getJSONObject(it) }
-                .filter { it.optString("name").lowercase().endsWith(".apk") }
-                .map { it.getString("browser_download_url") }
+            fun apksOf(rel: JSONObject): List<String> {
+                val assets = rel.optJSONArray("assets") ?: JSONArray()
+                return (0 until assets.length()).map { assets.getJSONObject(it) }
+                    .filter { it.optString("name").lowercase().endsWith(".apk") }
+                    .map { it.getString("browser_download_url") }
+            }
+            // сначала последний обычный релиз; если в нём нет APK (или релизов нет), смотрим последние релизы подряд
+            var urls = runCatching { apksOf(JSONObject(get("https://api.github.com/repos/${app.id}/releases/latest"))) }.getOrDefault(emptyList())
+            if (urls.isEmpty()) {
+                val rels = runCatching { JSONArray(get("https://api.github.com/repos/${app.id}/releases?per_page=8")) }.getOrNull()
+                if (rels != null) for (x in 0 until rels.length()) { val u = apksOf(rels.getJSONObject(x)); if (u.isNotEmpty()) { urls = u; break } }
+            }
             val abis = Build.SUPPORTED_ABIS.map { it.lowercase() }
             // сначала файлы под процессор устройства или универсальные, потом остальные
             urls.sortedBy { u ->

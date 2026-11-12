@@ -196,6 +196,7 @@ class MainActivity : ComponentActivity() {
     private val resumeTick = mutableIntStateOf(0)
 
     override fun dispatchKeyEvent(ev: android.view.KeyEvent): Boolean {
+        if (ev.action == android.view.KeyEvent.ACTION_DOWN) AppsMem.lastKeyAt = System.currentTimeMillis()
         if (Voice.onKey(this, ev)) return true
         // «Назад» обрабатываем здесь, до списка: иначе первое нажатие после запуска из «Дома» гасилось списком и меню не закрывалось
         if (ev.keyCode == android.view.KeyEvent.KEYCODE_BACK) {
@@ -257,6 +258,7 @@ class MainActivity : ComponentActivity() {
         Cfg.init(this)
         Startup.mark("onCreate меню")
         HomeStore.init(this)
+        WallNet.autoRefresh(this)
         asHome = intent?.categories?.contains(Intent.CATEGORY_HOME) == true
         // меню выключено в настройках: без особой просьбы (настройки, поиск) сразу открывается «Дом», сетка не грузится
         if (menuOffRedirect(intent)) { openHomeInstead(this); return }
@@ -384,7 +386,7 @@ private fun loadAppsImpl(ctx: android.content.Context, prev: List<Entry> = empty
 }
 
 /** Тот же набор приложений: пакеты, названия, признаки и время установки/обновления совпадают, значит значки и плитки перерисовывать не нужно. */
-private fun sameApps(a: List<Entry>, b: List<Entry>): Boolean {
+internal fun sameApps(a: List<Entry>, b: List<Entry>): Boolean {
     if (a.size != b.size) return false
     for (i in a.indices) {
         val x = a[i]; val y = b[i]
@@ -516,7 +518,13 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
         }
         // при каждом возврате в меню список загружался заново и подменялся целиком: новые объекты и новые картинки перекомпоновывали и
         // перерисовывали все плитки разом (рывок на слабом железе). Если приложения те же (пакет, название, время обновления), остаётся прежний список.
-        if (forced || !sameApps(apps, fresh)) apps = fresh
+        if (forced || !sameApps(apps, fresh)) {
+            // во время установки приложений список не подменяется, пока пультом двигают курсор: ждём 2,5 с тишины (не больше 16 с);
+            // плитки закреплены за именем пакета, поэтому после подмены курсор остаётся на том же значке
+            var waited = 0
+            while (!forced && System.currentTimeMillis() - AppsMem.lastKeyAt < 2500L && waited < 40) { kotlinx.coroutines.delay(400); waited++ }
+            apps = fresh
+        }
         Startup.mark("свежий список: ${fresh.size}")
         AppsMem.list = apps; AppsMem.stamp = System.currentTimeMillis()
         loadedOnce = true

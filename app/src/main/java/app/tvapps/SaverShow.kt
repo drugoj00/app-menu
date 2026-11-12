@@ -33,6 +33,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
@@ -80,7 +82,25 @@ internal fun SaverScreen(ctx: Context, cfg: SaverCfg) {
     var night by remember { mutableStateOf(SaverGuard.isNight(cfg)) }
     LaunchedEffect(cfg) { while (true) { night = SaverGuard.isNight(cfg); delay(30_000) } }
     val bg = if (cfg.bg == 0L) Color.Black else Color(cfg.bg.toInt())
+    val sctx = androidx.compose.ui.platform.LocalContext.current
+    val pic = remember { if (WallNet.saverOn(sctx)) runCatching { saverPicture(WallNet.saverFile(sctx).path) }.getOrNull() else null }
+    val saverPortrait = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+    val scrop = remember(saverPortrait) { WallNet.crop(sctx, "saver", saverPortrait) }
+    val vid = remember { WallNet.saverVideoOn(sctx) }
     Box(Modifier.fillMaxSize().background(bg)) {
+        // картинка из интернета за часами (выбирается в «Обои из интернета»): приглушена, чтобы часы читались и экран не выгорал
+        // видео на заставке: играет, пока заставка на экране (остановится вместе с ней); с подписью автора внизу
+        if (vid) {
+            VideoBg(WallNet.saverVideoFile(sctx).path, false, 0)
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)))
+        } else pic?.let {
+            androidx.compose.foundation.Image(
+                it, null,
+                Modifier.fillMaxSize().graphicsLayer { scaleX = scrop.zoom; scaleY = scrop.zoom; transformOrigin = androidx.compose.ui.graphics.TransformOrigin((scrop.ox + 1f) / 2f, (scrop.oy + 1f) / 2f) },
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop, alignment = androidx.compose.ui.BiasAlignment(scrop.ox, scrop.oy),
+            )
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)))
+        }
         BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             val d = LocalDensity.current
             // всё рисуется в «виртуальных» 640 dp по ширине и масштабируется на весь экран (размер из настроек, но так, чтобы помещалось по высоте)
@@ -205,4 +225,13 @@ internal class SaverFrame(ctx: Context, private val onExit: () -> Unit) : FrameL
         }
         return true
     }
+}
+
+/** Картинка заставки с уменьшением до 1280 по длинной стороне: заставка живёт в слабом процессе службы. */
+private fun saverPicture(path: String): androidx.compose.ui.graphics.ImageBitmap? {
+    val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    android.graphics.BitmapFactory.decodeFile(path, o)
+    var s = 1
+    while (maxOf(o.outWidth, o.outHeight) / (s * 2) >= 1280) s *= 2
+    return android.graphics.BitmapFactory.decodeFile(path, android.graphics.BitmapFactory.Options().apply { inSampleSize = s })?.asImageBitmap()
 }

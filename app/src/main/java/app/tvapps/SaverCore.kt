@@ -257,6 +257,24 @@ object SaverGuard {
         } else badSince = 0L
     }
 
+    /**
+     * Перед обновлением самой программы: наша служба спецвозможностей снимается с учёта, чтобы система закрыла соединение штатно.
+     * Иначе после замены файла Android 9 и старше оставляет «мёртвое» соединение и не подключает службу до перезагрузки.
+     * После запуска новой версии сторож включает службу снова (см. ensureAccess).
+     */
+    fun releaseBeforeSelfUpdate(ctx: Context) {
+        val c = ctx.applicationContext
+        runCatching {
+            if (!SaverPrefs.get(c).enabled) return
+            val comp = SaverPerm.accessComp(c)
+            if (!SaverPerm.accessListed(c)) return
+            if (writeAccess(c, AccessSync.enabledNow(c) - comp)) {
+                SaverLog.log("перед обновлением программы служба спецвозможностей снята с учёта; после запуска новой версии включится сама")
+                Thread.sleep(2500)
+            }
+        }
+    }
+
     private fun writeAccess(c: Context, list: Set<String>): Boolean {
         val joined = list.joinToString(":")
         if (SaverPerm.secure(c)) {

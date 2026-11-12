@@ -57,6 +57,8 @@ object Cfg {
     var folders by mutableStateOf<List<Folder>>(emptyList()); private set
     /** Сохранять копию приложения перед удалением. */
     var backupOnDelete by mutableStateOf(true); private set
+    /** Необязательный токен GitHub для поиска (без токена GitHub пускает около 10 поисковых запросов в минуту); хранится только на устройстве. */
+    var githubToken by mutableStateOf(""); private set
     /** Пробовать права root (Magisk) вместо ADB, если они есть. */
     var useRoot by mutableStateOf(true); private set
     /** Приложения, которые не нужно предлагать обновить. */
@@ -148,6 +150,7 @@ object Cfg {
             if (p.size < 3) null else Folder(p[0], p[1], p[2].split(",").filter { it.isNotBlank() })
         }
         backupOnDelete = sp.getBoolean("backup_delete", true)
+        githubToken = sp.getString("github_token", "").orEmpty()
         useRoot = sp.getBoolean("use_root", true)
         updSkip = sp.getStringSet("upd_skip", emptySet())?.toSet() ?: emptySet()
         updSources = sp.getStringSet("upd_sources", null)?.toSet()?.let { st ->
@@ -289,6 +292,7 @@ object Cfg {
     fun setUpdNotifiedKey(k: String) { sp.edit().putString("upd_notified_key", k).apply() }
     fun changeGhToken(v: String) { ghToken = v.trim(); sp.edit().putString("gh_token", ghToken).apply() }
     fun changeUseRoot(v: Boolean) { useRoot = v; sp.edit().putBoolean("use_root", v).apply() }
+    fun changeGithubToken(v: String) { githubToken = v.trim(); sp.edit().putString("github_token", v.trim()).apply() }
     fun changeBackupOnDelete(v: Boolean) { backupOnDelete = v; sp.edit().putBoolean("backup_delete", v).apply() }
 
     // ---- папки ----

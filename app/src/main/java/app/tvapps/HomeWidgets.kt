@@ -272,14 +272,31 @@ private fun WeatherBody(w: HWidget, tick: Int, refreshTick: Int) {
         val daysFit = (if (mw.value - leftW - 12f >= 26f * nWant) nWant else ((mw.value - leftW - 12f) / 26f).toInt()).coerceIn(0, nWant)
         // ширина слота одного дня: значок и подписи подгоняются под неё, чтобы пять дней всегда влезали
         val dayW = if (daysFit > 0) (mw.value - leftW - 12f) / daysFit else 0f
+        // посадка левой колонки по высоте: если все включённые строки (город, температура, ветер и прочее, восход и луна) не помещаются, шрифты сжимаются, а затем лишняя нижняя строка убирается
+        val hasParts = s.wind || (s.feels && wd.feels != Weather.NA) || (s.hum && wd.hum != Weather.NA) || (s.press && wd.press != Weather.NA)
+        val hasSun = ((s.wxSun && wd.sunrise.isNotEmpty()) || s.wxMoon) && bh >= 100f
+        val lineK = 1.28f
+        val cityH0 = 15f * k * s.infoSz / 100f * lineK
+        val tempH0 = big * (if (wide) 1.1f else 1f) * s.tempSz / 100f * lineK
+        val partsH0 = if (hasParts) 14f * k * s.infoSz / 100f * lineK else 0f
+        val sunH0 = if (hasSun) 13f * k * s.infoSz / 100f * lineK else 0f
+        var showSunV = hasSun
+        var showPartsV = hasParts
+        var needH = cityH0 + tempH0 + (if (showPartsV) partsH0 else 0f) + (if (showSunV) sunH0 else 0f)
+        var fitV = if (needH > bh) (bh / needH).coerceIn(0.6f, 1f) else 1f
+        if (needH * fitV > bh && showSunV) { showSunV = false; needH -= sunH0; fitV = if (needH > bh) (bh / needH).coerceIn(0.6f, 1f) else 1f }
+        if (needH * fitV > bh && showPartsV) { showPartsV = false; needH -= partsH0; fitV = if (needH > bh) (bh / needH).coerceIn(0.6f, 1f) else 1f }
+        val fit = fitV
+        val showSun = showSunV
+        val showParts = showPartsV
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             Row(Modifier.width(if (daysFit > 0 || showDesc) leftW.dp else mw), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (wide) WxIcon(wd.code, (bh * 0.50f).coerceIn(40f, 64f))
                 Column(Modifier.weight(1f, fill = false)) {
                     val cInfo = s.col(s.cInfo, t.sub)
                     val tempColor = if (wd.temp < 0 && s.cNeg != 0L) s.col(s.cNeg, t.text) else s.col(s.cTemp, t.text)
-                    Text(wd.city + (if (showDesc && s.desc) " · " + stringResource(WeatherData.descRes(wd.code)) else ""), color = cInfo, fontSize = (15f * k * s.infoSz / 100f).sp, maxLines = if (bh >= 120f) 2 else 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, style = ts)
-                    Text((if (wide) "" else WeatherData.emoji(wd.code) + " ") + WxUnits.temp(wd.temp, s), color = tempColor, fontSize = (big * (if (wide) 1.1f else 1f) * s.tempSz / 100f).sp, maxLines = 1, style = ts)
+                    Text(wd.city + (if (showDesc && s.desc) " · " + stringResource(WeatherData.descRes(wd.code)) else ""), color = cInfo, fontSize = (15f * k * s.infoSz / 100f * fit).sp, maxLines = if (bh >= 120f && fit >= 1f) 2 else 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, style = ts)
+                    Text((if (wide) "" else WeatherData.emoji(wd.code) + " ") + WxUnits.temp(wd.temp, s), color = tempColor, fontSize = (big * (if (wide) 1.1f else 1f) * s.tempSz / 100f * fit).sp, maxLines = 1, style = ts)
                     val windUnit = stringResource(when (s.uWind) { 1 -> R.string.ws_uw1s; 2 -> R.string.ws_uw2s; else -> R.string.home_wind })
                     val pressUnit = stringResource(if (s.uPress == 1) R.string.ws_up1s else R.string.ws_up0s)
                     val feelsLabel = stringResource(R.string.ws_feels_short)
@@ -289,12 +306,12 @@ private fun WeatherBody(w: HWidget, tick: Int, refreshTick: Int) {
                         if (s.hum && wd.hum != Weather.NA) add("💧 ${wd.hum}%")
                         if (s.press && wd.press != Weather.NA) add("${WxUnits.press(wd.press, s)} $pressUnit")
                     }
-                    if (parts.isNotEmpty()) Text(parts.joinToString(" · "), color = if (s.cInfo != 0L) cInfo else t.hint, fontSize = (14f * k * s.infoSz / 100f).sp, maxLines = if (bh >= 120f) 2 else 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, style = ts)
+                    if (parts.isNotEmpty() && showParts) Text(parts.joinToString(" · "), color = if (s.cInfo != 0L) cInfo else t.hint, fontSize = (14f * k * s.infoSz / 100f * fit).sp, maxLines = if (bh >= 120f && fit >= 1f) 2 else 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, style = ts)
                     val sunMoon = buildList {
                         if (s.wxSun && wd.sunrise.isNotEmpty()) add("🌅 ${wd.sunrise}  🌇 ${wd.sunset}")
                         if (s.wxMoon) add(Moon.text(System.currentTimeMillis()))
                     }
-                    if (sunMoon.isNotEmpty() && bh >= 100f) Text(sunMoon.joinToString("  "), color = if (s.cInfo != 0L) cInfo else t.hint, fontSize = (13f * k * s.infoSz / 100f).sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, style = ts)
+                    if (sunMoon.isNotEmpty() && bh >= 100f && showSun) Text(sunMoon.joinToString("  "), color = if (s.cInfo != 0L) cInfo else t.hint, fontSize = (13f * k * s.infoSz / 100f * fit).sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, style = ts)
                 }
             }
             if (mode == 1 && wd.hours.isNotEmpty() && daysFit > 0) Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {

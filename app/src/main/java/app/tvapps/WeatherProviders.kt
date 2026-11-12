@@ -35,26 +35,36 @@ internal object WxSrc {
     const val OWM = 4
     const val WAPI = 5
     const val TOMORROW = 6
-    val IDS = listOf(AUTO, OPEN_METEO, MET, WTTR, OWM, WAPI, TOMORROW)
+    const val VISUAL = 7
+    const val WEATHERBIT = 8
+    const val METEOBLUE = 9
+    const val ACCU = 10
+    val IDS = listOf(AUTO, OPEN_METEO, MET, WTTR, OWM, WAPI, TOMORROW, VISUAL, WEATHERBIT, METEOBLUE, ACCU)
 
     /** Меняется при смене источника или ключа: виджеты следят за ним и перезагружают погоду. */
     val rev = mutableIntStateOf(0)
 
     private fun sp(c: Context) = c.applicationContext.getSharedPreferences("tvapps_weather", Context.MODE_PRIVATE)
     fun id(c: Context): Int = sp(c).getInt("src", AUTO).takeIf { it in IDS } ?: AUTO
-    fun key(c: Context): String = sp(c).getString("apikey", "").orEmpty()
+    /** Ключ выбранного источника: у каждого сервиса свой, чтобы ключ одного не уходил на адрес другого (старый общий ключ читается только для первых трёх платных). */
+    fun key(c: Context, id: Int = id(c)): String = sp(c).getString("apikey_$id", null) ?: (if (id in OWM..TOMORROW) sp(c).getString("apikey", "").orEmpty() else "")
     fun set(c: Context, id: Int) { sp(c).edit().putInt("src", id).putLong("force_after", System.currentTimeMillis()).apply(); rev.intValue++ }
-    fun setKey(c: Context, k: String) { sp(c).edit().putString("apikey", k.trim()).putLong("force_after", System.currentTimeMillis()).apply(); rev.intValue++ }
+    fun setKey(c: Context, k: String) { sp(c).edit().putString("apikey_" + id(c), k.trim()).putLong("force_after", System.currentTimeMillis()).apply(); rev.intValue++ }
     fun forceAfter(c: Context): Long = sp(c).getLong("force_after", 0L)
     fun needsKey(id: Int) = id >= OWM
 
+    /** Как долго данные источника считаются свежими: у AccuWeather бесплатный предел очень мал, поэтому раз в час; у остальных раз в 30 минут. */
+    fun ttlMs(id: Int): Long = if (id == ACCU) 60 * 60_000L else 30 * 60_000L
+
     fun nameRes(id: Int): Int = when (id) {
         OPEN_METEO -> R.string.wsrc_om; MET -> R.string.wsrc_met; WTTR -> R.string.wsrc_wttr; OWM -> R.string.wsrc_owm; WAPI -> R.string.wsrc_wapi; TOMORROW -> R.string.wsrc_tom
+        VISUAL -> R.string.wsrc_vc; WEATHERBIT -> R.string.wsrc_wb; METEOBLUE -> R.string.wsrc_mb; ACCU -> R.string.wsrc_acc
         else -> R.string.wsrc_auto
     }
     /** Короткое имя источника для подписи («данные от 14:05, источник …»). */
     fun shortName(id: Int): String = when (id) {
-        OPEN_METEO -> "Open-Meteo"; MET -> "MET Norway"; WTTR -> "wttr.in"; OWM -> "OpenWeatherMap"; WAPI -> "WeatherAPI.com"; TOMORROW -> "Tomorrow.io"; else -> "?"
+        OPEN_METEO -> "Open-Meteo"; MET -> "MET Norway"; WTTR -> "wttr.in"; OWM -> "OpenWeatherMap"; WAPI -> "WeatherAPI.com"; TOMORROW -> "Tomorrow.io"
+        VISUAL -> "Visual Crossing"; WEATHERBIT -> "Weatherbit"; METEOBLUE -> "Meteoblue"; ACCU -> "AccuWeather"; else -> "?"
     }
 }
 
@@ -340,5 +350,137 @@ internal object WxProviders {
         }
         return assemble(c.getDouble("temperature"), tomCode(c.optInt("weatherCode")), c.optDouble("windSpeed", 0.0), days,
             c.optDouble("temperatureApparent").takeIf { !it.isNaN() }, c.optDouble("humidity").takeIf { !it.isNaN() }, c.optDouble("pressureSurfaceLevel").takeIf { !it.isNaN() }, sr, ss, hours)
+    }
+
+    // ------------------------------------------------------------------ Visual Crossing (свой ключ)
+
+    private fun vcCode(icon: String): Int = when {
+        icon.contains("thunder") -> 95
+        icon.contains("snow") || icon.contains("hail") -> 73
+        icon.contains("sleet") -> 67
+        icon.contains("showers") -> 80
+        icon.contains("rain") -> 63
+        icon.contains("fog") -> 45
+        icon.startsWith("clear") -> 0
+        icon.startsWith("partly") -> 2
+        icon == "cloudy" -> 3
+        icon.contains("wind") -> 1
+        else -> 2
+    }
+
+    fun visual(p: WxPlace, key: String, get: (String, Map<String, String>) -> String, now: Long): JSONObject {
+        val j = JSONObject(get(String.format(Locale.US, "https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/%.4f,%.4f?unitGroup=metric&include=days,hours,current&contentType=json&key=%s", p.lat, p.lon, java.net.URLEncoder.encode(key, "UTF-8")), emptyMap()))
+        val tz = TimeZone.getTimeZone(j.optString("timezone").ifEmpty { zoneOf(p).id })
+        val c = j.getJSONObject("currentConditions")
+        val ds = j.getJSONArray("days")
+        val days = JSONArray(); val hours = JSONArray()
+        val nowKey = fmt("yyyy-MM-dd HH", tz, now)
+        for (i in 0 until minOf(ds.length(), 7)) {
+            val d = ds.getJSONObject(i)
+            days.put(dayObj(d.getString("datetime"), vcCode(d.optString("icon")), d.getDouble("tempmax"), d.getDouble("tempmin")))
+            val hs = d.optJSONArray("hours") ?: continue
+            for (k in 0 until hs.length()) {
+                val h = hs.getJSONObject(k)
+                val hr = h.getString("datetime").take(2)
+                if (d.getString("datetime") + " " + hr >= nowKey && hours.length() < 36)
+                    hours.put(hourObj(hr, vcCode(h.optString("icon")), h.getDouble("temp"), h.optDouble("windspeed", 0.0) / 3.6, if (h.has("precipprob") && !h.isNull("precipprob")) r(h.getDouble("precipprob")) else null))
+            }
+        }
+        return assemble(c.getDouble("temp"), vcCode(c.optString("icon")), c.optDouble("windspeed", 0.0) / 3.6, days,
+            c.optDouble("feelslike").takeIf { !it.isNaN() }, c.optDouble("humidity").takeIf { !it.isNaN() }, c.optDouble("pressure").takeIf { !it.isNaN() },
+            c.optString("sunrise").take(5), c.optString("sunset").take(5), hours)
+    }
+
+    // ------------------------------------------------------------------ Weatherbit (свой ключ; почасовой прогноз у них платный, поэтому часов нет)
+
+    private fun wbCode(c: Int): Int = when {
+        c in 200..233 -> 95
+        c in 300..302 -> 51
+        c == 500 -> 61; c == 501 -> 63; c == 502 || c == 511 -> 65
+        c in 520..522 -> 80
+        c == 600 -> 71; c == 601 || c == 610 -> 73; c == 602 -> 75; c in 611..612 -> 67; c in 621..623 -> 75
+        c in 700..751 -> 45
+        c == 800 -> 0; c == 801 -> 1; c == 802 -> 2; c == 803 || c == 804 -> 3
+        else -> 2
+    }
+
+    fun weatherbit(p: WxPlace, key: String, get: (String, Map<String, String>) -> String, now: Long): JSONObject {
+        val q = String.format(Locale.US, "lat=%.4f&lon=%.4f&key=%s", p.lat, p.lon, java.net.URLEncoder.encode(key, "UTF-8"))
+        val cur = JSONObject(get("https://api.weatherbit.io/v2.0/current?$q", emptyMap())).getJSONArray("data").getJSONObject(0)
+        val fd = JSONObject(get("https://api.weatherbit.io/v2.0/forecast/daily?days=7&$q", emptyMap())).getJSONArray("data")
+        val days = JSONArray()
+        for (i in 0 until fd.length()) {
+            val d = fd.getJSONObject(i)
+            days.put(dayObj(d.getString("valid_date"), wbCode(d.getJSONObject("weather").getInt("code")), d.getDouble("max_temp"), d.getDouble("min_temp")))
+        }
+        val zone = cur.optString("timezone").takeIf { it.isNotEmpty() }?.let { TimeZone.getTimeZone(it) } ?: zoneOf(p)
+        val sun = sunTimes(p.lat, p.lon, zone, now)
+        return assemble(cur.getDouble("temp"), wbCode(cur.getJSONObject("weather").getInt("code")), cur.optDouble("wind_spd", 0.0), days,
+            cur.optDouble("app_temp").takeIf { !it.isNaN() }, cur.optDouble("rh").takeIf { !it.isNaN() }, cur.optDouble("pres").takeIf { !it.isNaN() }, sun?.first, sun?.second, JSONArray())
+    }
+
+    // ------------------------------------------------------------------ Meteoblue (свой ключ; соответствие значков приблизительное)
+
+    private fun mbCode(c: Int): Int = when (c) {
+        1 -> 0; 2 -> 1; 3 -> 2; 4 -> 3; 5 -> 45; 6 -> 63; 7 -> 80; 8 -> 95; 9 -> 73; 10 -> 71; 11 -> 67; 12 -> 61; 13 -> 61; 14 -> 65; 15 -> 75; 16 -> 2; 17 -> 3
+        else -> 2
+    }
+
+    fun meteoblue(p: WxPlace, key: String, get: (String, Map<String, String>) -> String, now: Long): JSONObject {
+        val j = JSONObject(get(String.format(Locale.US, "https://my.meteoblue.com/packages/basic-day_basic-1h_current?lat=%.4f&lon=%.4f&temperature=C&windspeed=ms-1&format=json&apikey=%s", p.lat, p.lon, java.net.URLEncoder.encode(key, "UTF-8")), emptyMap()))
+        val zone = zoneOf(p)
+        val cur = j.getJSONObject("data_current")
+        val h = j.getJSONObject("data_1h"); val d = j.getJSONObject("data_day")
+        val ht = h.getJSONArray("time"); val hx = h.getJSONArray("temperature"); val hc = h.getJSONArray("pictocode"); val hw = h.optJSONArray("windspeed")
+        val hours = JSONArray()
+        val nowKey = fmt("yyyy-MM-dd HH", zone, now)
+        for (i in 0 until ht.length()) {
+            val tm = ht.getString(i)
+            if (tm.take(13).replace('T', ' ') >= nowKey && hours.length() < 36) hours.put(hourObj(tm.substring(11, 13), mbCode(hc.optInt(i)), hx.getDouble(i), hw?.optDouble(i), null))
+        }
+        val dt = d.getJSONArray("time"); val dx = d.getJSONArray("temperature_max"); val dn = d.getJSONArray("temperature_min"); val dc = d.getJSONArray("pictocode")
+        val days = JSONArray()
+        for (i in 0 until minOf(dt.length(), 7)) days.put(dayObj(dt.getString(i).take(10), mbCode(dc.optInt(i)), dx.getDouble(i), dn.getDouble(i)))
+        val sun = sunTimes(p.lat, p.lon, zone, now)
+        return assemble(cur.getDouble("temperature"), mbCode(cur.optInt("pictocode", 3)), cur.optDouble("windspeed", 0.0), days, null, null, null, sun?.first, sun?.second, hours)
+    }
+
+    // ------------------------------------------------------------------ AccuWeather (свой платный ключ; у бесплатного ключа около 50 запросов в сутки)
+
+    private fun accuCode(i: Int): Int = when (i) {
+        1, 2, 33, 34 -> 0; 3, 4, 35, 36 -> 1; 5, 6, 37, 38 -> 2; 7, 8 -> 3; 11 -> 45
+        12, 13, 14, 39, 40 -> 80; 15, 16, 17, 41, 42 -> 95; 18 -> 63; 19, 20, 21, 43 -> 71; 22, 23, 44 -> 73; 24, 25, 26, 29 -> 67
+        else -> 2
+    }
+
+    fun accu(p: WxPlace, key: String, get: (String, Map<String, String>) -> String, now: Long, loc: (String) -> String?, saveLoc: (String, String) -> Unit): JSONObject {
+        val k = java.net.URLEncoder.encode(key, "UTF-8")
+        val ck = String.format(Locale.US, "%.2f,%.2f", p.lat, p.lon)
+        var lk = loc(ck)
+        if (lk == null) {
+            lk = JSONObject(get("https://dataservice.accuweather.com/locations/v1/cities/geoposition/search?apikey=$k&q=$ck", emptyMap())).getString("Key")
+            saveLoc(ck, lk)
+        }
+        val cur = JSONArray(get("https://dataservice.accuweather.com/currentconditions/v1/$lk?apikey=$k&details=true", emptyMap())).getJSONObject(0)
+        val fd = JSONObject(get("https://dataservice.accuweather.com/forecasts/v1/daily/5day/$lk?apikey=$k&metric=true", emptyMap())).getJSONArray("DailyForecasts")
+        val zone = zoneOf(p)
+        val days = JSONArray()
+        for (i in 0 until fd.length()) {
+            val d = fd.getJSONObject(i)
+            days.put(dayObj(d.getString("Date").take(10), accuCode(d.getJSONObject("Day").getInt("Icon")),
+                d.getJSONObject("Temperature").getJSONObject("Maximum").getDouble("Value"), d.getJSONObject("Temperature").getJSONObject("Minimum").getDouble("Value")))
+        }
+        val hours = JSONArray()
+        runCatching {
+            val hs = JSONArray(get("https://dataservice.accuweather.com/forecasts/v1/hourly/12hour/$lk?apikey=$k&metric=true", emptyMap()))
+            for (i in 0 until hs.length()) {
+                val h = hs.getJSONObject(i)
+                hours.put(hourObj(h.getString("DateTime").substring(11, 13), accuCode(h.getInt("WeatherIcon")), h.getJSONObject("Temperature").getDouble("Value"), null, if (h.has("PrecipitationProbability")) h.optInt("PrecipitationProbability") else null))
+            }
+        }
+        fun m(o: JSONObject?, a: String) = o?.optJSONObject(a)?.optJSONObject("Metric")?.optDouble("Value", Double.NaN) ?: Double.NaN
+        val sun = sunTimes(p.lat, p.lon, zone, now)
+        return assemble(m(cur, "Temperature"), accuCode(cur.optInt("WeatherIcon", 7)), (cur.optJSONObject("Wind")?.optJSONObject("Speed")?.optJSONObject("Metric")?.optDouble("Value", 0.0) ?: 0.0) / 3.6, days,
+            m(cur, "RealFeelTemperature").takeIf { !it.isNaN() }, cur.optDouble("RelativeHumidity").takeIf { !it.isNaN() }, m(cur, "Pressure").takeIf { !it.isNaN() }, sun?.first, sun?.second, hours)
     }
 }

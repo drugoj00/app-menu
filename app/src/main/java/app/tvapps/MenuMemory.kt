@@ -74,7 +74,7 @@ object MenuMemory {
         firstPkg = sp.getString("mm_spkg", null)
         firstIndex = sp.getInt("mm_sidx", 0)
         firstOffset = sp.getInt("mm_soff", 0)
-        settingsSub = MenuMemoryLogic.settingsSub(sp.getString("mm_set_sub", "main"))
+        settingsSub = "main"   // подэкраны настроек (скрытые, исключения) заново открываются сверху, не с прежнего места
         settingsScroll = sp.getInt("mm_set_scroll", 0)
         settingsFocusText = sp.getString("mm_set_ftext", null)
         settingsFocusY = sp.getFloat("mm_set_fy", 0f)
