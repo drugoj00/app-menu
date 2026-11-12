@@ -81,6 +81,8 @@ sealed interface Dlg {
     data class WidgetD(val rowId: String, val slot: Int) : Dlg
     data class WidgetType(val rowId: String, val slot: Int) : Dlg
     data class WidgetCity(val rowId: String, val slot: Int) : Dlg
+    /** Вид часов и погоды: part — раздел настроек (пусто: список разделов). */
+    data class WidgetStyle(val rowId: String, val slot: Int, val part: String = "") : Dlg
     data class WidgetRestore(val rowId: String, val slot: Int) : Dlg
     data class Status(val id: String) : Dlg
     data object Top : Dlg
@@ -540,13 +542,17 @@ private fun WidgetsRow(row: HRow, tick: Int, refreshTick: Int, firstReq: FocusRe
                 }
                 val wRing = if (w.borderC == 0L) t.accent else Color(w.borderC.toInt())
                 HomeBox(
-                    Modifier.weight(w.wt.coerceAtLeast(1).toFloat()).fillMaxHeight(), wShape, if (w.type == "appwidget" || w.type == WIDGET_EMPTY) Color.Transparent else t.tile, focusReq = if (i == 0) firstReq else null, memKey = row.id + "|w" + i,
+                    Modifier.weight(w.wt.coerceAtLeast(1).toFloat()).fillMaxHeight(), wShape, if (w.type == "appwidget" || w.type == WIDGET_EMPTY) Color.Transparent else if (w.style.isNotEmpty() && (w.type == "clock" || w.type == "weather")) t.tile.copy(alpha = t.tile.alpha * (WStyle.parse(w.style).bgAlpha / 100f)) else t.tile, focusReq = if (i == 0) firstReq else null, memKey = row.id + "|w" + i,
                     ringColor = if (w.borderW > 0 && w.borderHover) wRing else null, ringWidth = if (w.borderHover) w.borderW else 0,
                     focusTint = false,      // у виджета выбор и так виден по смене фона
                     // пустое место: одиночный клик сразу открывает выбор вида виджета; недействительный Android-виджет (после восстановления копии): клик добавляет его заново
                     onClick = {
                         if (w.type == WIDGET_EMPTY) onDlg(Dlg.WidgetType(row.id, i))
                         else if (w.type == "appwidget" && !AppWidgets.alive(ctx, w.ref)) onDlg(Dlg.WidgetRestore(row.id, i))
+                        // часы: нажатие открывает настройки вида; погода: переключает режим прогноза «5 дней / По часам / Неделя» по кругу
+                        else if (w.type == "clock" && WStyle.parse(w.style).clickT == 1) onDlg(Dlg.WidgetStyle(row.id, i))
+                        else if (w.type == "weather" && WStyle.parse(w.style).let { it.clickW == 1 && Integer.bitCount(it.modes) > 1 })
+                            HomeStore.updateSlot(row.id, i) { it.copy(style = WStyle.parse(it.style).let { st -> st.copy(view = nextForecastMode(st.view, st.modes)).json() }) }
                         else widgetClick(ctx, w) { refresh++ }
                     },
                     onLong = { onDlg(Dlg.WidgetD(row.id, i)) },

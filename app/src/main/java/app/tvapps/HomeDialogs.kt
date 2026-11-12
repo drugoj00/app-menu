@@ -380,6 +380,8 @@ internal fun HomeDialogs(
                     if (configureWidget(w.ref)) close()
                     else android.widget.Toast.makeText(ctx, ctx.getString(R.string.wg_no_config), android.widget.Toast.LENGTH_LONG).show()
                 })
+                // «Вид часов и погоды»: размеры, цвета, формат, цифры, прогноз, единицы, фон; быстрый вход к настройкам стиля прямо с виджета
+                if (w.type == "clock" || w.type == "weather") add(Opt(stringResource(R.string.ws_look)) { setDlg(Dlg.WidgetStyle(row.id, dlg.slot)) })
                 when (w.type) {
                     "weather" -> {
                         add(Opt(stringResource(R.string.wg_city), w.city.ifBlank { stringResource(R.string.wg_city_auto) }, onClick = { setDlg(Dlg.WidgetCity(row.id, dlg.slot)) }))
@@ -418,6 +420,8 @@ internal fun HomeDialogs(
             ListDialog(stringResource(R.string.wg_title), opts, close, footer = updatesFooter)
         }
 
+        is Dlg.WidgetStyle -> WidgetStyleDialog(dlg, setDlg)
+
         is Dlg.WidgetType -> {
             val curSlot = HomeStore.row(dlg.rowId)?.slots?.getOrNull(dlg.slot)
             ListDialog(
@@ -425,7 +429,11 @@ internal fun HomeDialogs(
                 WIDGET_TYPES.map { ty ->
                     Opt(widgetName(ty), if (curSlot?.type == ty) "✓" else "") {
                         if (curSlot?.type == "appwidget") AppWidgets.release(ctx, curSlot.ref)
-                        HomeStore.updateSlot(dlg.rowId, dlg.slot) { it.copy(type = ty, n = if (ty == "weather") 5 else 0, ref = "", prov = "") }
+                        HomeStore.updateSlot(dlg.rowId, dlg.slot) {
+                            // новая установка: часы и погода получают новые стандартные наборы («Цифровой», «Как у Tablet Clock»); у обновившихся остаётся прежний вид
+                            val w0 = it.copy(type = ty, n = if (ty == "weather") 5 else 0, ref = "", prov = "")
+                            if (HomeStore.digitalDefault && (ty == "clock" || ty == "weather")) applyPreset(w0, 1) else w0
+                        }
                         setDlg(Dlg.WidgetD(dlg.rowId, dlg.slot))
                     }
                 } + Opt(stringResource(R.string.wg_android), if (curSlot?.type == "appwidget") "✓" else "") { setDlg(Dlg.AppWidgetPick(dlg.rowId, dlg.slot)) },
@@ -471,43 +479,7 @@ internal fun HomeDialogs(
             ListDialog(stringResource(R.string.empty_title), opts, close, footer = updatesFooter)
         }
 
-        Dlg.Screen -> {
-            var sureReset by remember { mutableStateOf(false) }
-            var sureOff by remember { mutableStateOf(false) }
-            // значения переключателей лежат в настройках, а не в состоянии Compose: счётчик заставляет окно перерисоваться после нажатия
-            var rev by remember { mutableStateOf(0) }
-            val ringAccent = LocalTh.current.accent
-            val homeRingSwatch = remember(Cfg.homeRing, ringAccent) {
-                colorDot(if (Cfg.homeRing == 0) ringAccent.toArgb() else Cfg.RING_COLORS[Cfg.homeRing].toInt())
-            }
-            val modeName = { v: Int, show: Int, hide: Int, auto: Int -> ctx.getString(when (v) { 1 -> show; 2 -> hide; else -> auto }) }
-            val opts = listOf(
-                // простые «Вкл / Выкл»; без выбора пользователя по умолчанию на ТВ полоска включена, а системные панели выключены, на телефоне наоборот
-                Opt(stringResource(R.string.top_mode), (rev * 0).let { if (TopMode.visible(ctx)) on else off },
-                    onClick = { TopMode.set(ctx, if (TopMode.visible(ctx)) 2 else 1); rev++ }),
-                Opt(stringResource(R.string.sb_status), (rev * 0).let { if (SysBars.hidden(ctx, false)) off else on },
-                    onClick = { SysBars.set(ctx, false, if (SysBars.hidden(ctx, false)) 1 else 2); (ctx as? android.app.Activity)?.let { SysBars.apply(it) }; rev++ }),
-                Opt(stringResource(R.string.sb_nav), (rev * 0).let { if (SysBars.hidden(ctx, true)) off else on },
-                    onClick = { SysBars.set(ctx, true, if (SysBars.hidden(ctx, true)) 1 else 2); (ctx as? android.app.Activity)?.let { SysBars.apply(it) }; rev++ }),
-                Opt(stringResource(R.string.top_items)) { setDlg(Dlg.Top) },
-                Opt(stringResource(R.string.screen_row_gap), "${HomeStore.layout.rowGap}",
-                    { HomeStore.set(HomeStore.layout.copy(rowGap = (HomeStore.layout.rowGap - 1).coerceAtLeast(0))); rev++ },
-                    { HomeStore.set(HomeStore.layout.copy(rowGap = (HomeStore.layout.rowGap + 1).coerceAtMost(60))); rev++ }),
-                // цвет рамки выделения «Дома» (меню настраивается отдельно в настройках меню); у плитки или виджета свой цвет важнее
-                Opt(stringResource(R.string.home_ring_title), stringResource(if (Cfg.homeRing == 0) R.string.ring_default else BORDER_NAMES[Cfg.homeRing]),
-                    { Cfg.changeHomeRing((Cfg.homeRing + Cfg.RING_COLORS.size - 1) % Cfg.RING_COLORS.size) },
-                    { Cfg.changeHomeRing((Cfg.homeRing + 1) % Cfg.RING_COLORS.size) },
-                    icon = homeRingSwatch),
-                Opt(stringResource(R.string.bg_title)) { setDlg(Dlg.Bg) },
-                Opt(if (sureReset) stringResource(R.string.screen_reset_sure) else stringResource(R.string.screen_reset), danger = true) {
-                    if (sureReset) { HomeStore.resetLayout(); close() } else sureReset = true
-                },
-                Opt(if (sureOff) stringResource(R.string.screen_off_sure) else stringResource(R.string.screen_off_home), danger = true) {
-                    if (sureOff) { close(); disableHome() } else sureOff = true
-                },
-            )
-            ListDialog(stringResource(R.string.screen_title), opts, close)
-        }
+        Dlg.Screen -> HomeScreenDialog(setDlg, close, disableHome)
 
         is Dlg.MoveToRow -> {
             val cur = HomeStore.rowOfItem(dlg.itemId)
@@ -757,3 +729,50 @@ private fun IconEditDialog(dlg: Dlg.IconEdit, pickImage: (String) -> Unit, setDl
     }
     ListDialog(stringResource(R.string.icon_edit), opts, { setDlg(Dlg.ItemD(dlg.rowId, dlg.itemId)) })
 }
+
+
+/** Настройки «Дома» (вынесено из общего окна, чтобы метод не превышал предел размера). */
+@Composable
+private fun HomeScreenDialog(setDlg: (Dlg?) -> Unit, close: () -> Unit, disableHome: () -> Unit) {
+    val ctx = LocalContext.current
+    val on = stringResource(R.string.on)
+    val off = stringResource(R.string.off)
+            var sureReset by remember { mutableStateOf(false) }
+            var sureOff by remember { mutableStateOf(false) }
+            // значения переключателей лежат в настройках, а не в состоянии Compose: счётчик заставляет окно перерисоваться после нажатия
+            var rev by remember { mutableStateOf(0) }
+            val ringAccent = LocalTh.current.accent
+            val homeRingSwatch = remember(Cfg.homeRing, ringAccent) {
+                colorDot(if (Cfg.homeRing == 0) ringAccent.toArgb() else Cfg.RING_COLORS[Cfg.homeRing].toInt())
+            }
+            val modeName = { v: Int, show: Int, hide: Int, auto: Int -> ctx.getString(when (v) { 1 -> show; 2 -> hide; else -> auto }) }
+            val opts = listOf(
+                // простые «Вкл / Выкл»; без выбора пользователя по умолчанию на ТВ полоска включена, а системные панели выключены, на телефоне наоборот
+                Opt(stringResource(R.string.top_mode), (rev * 0).let { if (TopMode.visible(ctx)) on else off },
+                    onClick = { TopMode.set(ctx, if (TopMode.visible(ctx)) 2 else 1); rev++ }),
+                Opt(stringResource(R.string.sb_status), (rev * 0).let { if (SysBars.hidden(ctx, false)) off else on },
+                    onClick = { SysBars.set(ctx, false, if (SysBars.hidden(ctx, false)) 1 else 2); (ctx as? android.app.Activity)?.let { SysBars.apply(it) }; rev++ }),
+                Opt(stringResource(R.string.sb_nav), (rev * 0).let { if (SysBars.hidden(ctx, true)) off else on },
+                    onClick = { SysBars.set(ctx, true, if (SysBars.hidden(ctx, true)) 1 else 2); (ctx as? android.app.Activity)?.let { SysBars.apply(it) }; rev++ }),
+                Opt(stringResource(R.string.top_items)) { setDlg(Dlg.Top) },
+                // раздел «Виджет часов и погоды»: настройки вида первого виджета часов или погоды на «Доме» (у каждого виджета свои, они же в меню виджета)
+                Opt(stringResource(R.string.ws_section)) { val f = firstStyledWidget(); if (f != null) setDlg(Dlg.WidgetStyle(f.first, f.second)) else toastNoWidget(ctx) },
+                Opt(stringResource(R.string.sv_title)) { ctx.startActivity(android.content.Intent(ctx, SaverSettingsActivity::class.java)) },
+                Opt(stringResource(R.string.screen_row_gap), "${HomeStore.layout.rowGap}",
+                    { HomeStore.set(HomeStore.layout.copy(rowGap = (HomeStore.layout.rowGap - 1).coerceAtLeast(0))); rev++ },
+                    { HomeStore.set(HomeStore.layout.copy(rowGap = (HomeStore.layout.rowGap + 1).coerceAtMost(60))); rev++ }),
+                // цвет рамки выделения «Дома» (меню настраивается отдельно в настройках меню); у плитки или виджета свой цвет важнее
+                Opt(stringResource(R.string.home_ring_title), stringResource(if (Cfg.homeRing == 0) R.string.ring_default else BORDER_NAMES[Cfg.homeRing]),
+                    { Cfg.changeHomeRing((Cfg.homeRing + Cfg.RING_COLORS.size - 1) % Cfg.RING_COLORS.size) },
+                    { Cfg.changeHomeRing((Cfg.homeRing + 1) % Cfg.RING_COLORS.size) },
+                    icon = homeRingSwatch),
+                Opt(stringResource(R.string.bg_title)) { setDlg(Dlg.Bg) },
+                Opt(if (sureReset) stringResource(R.string.screen_reset_sure) else stringResource(R.string.screen_reset), danger = true) {
+                    if (sureReset) { HomeStore.resetLayout(); close() } else sureReset = true
+                },
+                Opt(if (sureOff) stringResource(R.string.screen_off_sure) else stringResource(R.string.screen_off_home), danger = true) {
+                    if (sureOff) { close(); disableHome() } else sureOff = true
+                },
+            )
+            ListDialog(stringResource(R.string.screen_title), opts, close)
+        }

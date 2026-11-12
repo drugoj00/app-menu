@@ -58,6 +58,8 @@ data class HWidget(
     val borderW: Int = 0, val borderC: Long = 0L, val borderHover: Boolean = false,
     /** Android-виджет: компонент поставщика (пакет/класс). Номер виджета (ref) привязан к устройству и после восстановления копии недействителен, по компоненту виджет добавляется заново. */
     val prov: String = "",
+    /** Вид часов и погоды: JSON настроек (размеры, цвета, формат, цифры), пусто — прежний вид (см. WidgetStyle.kt). */
+    val style: String = "",
 )
 
 data class HRow(
@@ -132,8 +134,8 @@ private fun JSONObject.toItem() = HItem(
     optInt("bw"), optLong("bc"), optBoolean("bh"),
 )
 
-private fun HWidget.toJson() = JSONObject().put("t", type).put("c", city).put("n", n).put("f", flag).put("r", ref).put("fs", fs).put("wt", wt).put("rd", radius).put("bw", borderW).put("bc", borderC).put("bh", borderHover).put("p", prov)
-private fun JSONObject.toWidget() = HWidget(optString("t", "weather"), optString("c"), optInt("n", 5), optBoolean("f", true), optString("r"), optInt("fs", 100), optInt("wt", 100), optInt("rd", 16), optInt("bw"), optLong("bc"), optBoolean("bh"), optString("p"))
+private fun HWidget.toJson() = JSONObject().put("t", type).put("c", city).put("n", n).put("f", flag).put("r", ref).put("fs", fs).put("wt", wt).put("rd", radius).put("bw", borderW).put("bc", borderC).put("bh", borderHover).put("p", prov).put("st", style)
+private fun JSONObject.toWidget() = HWidget(optString("t", "weather"), optString("c"), optInt("n", 5), optBoolean("f", true), optString("r"), optInt("fs", 100), optInt("wt", 100), optInt("rd", 16), optInt("bw"), optLong("bc"), optBoolean("bh"), optString("p"), optString("st"))
 
 private fun HRow.toJson() = JSONObject().put("id", id).put("t", title).put("st", showTitle).put("k", kind)
     .put("it", JSONArray(items.map { it.toJson() })).put("a", auto).put("c", count).put("s", size).put("as", aspect)
@@ -283,12 +285,16 @@ object HomeStore {
 
     fun newId(prefix: String): String = prefix + java.lang.Long.toString(System.currentTimeMillis(), 36) + (seq++ % 36).toString(36)
 
+    /** Новые виджеты часов получают цифровой набор вида (только на новой установке; у обновившихся с 5.2 и раньше всё осталось по-старому). */
+    val digitalDefault: Boolean get() = ::sp.isInitialized && sp.getBoolean("wstyle_new_default", false)
+
     private fun defaultLayout(): HLayout {
         val c = app
+        sp.edit().putBoolean("wstyle_new_default", true).apply()
         return HLayout(
             HTop(true, STATUS_IDS.map { HStatus(it, true, if (it == "date") 3 else 0) }),
             listOf(
-                HRow(newId("r"), "", true, "widgets", size = 120, slots = listOf(HWidget("weather", n = 5), HWidget("clock", n = 0))),
+                HRow(newId("r"), "", true, "widgets", size = 120, slots = listOf(HWidget("weather", n = 5), HWidget("clock", n = WStyle.presetN("clock", 1, 0), style = WStyle.preset("clock", 1).json()))),
             ),
         )
     }

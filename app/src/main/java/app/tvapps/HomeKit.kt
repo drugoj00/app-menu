@@ -8,6 +8,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -266,11 +270,78 @@ class Opt(
     val onRemove: (() -> Unit)? = null,
     /** картинка широкая (превью баннера 16:9), а не маленький значок */
     val wide: Boolean = false,
+    /** выбор цвета полосой спектра; «Как у темы» справа от названия (стрелки меняют оттенок, ОК: как у темы) */
+    val bar: ColorBarSpec? = null,
     val onClick: (() -> Unit)? = null,
 )
 
+/** Выбор цвета полосой: [argb] 0 — цвет темы; [onPick] получает новый цвет (0 — «Как у темы»). */
+class ColorBarSpec(val argb: Long, val onPick: (Long) -> Unit)
+
+/** Строка выбора цвета: название и справа кнопка «Как у темы», ниже полоса спектра с бегунком. Пульт: влево/вправо меняют оттенок, ОК сбрасывает на цвет темы; касание и мышь: нажать или вести по полосе. */
 @Composable
-private fun OptRow(o: Opt, req: FocusRequester?) {
+private fun ColorBarRow(o: Opt, req: FocusRequester?) {
+    val t = LocalTh.current
+    val bar = o.bar!!
+    var focused by remember { mutableStateOf(false) }
+    val (hm, hover) = rememberHover()
+    val gate = remember { StepGate() }
+    val hue = remember(bar.argb) { if (bar.argb == 0L) -1f else FloatArray(3).also { android.graphics.Color.colorToHSV(bar.argb.toInt(), it) }[0] }
+    val pick = { h: Float ->
+        val hh = ((h % 360f) + 360f) % 360f
+        bar.onPick(android.graphics.Color.HSVToColor(floatArrayOf(hh, 1f, 1f)).toLong() and 0xFFFFFFFFL)
+    }
+    val spectrum = remember { androidx.compose.ui.graphics.Brush.horizontalGradient((0..12).map { Color.hsv((it * 30f) % 360f, 1f, 1f) }) }
+    Column(
+        Modifier.fillMaxWidth()
+            .then(hm)
+            .then(if (req != null) Modifier.focusRequester(req) else Modifier)
+            .onPreviewKeyEvent { ev ->
+                if (OkShield.eats(ev)) return@onPreviewKeyEvent true
+                if (ev.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                when (ev.key) {
+                    Key.DirectionLeft -> { if (gate.ok()) pick((if (hue < 0f) 0f else hue) - 5f); true }
+                    Key.DirectionRight -> { if (gate.ok()) pick((if (hue < 0f) 0f else hue) + 5f); true }
+                    Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> { bar.onPick(0L); true }
+                    else -> false
+                }
+            }
+            .onFocusChanged { focused = it.isFocused }
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (focused || hover) t.tileFocus else t.tile)
+            .border(if (focused) 3.dp else 1.dp, if (focused) t.accent else t.border, RoundedCornerShape(12.dp))
+            .focusable()
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(o.label, color = t.text, style = Typo.iconLabel(), modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(androidx.compose.ui.res.stringResource(R.string.ws_like_theme), color = if (bar.argb == 0L) t.bg else t.sub, fontSize = 13.sp,
+                modifier = Modifier.clip(RoundedCornerShape(14.dp)).background(if (bar.argb == 0L) t.accent else Color.Transparent)
+                    .border(1.dp, if (bar.argb == 0L) t.accent else t.border, RoundedCornerShape(14.dp))
+                    .clickable { bar.onPick(0L) }.padding(horizontal = 12.dp, vertical = 4.dp))
+        }
+        androidx.compose.foundation.Canvas(
+            Modifier.fillMaxWidth().height(24.dp)
+                .pointerInput(Unit) {
+                    detectTapGestures { p -> pick(p.x / size.width * 360f) }
+                }
+                .pointerInput(Unit) {
+                    detectDragGestures { change, _ -> change.consume(); pick(change.position.x.coerceIn(0f, size.width.toFloat()) / size.width * 360f) }
+                },
+        ) {
+            drawRoundRect(spectrum, cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f))
+            val cx = (if (hue < 0f) 0.5f else hue / 360f).coerceIn(0.03f, 0.97f) * size.width
+            val cy = size.height / 2f
+            drawCircle(Color.White, size.height * 0.62f, androidx.compose.ui.geometry.Offset(cx, cy))
+            drawCircle(if (hue < 0f) Color(0xFFB0B0B0) else Color.hsv(hue, 1f, 1f), size.height * 0.46f, androidx.compose.ui.geometry.Offset(cx, cy))
+        }
+    }
+}
+
+@Composable
+internal fun OptRow(o: Opt, req: FocusRequester?) {
+    if (o.bar != null) { ColorBarRow(o, req); return }
     val t = LocalTh.current
     var focused by remember { mutableStateOf(false) }
     val (hm, hover) = rememberHover()

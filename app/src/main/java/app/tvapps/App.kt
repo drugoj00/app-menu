@@ -23,6 +23,8 @@ class App : Application() {
         HomeControl.guardOnProcessStart(this)
         // шифрование Conscrypt и ключ ADB создаются при первом обращении к ADB (Adb.ensure), а не при каждом запуске: экономит память
         Adb.init(this)
+        // заставка по бездействию: если включена, служба и сторож поднимаются вместе с процессом программы
+        runCatching { SaverGuard.startIfEnabled(this, "процесс программы") }
         Integrity.warm(this)
     }
 }

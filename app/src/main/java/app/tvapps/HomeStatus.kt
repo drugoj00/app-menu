@@ -151,15 +151,44 @@ internal fun statusName(id: String): String = stringResource(
     when (id) { "notif" -> R.string.st_notif; "bt" -> R.string.st_bt; "net" -> R.string.st_net; "usb" -> R.string.st_usb; "time" -> R.string.st_time; "gear" -> R.string.st_gear; else -> R.string.st_date },
 )
 
-/** Время «сейчас», обновляется раз в минуту (в начале минуты). */
+/**
+ * Текущее время для часов. Обновляется в начале каждой минуты, при [seconds] (в часах включены секунды) в начале каждой секунды.
+ * Каждый следующий тик считается от текущего времени (а не прибавлением к прошлому), поэтому дрейфа нет; перевод часов, смена часового пояса
+ * и даты подхватываются сразу (системные сообщения), пока окно не видно (сон экрана, другое приложение), тики не выполняются и процессор не нагружается;
+ * при возврате время обновляется мгновенно. Для замера хода: `adb shell setprop log.tag.TVClock VERBOSE`, в журнале TVClock смещение каждого тика от границы секунды.
+ */
 @Composable
-/** Текущее время: обновляется раз в минуту, а при [seconds] (в часах включены секунды) раз в секунду. */
 internal fun rememberNow(seconds: Boolean = false): Long {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(seconds) {
+    val ctx = LocalContext.current
+    val owner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    var active by remember { androidx.compose.runtime.mutableStateOf(owner.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) }
+    var kick by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    androidx.compose.runtime.DisposableEffect(owner) {
+        val ob = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_START) { active = true; kick++ }
+            else if (e == androidx.lifecycle.Lifecycle.Event.ON_STOP) active = false
+        }
+        owner.lifecycle.addObserver(ob)
+        onDispose { owner.lifecycle.removeObserver(ob) }
+    }
+    androidx.compose.runtime.DisposableEffect(ctx) {
+        val rx = object : android.content.BroadcastReceiver() {
+            override fun onReceive(c: Context, i: android.content.Intent) { now = System.currentTimeMillis(); kick++ }
+        }
+        val f = android.content.IntentFilter().apply {
+            addAction(android.content.Intent.ACTION_TIME_CHANGED); addAction(android.content.Intent.ACTION_TIMEZONE_CHANGED); addAction(android.content.Intent.ACTION_DATE_CHANGED)
+        }
+        val ok = runCatching { androidx.core.content.ContextCompat.registerReceiver(ctx, rx, f, androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED) }.isSuccess
+        onDispose { if (ok) runCatching { ctx.unregisterReceiver(rx) } }
+    }
+    LaunchedEffect(seconds, active, kick) {
+        if (!active) return@LaunchedEffect
+        val trace = android.util.Log.isLoggable("TVClock", android.util.Log.VERBOSE)
         while (true) {
             val t = System.currentTimeMillis()
             now = t
+            if (trace) android.util.Log.v("TVClock", "tick sec=" + (t / 1000 % 60) + " off=" + (t % 1000))
             delay(if (seconds) 1000 - t % 1000 + 5 else 60_000 - t % 60_000 + 30)
         }
     }

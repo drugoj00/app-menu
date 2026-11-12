@@ -153,18 +153,31 @@ object Banners {
 // ------------------------------------------------------------------ погода (Open-Meteo, без ключа)
 
 data class WDay(val label: String, val code: Int, val max: Int, val min: Int)
-data class Weather(val city: String, val temp: Int, val code: Int, val wind: Int, val days: List<WDay>, val at: Long)
+/** Почасовой прогноз: подпись часа («14»), код погоды, температура. */
+data class WHour(val label: String, val code: Int, val temp: Int, val wind: Int = 0, val pop: Int = Int.MIN_VALUE)
+
+/** Погода; feels, hum, press — «нет данных» (NA) у записей из кэша прежних версий; sunrise, sunset — «ЧЧ:ММ» на сегодня. */
+data class Weather(
+    val city: String, val temp: Int, val code: Int, val wind: Int, val days: List<WDay>, val at: Long,
+    val feels: Int = NA, val hum: Int = NA, val press: Int = NA, val sunrise: String = "", val sunset: String = "", val hours: List<WHour> = emptyList(),
+    /** номер источника данных (см. WxSrc), 0: запись прежних версий (Open-Meteo) */
+    val src: Int = 0,
+) {
+    companion object { const val NA = Int.MIN_VALUE }
+    /** Есть ли дополнительные данные (ощущаемая, влажность, давление, восход, почасовой прогноз). */
+    val hasExtra: Boolean get() = feels != NA && hours.isNotEmpty()
+}
 
 object WeatherData {
     /** Причина последней неудачи (для виджета: вместо вечной «Загрузка…»). */
     @Volatile var lastError: String? = null
 
-    private fun get(url: String): String {
+    internal fun get(url: String, headers: Map<String, String> = emptyMap()): String {
         var err: Exception? = null
         for (attempt in 0..1) {
             try {
                 val c = URL(url).openConnection() as HttpURLConnection
-                c.connectTimeout = 8000; c.readTimeout = 12000; c.setRequestProperty("User-Agent", "AppMenu")
+                c.connectTimeout = 8000; c.readTimeout = 12000; c.setRequestProperty("User-Agent", "AppMenu"); for ((k, v) in headers) c.setRequestProperty(k, v)
                 try {
                     if (c.responseCode !in 200..299) error("HTTP ${c.responseCode}")
                     return c.inputStream.bufferedReader().use { it.readText() }
@@ -204,7 +217,10 @@ object WeatherData {
         val d = j.getJSONArray("days")
         // подпись дня строится из даты при чтении: в кэше хранится дата, а не слово на каком-то языке
         for (i in 0 until d.length()) { val o = d.getJSONObject(i); days += WDay(if (o.has("d")) dayLabel(o.getString("d"), lang) else o.getString("l"), o.getInt("c"), o.getInt("x"), o.getInt("n")) }
-        return Weather(j.optString("shown", j.optString("city")), j.getInt("t"), j.getInt("c"), j.getInt("w"), days, j.getLong("at"))
+        val hours = mutableListOf<WHour>()
+        j.optJSONArray("hh")?.let { a -> for (i in 0 until a.length()) { val o = a.getJSONObject(i); hours += WHour(o.getString("l"), o.getInt("c"), o.getInt("x"), o.optInt("w"), o.optInt("p", Int.MIN_VALUE)) } }
+        return Weather(j.optString("shown", j.optString("city")), j.getInt("t"), j.getInt("c"), j.getInt("w"), days, j.getLong("at"),
+            j.optInt("fe", Weather.NA), j.optInt("hu", Weather.NA), j.optInt("pr", Weather.NA), j.optString("sr"), j.optString("ss"), hours, j.optInt("src", 0))
     }
 
     /** Место по адресу в интернете (когда город не задан): широта, долгота, название. Запоминается на 12 часов. */
@@ -214,7 +230,10 @@ object WeatherData {
             return Triple(sp.getFloat("ip_lat", 0f).toDouble(), sp.getFloat("ip_lon", 0f).toDouble(), sp.getString("ip_city", "") ?: "")
         val found = runCatching {
             val j = JSONObject(get("https://ipwho.is/"))
-            if (!j.optBoolean("success", true)) null else Triple(j.getDouble("latitude"), j.getDouble("longitude"), j.optString("city"))
+            if (!j.optBoolean("success", true)) null else {
+                sp.edit().putString("ip_tz", j.optJSONObject("timezone")?.optString("id")).apply()
+                Triple(j.getDouble("latitude"), j.getDouble("longitude"), j.optString("city"))
+            }
         }.getOrNull() ?: runCatching {
             val j = JSONObject(get("https://ipapi.co/json/"))
             Triple(j.getDouble("latitude"), j.getDouble("longitude"), j.optString("city"))
@@ -224,53 +243,114 @@ object WeatherData {
         return found ?: if (sp.contains("ip_lat")) Triple(sp.getFloat("ip_lat", 0f).toDouble(), sp.getFloat("ip_lon", 0f).toDouble(), sp.getString("ip_city", "") ?: "") else null
     }
 
-    /** Загружает погоду; пустой город: место определяется по адресу в интернете. Свежее значение (до 30 минут) берётся из памяти. */
+    /** Open-Meteo: основной источник (без ключа). Возвращает данные во внутреннем виде кэша. */
+    private fun openMeteo(lat: Double, lon: Double): JSONObject {
+        val f = JSONObject(get("https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,weather_code,wind_speed_10m,apparent_temperature,relative_humidity_2m,surface_pressure" +
+            "&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset&hourly=temperature_2m,weather_code,wind_speed_10m,precipitation_probability&timezone=auto&forecast_days=7&wind_speed_unit=ms"))
+        val cur = f.getJSONObject("current")
+        val daily = f.getJSONObject("daily")
+        val times = daily.getJSONArray("time"); val codes = daily.getJSONArray("weather_code")
+        val mx = daily.getJSONArray("temperature_2m_max"); val mn = daily.getJSONArray("temperature_2m_min")
+        val arr = org.json.JSONArray()
+        for (i in 0 until times.length()) {
+            arr.put(JSONObject().put("d", times.getString(i)).put("c", codes.getInt(i)).put("x", Math.round(mx.getDouble(i)).toInt()).put("n", Math.round(mn.getDouble(i)).toInt()))
+        }
+        val j = JSONObject().put("t", Math.round(cur.getDouble("temperature_2m")).toInt())
+            .put("c", cur.getInt("weather_code")).put("w", Math.round(cur.getDouble("wind_speed_10m")).toInt()).put("days", arr)
+        // дополнительные данные (необязательные: при сбое разбора основная погода всё равно сохраняется)
+        runCatching {
+            if (cur.has("apparent_temperature") && !cur.isNull("apparent_temperature")) j.put("fe", Math.round(cur.getDouble("apparent_temperature")).toInt())
+            if (cur.has("relative_humidity_2m") && !cur.isNull("relative_humidity_2m")) j.put("hu", Math.round(cur.getDouble("relative_humidity_2m")).toInt())
+            if (cur.has("surface_pressure") && !cur.isNull("surface_pressure")) j.put("pr", Math.round(cur.getDouble("surface_pressure")).toInt())
+            val sr = daily.optJSONArray("sunrise")?.optString(0).orEmpty(); val ss = daily.optJSONArray("sunset")?.optString(0).orEmpty()
+            if (sr.length >= 16) j.put("sr", sr.substring(11, 16)); if (ss.length >= 16) j.put("ss", ss.substring(11, 16))
+            val ht = f.getJSONObject("hourly"); val tt = ht.getJSONArray("time"); val tc = ht.getJSONArray("weather_code"); val tx = ht.getJSONArray("temperature_2m")
+            val tw = ht.optJSONArray("wind_speed_10m"); val tpo = ht.optJSONArray("precipitation_probability")
+            val nowKey = cur.optString("time").take(13)     // «ГГГГ-ММ-ДДTЧЧ»: первый час прогноза не раньше текущего
+            var from = 0
+            while (from < tt.length() && tt.getString(from).take(13) < nowKey) from++
+            val ha = org.json.JSONArray()
+            var i = from
+            while (i < tt.length() && ha.length() < 36) {
+                if (!tx.isNull(i)) {
+                    val ho = JSONObject().put("l", tt.getString(i).substring(11, 13)).put("c", tc.optInt(i)).put("x", Math.round(tx.getDouble(i)).toInt())
+                    if (tw != null && !tw.isNull(i)) ho.put("w", Math.round(tw.getDouble(i)).toInt())
+                    if (tpo != null && !tpo.isNull(i)) ho.put("p", tpo.optInt(i))
+                    ha.put(ho)
+                }
+                i++
+            }
+            j.put("hh", ha)
+        }
+        return j
+    }
+
+    /** Один источник погоды по номеру (см. WxSrc); результат во внутреннем виде кэша. */
+    private fun fetchFrom(id: Int, p: WxPlace, key: String, now: Long): JSONObject = when (id) {
+        WxSrc.OPEN_METEO -> openMeteo(p.lat, p.lon)
+        WxSrc.MET -> WxProviders.met(p, ::get, now)
+        WxSrc.WTTR -> WxProviders.wttr(p, ::get, now)
+        WxSrc.OWM -> WxProviders.owm(p, key, ::get, now)
+        WxSrc.WAPI -> WxProviders.wapi(p, key, ::get, now)
+        WxSrc.TOMORROW -> WxProviders.tomorrow(p, key, ::get, now)
+        else -> throw IllegalArgumentException("источник $id")
+    }
+
+    /**
+     * Загружает погоду; пустой город: место определяется по адресу в интернете. Свежее значение (до 30 минут) берётся из памяти.
+     * Источник выбирается в настройках виджета: «Авто» пробует Open-Meteo, потом MET Norway, потом wttr.in; при сбое всех возвращается последний удачный ответ из памяти.
+     */
     fun load(ctx: Context, city: String, lang: String, force: Boolean = false): Weather? {
         val sp = ctx.getSharedPreferences("tvapps_weather", Context.MODE_PRIVATE)
-        cached(ctx, city, lang)?.let { if (!force && System.currentTimeMillis() - it.at < 30 * 60_000L) return it }
+        val sel = WxSrc.id(ctx)
+        val old = cached(ctx, city, lang)
+        old?.let { if (!force && System.currentTimeMillis() - it.at < 30 * 60_000L && it.at >= WxSrc.forceAfter(ctx) && (sel == WxSrc.AUTO || it.src == sel)) return it }
         return runCatching {
-            val lat: Double; val lon: Double; val name: String
+            val place: WxPlace
             if (city.isBlank()) {
                 val p = locateByIp(sp)!!
-                lat = p.first; lon = p.second; name = p.third
+                place = WxPlace(p.first, p.second, p.third, sp.getString("ip_tz", null))
             } else {
                 val xy = Regex("^\\s*(-?\\d{1,3}(?:\\.\\d+)?)\\s*[,;\\s]\\s*(-?\\d{1,3}(?:\\.\\d+)?)\\s*$").matchEntire(city)
                 if (xy != null) {
                     // место задано координатами: «широта, долгота»
-                    lat = xy.groupValues[1].toDouble(); lon = xy.groupValues[2].toDouble()
-                    name = java.lang.String.format(java.util.Locale.US, "%.2f, %.2f", lat, lon)
+                    val la = xy.groupValues[1].toDouble(); val lo = xy.groupValues[2].toDouble()
+                    place = WxPlace(la, lo, java.lang.String.format(java.util.Locale.US, "%.2f, %.2f", la, lo))
                 } else {
                     // геокодер ищет название на выбранном языке: пробуем язык интерфейса, потом украинский, русский и английский
-                    var found: Triple<Double, Double, String>? = null
+                    var found: WxPlace? = null
                     try {
                         for (l in listOf(lang, "uk", "ru", "en").distinct()) {
                             val g = JSONObject(get("https://geocoding-api.open-meteo.com/v1/search?name=" + java.net.URLEncoder.encode(city, "UTF-8") + "&count=1&language=" + l))
                             val r = g.optJSONArray("results")?.optJSONObject(0)
-                            if (r != null) { found = Triple(r.getDouble("latitude"), r.getDouble("longitude"), r.optString("name", city)); break }
+                            if (r != null) { found = WxPlace(r.getDouble("latitude"), r.getDouble("longitude"), r.optString("name", city), r.optString("timezone").ifBlank { null }); break }
                         }
                     } catch (e: Exception) { Log.w("TVApps", "геокодер погоды: ${e.message}") }
-                    if (found == null) found = nominatim(city, lang)
-                    val p = found ?: throw IllegalStateException("город не найден: " + city)
-                    lat = p.first; lon = p.second; name = p.third
+                    if (found == null) found = nominatim(city, lang)?.let { WxPlace(it.first, it.second, it.third) }
+                    place = found ?: throw IllegalStateException("город не найден: " + city)
                 }
             }
-            val f = JSONObject(get("https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,weather_code,wind_speed_10m" +
-                "&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=5&wind_speed_unit=ms"))
-            val cur = f.getJSONObject("current")
-            val daily = f.getJSONObject("daily")
-            val times = daily.getJSONArray("time"); val codes = daily.getJSONArray("weather_code")
-            val mx = daily.getJSONArray("temperature_2m_max"); val mn = daily.getJSONArray("temperature_2m_min")
-            val fmt = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
-            val arr = org.json.JSONArray()
-            for (i in 0 until times.length()) {
-                arr.put(JSONObject().put("d", times.getString(i)).put("c", codes.getInt(i)).put("x", Math.round(mx.getDouble(i)).toInt()).put("n", Math.round(mn.getDouble(i)).toInt()))
+            val apiKey = WxSrc.key(ctx)
+            Log.i("TVApps", "погода: выбран источник $sel, ключ ${if (apiKey.isBlank()) "пуст" else "задан"}")
+            val order = if (sel == WxSrc.AUTO || (WxSrc.needsKey(sel) && apiKey.isBlank())) listOf(WxSrc.OPEN_METEO, WxSrc.MET, WxSrc.WTTR) else listOf(sel)
+            var j: JSONObject? = null
+            var used = 0
+            val errs = ArrayList<String>()
+            val t0 = System.currentTimeMillis()
+            for (id in order) {
+                val res = runCatching { fetchFrom(id, place, apiKey, t0) }
+                if (res.isSuccess) { j = res.getOrNull(); used = id; break }
+                val msg = WxSrc.shortName(id) + ": " + res.exceptionOrNull()?.javaClass?.simpleName + (res.exceptionOrNull()?.message?.let { ": " + it.take(80) } ?: "")
+                errs += msg
+                Log.w("TVApps", "погода, источник не ответил: $msg")
             }
-            val j = JSONObject().put("shown", name).put("t", Math.round(cur.getDouble("temperature_2m")).toInt())
-                .put("c", cur.getInt("weather_code")).put("w", Math.round(cur.getDouble("wind_speed_10m")).toInt()).put("days", arr).put("at", System.currentTimeMillis())
-            sp.edit().putString(key(city, lang), j.toString()).apply()
+            val data = j ?: throw IllegalStateException(errs.joinToString("; "))
+            data.put("shown", place.name).put("at", System.currentTimeMillis()).put("src", used)
+            sp.edit().putString(key(city, lang), data.toString()).apply()
             lastError = null
-            parse(j, lang)
-        }.onFailure { lastError = it.javaClass.simpleName + (it.message?.let { m -> ": " + m } ?: ""); Log.w("TVApps", "погода: ${it.message}") }.getOrNull()
+            Log.i("TVApps", "погода: источник ${WxSrc.shortName(used)}" + (if (errs.isNotEmpty()) " (до него не ответили: ${errs.joinToString("; ")})" else ""))
+            parse(data, lang)
+        }.onFailure { lastError = it.javaClass.simpleName + (it.message?.let { m -> ": " + m } ?: ""); Log.w("TVApps", "погода: ${it.message}") }.getOrNull() ?: old
     }
 
     /** Слово о погоде по коду Open-Meteo (WMO). */
