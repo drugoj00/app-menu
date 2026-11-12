@@ -11,3 +11,6 @@ The code in App Menu is written separately; only protocols, endpoints and the re
 Источники обновлений основаны на идеях и протоколах APKUpdater (rumboalla, DmitryN71, NotDev), GPL-3.0.
 
 - Идеи источника Codeberg (Forgejo/Gitea API releases) и общий подход к источникам — Obtainium (ImranR98, GPL-3.0), https://github.com/ImranR98/Obtainium. Код написан заново.
+
+- Идея гибких настроек виджета часов и погоды (размеры, цвета, семисегментный стиль, прогноз «по часам / неделя») навеяна программой Tablet Clock (MIT), тема 4PDA 533885. Код и ресурсы Tablet Clock не использованы: всё написано заново, семисегментные цифры рисуются самой программой.
+- Погодные данные: Open-Meteo.com (CC BY 4.0), MET Norway (api.met.no, CC BY 4.0 / NLOD), wttr.in; по желанию пользователя с его ключом OpenWeatherMap, WeatherAPI.com, Tomorrow.io.
