@@ -154,10 +154,14 @@ object Adb {
             // Первое подключение к новому устройству: пока человек нажимает «Разрешить», попытка обрывается; вторая проходит сразу
             var last: Throwable? = null
             var done = false
+            // порт ADB не слушается (на старых Android без сетевого ADB): не ждать 2×25 с, а сразу сообщить об ошибке
+            val portOpen = runCatching { java.net.Socket().use { s -> s.connect(java.net.InetSocketAddress(host, port), 2_000); true } }.getOrDefault(false)
+            if (!portOpen) { Log.w("TVApps", "connect $host:$port: порт не отвечает, ожидание пропущено"); throw IllegalStateException("adb port closed") }
+            val perTry = 25_000L
             for (attempt in 1..2) {
                 runCatching { mgr.disconnect() }
                 Log.i("TVApps", "connect $host:$port (попытка $attempt)")
-                val r = runCatching { withTimeout(25_000) { runInterruptible { mgr.connect(host, port) } } }
+                val r = runCatching { withTimeout(perTry) { runInterruptible { mgr.connect(host, port) } } }
                 Log.i("TVApps", "connect result=${r.getOrNull()}")
                 if (r.getOrNull() == true) { done = true; break }
                 last = r.exceptionOrNull() ?: IllegalStateException("connect failed")
@@ -176,7 +180,7 @@ object Adb {
         runCatching {
             runCatching { mgr.disconnect() }
             var ok = false
-            if (host == "127.0.0.1") {
+            if (host == "127.0.0.1" && android.os.Build.VERSION.SDK_INT >= 30) {
                 ok = runCatching { mgr.autoConnect(context.applicationContext, 7000) }
                     .onFailure { Log.e("TVApps", "autoConnect error", it) }.getOrDefault(false)
             }

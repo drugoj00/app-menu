@@ -85,8 +85,19 @@ object Batch {
     fun listArchive(ctx: Context, archive: Uri): List<ApkFile> = Archives.extractApks(ctx, archive)
 
     /** Адрес файла для системной программы установки: из архива через FileProvider, из папки как есть. */
-    fun shareUri(ctx: Context, f: ApkFile): Uri =
-        if (f.file != null) FileProvider.getUriForFile(ctx, ctx.packageName + ".files", f.file) else f.uri
+    fun shareUri(ctx: Context, f: ApkFile): Uri {
+        val file = f.file ?: return f.uri
+        return try {
+            FileProvider.getUriForFile(ctx, ctx.packageName + ".files", file)
+        } catch (e: Throwable) {
+            // файл лежит вне описанных папок (приём по Wi‑Fi, флешка и т.п.): копия в cache/batch и адрес оттуда
+            android.util.Log.w("TVApps", "shareUri: ${file.name}: ${e.javaClass.simpleName}: ${e.message}; копия в cache/batch")
+            val dir = File(ctx.cacheDir, "batch").apply { mkdirs() }
+            val copy = File(dir, "share_" + file.name.replace(Regex("[^A-Za-z0-9._-]"), "_"))
+            file.copyTo(copy, true)
+            FileProvider.getUriForFile(ctx, ctx.packageName + ".files", copy)
+        }
+    }
 
     /** Получает файл на устройство, если он ещё на флешке или в сетевой папке. */
     suspend fun materialize(f: ApkFile): ApkFile {
