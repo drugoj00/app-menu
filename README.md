@@ -14,32 +14,32 @@ App Menu replaces the stock app list with a big grid made for a remote and for t
 
 ## Download
 
-**Version 5.4.** [AppMenu-5.4.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
+**Version 6.0.** [AppMenu-6.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `e27c98d6e29e71d0fa7de9fd5cd9627b8929302ba9bf01665fd9c781c3645420`
+SHA-256: `17cd3af256e81ae81d33ceb31158f9822f0850f938883a834150625193653e71`
 
-## What's new in 5.4
+## What's new in 6.0
 
 - The clock and weather widget is configurable: sizes, colors, time and date format, regular and seven-segment digits, custom fonts, one-tap style presets
 - Forecast block: hourly, 5 days, week; switches on press
 - Weather source of your choice: Open-Meteo, MET Norway, wttr.in or your own key (OpenWeatherMap, WeatherAPI.com, Tomorrow.io, Visual Crossing, Weatherbit, Meteoblue, AccuWeather); “Auto” falls back by itself
-- “Clock and weather” screensaver: system one and own idle one over any app, a setup wizard for car stereos, diagnostics
+- “Clock and weather” screensaver: system one and own idle one over any app, a setup wizard for car stereos, diagnostics; a picture or a video can be set on the screensaver
 - The clock keeps exact time: no second drift, survives sleep, time and time zone changes
 - Wallpapers from the internet for Home, the menu and the screensaver separately (Wikimedia Commons, NASA, Openverse; Pexels and Unsplash with your own key): topics, portrait and landscape, picture of the day, change once a day, author credit; nothing changes until you choose
 - Video wallpapers on Home, in the menu and on the screensaver (own file, link, Wikimedia Commons, NASA; Pexels and Pixabay with your own key): no sound, looped, paused when another app is on top or the screen is off, 1080p limit (720p on weak devices), a warning when turned on; off by default
 - Background blur for pictures and video; “Move / Zoom” for the picture frame
 - Wallpaper preview in a TV or phone frame with a clock and icons
-- GitHub search and the remote control in “Find and install from the internet”
-- Turning on ADB over network without a terminal: one button in settings on rooted boxes, a step-by-step wizard with a ready computer command on the others
+- The app remembers the Home screen choice after an update (needs ADB or root): a switch and a “Make this the Home screen now” button in the settings
+- GitHub search and the remote control in “Find and install from the internet”; a wizard for turning on ADB over network
 - Settings restore: own list of copies, daily automatic copies, undo of a restore
 
 **Fixed:**
 
+- After an update the app restores its role as the Home screen by itself and does not ask for a choice
 - GitHub search by name, owner and package finds repositories
 - Switching F-Droid and GitHub in “Find and install from the internet” works with the remote, focus no longer jumps
 - Clear error reasons instead of an endless “Loading…” (search, download, weather)
 - Settings restore and background saving report the reason of a failure; a copy is made before a restore
-- The menu does not rebuild its list while remote keys are being pressed: focus is steadier while apps are being installed
 
 ## Features
 
@@ -71,7 +71,7 @@ SHA-256: `e27c98d6e29e71d0fa7de9fd5cd9627b8929302ba9bf01665fd9c781c3645420`
 
 ## Quick start
 
-1. Download AppMenu-5.4.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
+1. Download AppMenu-6.0.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
 2. Open it: apps are launched with OK or a tap, a long press (or holding OK, or the Menu key) opens the action card. To use it instead of the stock menu turn on “Launcher mode” in Settings.
 3. To act on other apps connect ADB: Settings → “Connect ADB”. Android 9 and older TV boxes with network ADB connect by themselves. Android 11+: turn on the “App Menu” service in Accessibility once, press “Connect automatically”. Android 10 and older: run adb tcpip 5555 once from a computer (repeat after a reboot). With root (Magisk) none of this is needed: allow root for the app once and it connects by itself.
 
