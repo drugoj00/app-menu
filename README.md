@@ -14,18 +14,16 @@ App Menu replaces the stock app list with a big grid made for a remote and for t
 
 ## Download
 
-**Version 5.3.** [AppMenu-5.3.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
+**Version 5.2.** [AppMenu-5.2.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `a7b928a60feee3c60624a5a5b36fe2936a48137832849fd318743855938c36de`
+SHA-256: `42aef0ac34cfca2c4b08a7e14974f4f4da02672c36f295c2cbf649632ed1a37d`
 
-## What's new in 5.3
+## What's new in 5.2
 
-- The clock and weather widget is configurable: sizes, colors, time and date format, regular and seven-segment digits, custom fonts
-- One-tap style presets; new installs start with “Digital”
-- Forecast block: hourly, 5 days, week; switches on press
-- Weather source of your choice: Open-Meteo, MET Norway, wttr.in or your own key (OpenWeatherMap, WeatherAPI.com, Tomorrow.io); “Auto” falls back by itself
-- “Clock and weather” screensaver: system one and own idle one over any app, with a setup wizard for car stereos and diagnostics
-- The clock keeps exact time: no second drift, survives sleep, time and time zone changes
+- Weather and city search work on old Android (7.1 and older)
+- Fallback city search and entering “latitude, longitude”
+- Instead of an endless “Loading” the weather shows the reason
+- App update and downloads from GitHub and F-Droid work on old Android, error reasons are shown
 
 ## Features
 
@@ -57,7 +55,7 @@ SHA-256: `a7b928a60feee3c60624a5a5b36fe2936a48137832849fd318743855938c36de`
 
 ## Quick start
 
-1. Download AppMenu-5.3.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
+1. Download AppMenu-5.2.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
 2. Open it: apps are launched with OK or a tap, a long press (or holding OK, or the Menu key) opens the action card. To use it instead of the stock menu turn on “Launcher mode” in Settings.
 3. To act on other apps connect ADB: Settings → “Connect ADB”. Android 9 and older TV boxes with network ADB connect by themselves. Android 11+: turn on the “App Menu” service in Accessibility once, press “Connect automatically”. Android 10 and older: run adb tcpip 5555 once from a computer (repeat after a reboot). With root (Magisk) none of this is needed: allow root for the app once and it connects by itself.
 
