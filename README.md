@@ -14,16 +14,32 @@ App Menu replaces the stock app list with a big grid made for a remote and for t
 
 ## Download
 
-**Version 5.2.** [AppMenu-5.2.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
+**Version 5.4.** [AppMenu-5.4.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `42aef0ac34cfca2c4b08a7e14974f4f4da02672c36f295c2cbf649632ed1a37d`
+SHA-256: `e27c98d6e29e71d0fa7de9fd5cd9627b8929302ba9bf01665fd9c781c3645420`
 
-## What's new in 5.2
+## What's new in 5.4
 
-- Weather and city search work on old Android (7.1 and older)
-- Fallback city search and entering “latitude, longitude”
-- Instead of an endless “Loading” the weather shows the reason
-- App update and downloads from GitHub and F-Droid work on old Android, error reasons are shown
+- The clock and weather widget is configurable: sizes, colors, time and date format, regular and seven-segment digits, custom fonts, one-tap style presets
+- Forecast block: hourly, 5 days, week; switches on press
+- Weather source of your choice: Open-Meteo, MET Norway, wttr.in or your own key (OpenWeatherMap, WeatherAPI.com, Tomorrow.io, Visual Crossing, Weatherbit, Meteoblue, AccuWeather); “Auto” falls back by itself
+- “Clock and weather” screensaver: system one and own idle one over any app, a setup wizard for car stereos, diagnostics
+- The clock keeps exact time: no second drift, survives sleep, time and time zone changes
+- Wallpapers from the internet for Home, the menu and the screensaver separately (Wikimedia Commons, NASA, Openverse; Pexels and Unsplash with your own key): topics, portrait and landscape, picture of the day, change once a day, author credit; nothing changes until you choose
+- Video wallpapers on Home, in the menu and on the screensaver (own file, link, Wikimedia Commons, NASA; Pexels and Pixabay with your own key): no sound, looped, paused when another app is on top or the screen is off, 1080p limit (720p on weak devices), a warning when turned on; off by default
+- Background blur for pictures and video; “Move / Zoom” for the picture frame
+- Wallpaper preview in a TV or phone frame with a clock and icons
+- GitHub search and the remote control in “Find and install from the internet”
+- Turning on ADB over network without a terminal: one button in settings on rooted boxes, a step-by-step wizard with a ready computer command on the others
+- Settings restore: own list of copies, daily automatic copies, undo of a restore
+
+**Fixed:**
+
+- GitHub search by name, owner and package finds repositories
+- Switching F-Droid and GitHub in “Find and install from the internet” works with the remote, focus no longer jumps
+- Clear error reasons instead of an endless “Loading…” (search, download, weather)
+- Settings restore and background saving report the reason of a failure; a copy is made before a restore
+- The menu does not rebuild its list while remote keys are being pressed: focus is steadier while apps are being installed
 
 ## Features
 
@@ -55,7 +71,7 @@ SHA-256: `42aef0ac34cfca2c4b08a7e14974f4f4da02672c36f295c2cbf649632ed1a37d`
 
 ## Quick start
 
-1. Download AppMenu-5.2.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
+1. Download AppMenu-5.4.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
 2. Open it: apps are launched with OK or a tap, a long press (or holding OK, or the Menu key) opens the action card. To use it instead of the stock menu turn on “Launcher mode” in Settings.
 3. To act on other apps connect ADB: Settings → “Connect ADB”. Android 9 and older TV boxes with network ADB connect by themselves. Android 11+: turn on the “App Menu” service in Accessibility once, press “Connect automatically”. Android 10 and older: run adb tcpip 5555 once from a computer (repeat after a reboot). With root (Magisk) none of this is needed: allow root for the app once and it connects by itself.
 

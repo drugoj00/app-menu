@@ -14,3 +14,7 @@ The code in App Menu is written separately; only protocols, endpoints and the re
 
 - Идея гибких настроек виджета часов и погоды (размеры, цвета, семисегментный стиль, прогноз «по часам / неделя») навеяна программой Tablet Clock (MIT), тема 4PDA 533885. Код и ресурсы Tablet Clock не использованы: всё написано заново, семисегментные цифры рисуются самой программой.
 - Погодные данные: Open-Meteo.com (CC BY 4.0), MET Norway (api.met.no, CC BY 4.0 / NLOD), wttr.in; по желанию пользователя с его ключом OpenWeatherMap, WeatherAPI.com, Tomorrow.io.
+
+- Обои и видео-обои из интернета: Wikimedia Commons (у каждого файла своя свободная лицензия, показываются автор и лицензия), NASA Image and Video Library / NASA APOD (записи без поля copyright), Openverse (только CC0 и CC-BY), по желанию пользователя с его ключом Pexels, Unsplash и Pixabay (ссылка на автора и источник по условиям сервисов). Ключей разработчика в программе нет.
+- Wallpapers and video wallpapers from the internet: Wikimedia Commons (each file has its own free license; author and license are shown), NASA Image and Video Library / NASA APOD (entries without a copyright field), Openverse (CC0 and CC-BY only); with the user's own key Pexels, Unsplash and Pixabay (credit to the author and the source as the services require). The app contains no developer keys.
+- Погода со своим ключом пользователя: Visual Crossing, Weatherbit, Meteoblue, AccuWeather (ключ вводится самим пользователем, по умолчанию пусто, ответы кэшируются).
