@@ -16,7 +16,7 @@ App Menu replaces the stock app list with a big grid made for a remote and for t
 
 **Version 6.2.** [AppMenu-6.2.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `f34aa917162371aa90501b238831b2f12e713e20ec46b77cd0c183e8cae3175e`
+SHA-256: `11ca66c2a8703764d5b6b27acabcab1990d1104575ba4b51c03327341f9ac081`
 
 ## What's new in 6.2
 
@@ -36,6 +36,7 @@ SHA-256: `f34aa917162371aa90501b238831b2f12e713e20ec46b77cd0c183e8cae3175e`
 - Restoring from a backup: the background and banners show on screen at once (before, only after a restart); Android widgets are bound again automatically
 - root is requested only for an action that needs it: no background launches (before, on some devices a root notification popped up every 30 seconds), one persistent process
 - More reliable “Restart” button
+- Installing a file received over Wi‑Fi without root and ADB no longer crashes (Android 7.1); at launch without network ADB the app no longer waits extra seconds
 
 ## Features
 
