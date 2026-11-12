@@ -14,6 +14,19 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         val app = ctx.applicationContext
         Cfg.init(app)
+        // после обновления программы и после загрузки: вернуть себе роль главного экрана по умолчанию (Android при обновлении её сбрасывает)
+        if (intent.action == Intent.ACTION_MY_PACKAGE_REPLACED || intent.action == Intent.ACTION_BOOT_COMPLETED) {
+            Thread {
+                runCatching {
+                    runBlocking {
+                        HomeControl.restoreDefault(app, 3000)
+                        // ещё раз позже: система в первые секунды после установки может быть занята
+                        if (HomeControl.currentHome(app) != app.packageName) { delay(15_000); HomeControl.restoreDefault(app) }
+                    }
+                }
+            }.start()
+            if (intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) { UpdSched.apply(app); return }
+        }
         // фоновая проверка обновлений: расписание заново после загрузки (не зависит от «Готовить кэш при включении»)
         UpdSched.apply(app)
         if (!Cfg.bootWarm) return

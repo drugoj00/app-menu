@@ -251,6 +251,8 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         runCatching { registerReceiver(homeKeyReceiver, android.content.IntentFilter(Intent.ACTION_CLOSE_SYSTEM_DIALOGS)) }
+        val appCtx = applicationContext
+        Thread { HomeControl.notePinned(appCtx); runCatching { kotlinx.coroutines.runBlocking { HomeControl.restoreDefault(appCtx) } } }.start()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

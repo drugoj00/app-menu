@@ -580,6 +580,16 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                     }
                     HomeHardBlock()
                 }
+                Section(stringResource(R.string.home_keep_title)) {
+                    Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.rememberHome) { Cfg.changeRememberHome(it) }
+                    SectionHint(stringResource(R.string.home_remember_hint))
+                    Chip(stringResource(R.string.home_now), false) {
+                        scope.launch {
+                            val ok = HomeControl.makeDefaultNow(ctx)
+                            Toast.makeText(ctx, ctx.getString(if (ok) R.string.home_now_ok else R.string.home_now_fail), Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
                 Section(stringResource(R.string.set_backups)) {
                     Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.backupOnDelete) { Cfg.changeBackupOnDelete(it) }
                     SectionHint(stringResource(R.string.backups_hint))

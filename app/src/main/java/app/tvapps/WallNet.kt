@@ -45,7 +45,7 @@ class WallErr(val kind: String, val code: Int = 0) : Exception(kind)
  * Картинки лежат в кэше программы (до 20 штук), подпись хранится рядом с фоном.
  */
 object WallNet {
-    private const val UA = "AppMenu/5.3 (https://github.com/drugoj00/app-menu; Android launcher wallpaper picker)"
+    private const val UA = "AppMenu/6.0 (https://github.com/drugoj00/app-menu; Android launcher wallpaper picker)"
     val SOURCES = listOf("commons", "nasa", "openverse", "pexels", "unsplash")
     val CATS = listOf("nature", "space", "city", "abstract")
     const val CACHE_MAX = 20

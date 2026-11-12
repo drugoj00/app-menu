@@ -45,6 +45,16 @@ private val BORDER_NAMES = listOf(
     R.string.bd_c6, R.string.bd_c7, R.string.bd_c8, R.string.bd_c9, R.string.bd_c10,
 )
 
+/** Всё, что нужно ветвям окон «Дома»: ветви вынесены в отдельные функции, чтобы одна функция не превышала лимит компилятора ART. */
+private class HdEnv(
+    val ctx: android.content.Context, val scope: kotlinx.coroutines.CoroutineScope, val apps: List<Entry>, val setDlg: (Dlg?) -> Unit, val close: () -> Unit,
+    val updatesFooter: Opt, val openAppSettings: () -> Unit, val on: String, val off: String,
+    val startMove: (String) -> Unit, val startMoveStatus: (String) -> Unit, val pickImage: (String) -> Unit, val refreshWeather: () -> Unit,
+    val addAppWidget: (String, Int, android.appwidget.AppWidgetProviderInfo) -> Unit, val disableHome: () -> Unit,
+    val openUpdates: () -> Unit, val configureWidget: (String) -> Boolean,
+    val lookAllS: androidx.compose.runtime.MutableState<Boolean>, val wgAllS: androidx.compose.runtime.MutableState<Boolean>,
+)
+
 /** Все окна настроек «Дома»: открывается нужное по [dlg]. Изменения сразу пишутся в [HomeStore]. */
 @Composable
 internal fun HomeDialogs(
@@ -57,8 +67,8 @@ internal fun HomeDialogs(
     val ctx = LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     // «Оформление»: менять только этот значок или все значки строки
-    var lookAll by remember { mutableStateOf(false) }
-    var wgAll by remember { mutableStateOf(false) }
+    val lookAllS = remember { mutableStateOf(false) }
+    val wgAllS = remember { mutableStateOf(false) }
     val close = { setDlg(null) }
     // строка «Обновления» внизу начальных окон: проверка обновлений приложений даже при выключенном меню (кнопка есть только в меню)
     val updatesFooter = Opt(stringResource(R.string.upd_cell)) { close(); openUpdates() }
@@ -69,10 +79,47 @@ internal fun HomeDialogs(
     }
     val on = stringResource(R.string.on)
     val off = stringResource(R.string.off)
+    val e = HdEnv(ctx, scope, apps, setDlg, close, updatesFooter, openAppSettings, on, off, startMove, startMoveStatus, pickImage, refreshWeather, addAppWidget, disableHome, openUpdates, configureWidget, lookAllS, wgAllS)
     when (dlg) {
         null -> {}
+        is Dlg.ItemD -> HdItemD(dlg, e)
+        is Dlg.IconEdit -> IconEditDialog(dlg, pickImage, setDlg, close)
+        is Dlg.Look -> HdLook(dlg, e)
+        is Dlg.Label -> HdLabel(dlg, e)
+        is Dlg.RowD -> HdRowD(dlg, e)
+        is Dlg.AddRow -> HdAddRow(dlg, e)
+        is Dlg.AddItem -> HdAddItem(dlg, e)
+        is Dlg.PickApps -> HdPickApps(dlg, e)
+        is Dlg.PickHdmi -> HdPickHdmi(dlg, e)
+        is Dlg.CardSource -> HdCardSource(dlg, e)
+        is Dlg.CatQuery -> HdCatQuery(dlg, e)
+        is Dlg.Rename -> HdRename(dlg, e)
+        is Dlg.WidgetD -> HdWidgetD(dlg, e)
+        is Dlg.WidgetStyle -> WidgetStyleDialog(dlg, setDlg)
+        is Dlg.WidgetType -> HdWidgetType(dlg, e)
+        is Dlg.WidgetRestore -> HdWidgetRestore(dlg, e)
+        is Dlg.AppWidgetPick -> HdAppWidgetPick(dlg, e)
+        Dlg.Empty -> HdEmpty(e)
+        Dlg.Screen -> HomeScreenDialog(setDlg, close, disableHome)
+        is Dlg.MoveToRow -> HdMoveToRow(dlg, e)
+        is Dlg.WidgetCity -> HdWidgetCity(dlg, e)
+        is Dlg.Status -> HdStatus(dlg, e)
+        Dlg.Top -> HdTop(e)
+        Dlg.Bg -> BgDialogHost(false) { setDlg(Dlg.Top) }
+        is Dlg.AppActions -> HdAppActions(dlg, e)
+        is Dlg.BannerStyle -> HdBannerStyle(dlg, e)
+        is Dlg.BannerOffer -> HdBannerOffer(dlg, e)
+    }
+}
 
-        is Dlg.ItemD -> {
+@Composable
+private fun HdItemD(dlg: Dlg.ItemD, e: HdEnv) {
+    val ctx = e.ctx; val scope = e.scope; val apps = e.apps; val setDlg = e.setDlg; val close = e.close; val updatesFooter = e.updatesFooter
+    val openAppSettings = e.openAppSettings; val on = e.on; val off = e.off; val startMove = e.startMove; val startMoveStatus = e.startMoveStatus
+    val pickImage = e.pickImage; val refreshWeather = e.refreshWeather; val addAppWidget = e.addAppWidget; val disableHome = e.disableHome
+    val openUpdates = e.openUpdates; val configureWidget = e.configureWidget
+    var lookAll by e.lookAllS
+    var wgAll by e.wgAllS
             val row = HomeStore.row(dlg.rowId)
             val item = row?.items?.firstOrNull { it.id == dlg.itemId }
             val auto = item == null
@@ -106,11 +153,16 @@ internal fun HomeDialogs(
                 add(Opt(stringResource(R.string.d_android)) { close(); openSys(ctx, android.provider.Settings.ACTION_SETTINGS) })
             }
             ListDialog(name, opts, close, footer = updatesFooter)
-        }
+}
 
-        is Dlg.IconEdit -> IconEditDialog(dlg, pickImage, setDlg, close)
-
-        is Dlg.Look -> {
+@Composable
+private fun HdLook(dlg: Dlg.Look, e: HdEnv) {
+    val ctx = e.ctx; val scope = e.scope; val apps = e.apps; val setDlg = e.setDlg; val close = e.close; val updatesFooter = e.updatesFooter
+    val openAppSettings = e.openAppSettings; val on = e.on; val off = e.off; val startMove = e.startMove; val startMoveStatus = e.startMoveStatus
+    val pickImage = e.pickImage; val refreshWeather = e.refreshWeather; val addAppWidget = e.addAppWidget; val disableHome = e.disableHome
+    val openUpdates = e.openUpdates; val configureWidget = e.configureWidget
+    var lookAll by e.lookAllS
+    var wgAll by e.wgAllS
             val row = HomeStore.row(dlg.rowId)
             val item = row?.items?.firstOrNull { it.id == dlg.itemId }
             if (item == null) { close(); return }
@@ -158,17 +210,31 @@ internal fun HomeDialogs(
                 Opt(stringResource(R.string.look_name), item.label, onClick = { setDlg(Dlg.Label(dlg.rowId, dlg.itemId)) }),
             )
             ListDialog(stringResource(R.string.look_title), opts, { setDlg(Dlg.ItemD(dlg.rowId, dlg.itemId)) })
-        }
+}
 
-        is Dlg.Label -> {
+@Composable
+private fun HdLabel(dlg: Dlg.Label, e: HdEnv) {
+    val ctx = e.ctx; val scope = e.scope; val apps = e.apps; val setDlg = e.setDlg; val close = e.close; val updatesFooter = e.updatesFooter
+    val openAppSettings = e.openAppSettings; val on = e.on; val off = e.off; val startMove = e.startMove; val startMoveStatus = e.startMoveStatus
+    val pickImage = e.pickImage; val refreshWeather = e.refreshWeather; val addAppWidget = e.addAppWidget; val disableHome = e.disableHome
+    val openUpdates = e.openUpdates; val configureWidget = e.configureWidget
+    var lookAll by e.lookAllS
+    var wgAll by e.wgAllS
             val item = HomeStore.row(dlg.rowId)?.items?.firstOrNull { it.id == dlg.itemId }
             TextDialog(stringResource(R.string.look_name), item?.label.orEmpty(), stringResource(R.string.look_name_hint), { v ->
                 HomeStore.updateItem(dlg.rowId, dlg.itemId) { it.copy(label = v) }
                 setDlg(Dlg.Look(dlg.rowId, dlg.itemId))
             }, { setDlg(Dlg.Look(dlg.rowId, dlg.itemId)) })
-        }
+}
 
-        is Dlg.RowD -> {
+@Composable
+private fun HdRowD(dlg: Dlg.RowD, e: HdEnv) {
+    val ctx = e.ctx; val scope = e.scope; val apps = e.apps; val setDlg = e.setDlg; val close = e.close; val updatesFooter = e.updatesFooter
+    val openAppSettings = e.openAppSettings; val on = e.on; val off = e.off; val startMove = e.startMove; val startMoveStatus = e.startMoveStatus
+    val pickImage = e.pickImage; val refreshWeather = e.refreshWeather; val addAppWidget = e.addAppWidget; val disableHome = e.disableHome
+    val openUpdates = e.openUpdates; val configureWidget = e.configureWidget
+    var lookAll by e.lookAllS
+    var wgAll by e.wgAllS
             val row = HomeStore.row(dlg.rowId)
             if (row == null) { close(); return }
             var sure by remember(dlg.rowId) { mutableStateOf(false) }
@@ -240,9 +306,16 @@ internal fun HomeDialogs(
                 })
             }
             ListDialog(row.title.ifBlank { stringResource(R.string.row_noname) }, opts, close, footer = updatesFooter)
-        }
+}
 
-        is Dlg.AddRow -> {
+@Composable
+private fun HdAddRow(dlg: Dlg.AddRow, e: HdEnv) {
+    val ctx = e.ctx; val scope = e.scope; val apps = e.apps; val setDlg = e.setDlg; val close = e.close; val updatesFooter = e.updatesFooter
+    val openAppSettings = e.openAppSettings; val on = e.on; val off = e.off; val startMove = e.startMove; val startMoveStatus = e.startMoveStatus
+    val pickImage = e.pickImage; val refreshWeather = e.refreshWeather; val addAppWidget = e.addAppWidget; val disableHome = e.disableHome
+    val openUpdates = e.openUpdates; val configureWidget = e.configureWidget
+    var lookAll by e.lookAllS
+    var wgAll by e.wgAllS
             fun make(kind: String) {
                 val id = HomeStore.newId("r")
                 val r = when (kind) {
@@ -264,9 +337,17 @@ internal fun HomeDialogs(
                 ),
                 close,
             )
-        }
+}
 
-        is Dlg.AddItem -> ListDialog(
+@Composable
+private fun HdAddItem(dlg: Dlg.AddItem, e: HdEnv) {
+    val ctx = e.ctx; val scope = e.scope; val apps = e.apps; val setDlg = e.setDlg; val close = e.close; val updatesFooter = e.updatesFooter
+    val openAppSettings = e.openAppSettings; val on = e.on; val off = e.off; val startMove = e.startMove; val startMoveStatus = e.startMoveStatus
+    val pickImage = e.pickImage; val refreshWeather = e.refreshWeather; val addAppWidget = e.addAppWidget; val disableHome = e.disableHome
+    val openUpdates = e.openUpdates; val configureWidget = e.configureWidget
+    var lookAll by e.lookAllS
+    var wgAll by e.wgAllS
+        ListDialog(
             stringResource(R.string.add_item_title),
             listOf(
                 Opt(stringResource(R.string.add_app)) { setDlg(Dlg.PickApps(dlg.rowId)) },
@@ -276,8 +357,16 @@ internal fun HomeDialogs(
             ),
             close,
         )
+}
 
-        is Dlg.PickApps -> {
+@Composable
+private fun HdPickApps(dlg: Dlg.PickApps, e: HdEnv) {
+    val ctx = e.ctx; val scope = e.scope; val apps = e.apps; val setDlg = e.setDlg; val close = e.close; val updatesFooter = e.updatesFooter
+    val openAppSettings = e.openAppSettings; val on = e.on; val off = e.off; val startMove = e.startMove; val startMoveStatus = e.startMoveStatus
+    val pickImage = e.pickImage; val refreshWeather = e.refreshWeather; val addAppWidget = e.addAppWidget; val disableHome = e.disableHome
+    val openUpdates = e.openUpdates; val configureWidget = e.configureWidget
+    var lookAll by e.lookAllS
+    var wgAll by e.wgAllS
             val row = HomeStore.row(dlg.rowId)
             val have = row?.items?.filter { it.kind == "app" }?.associateBy { it.ref }.orEmpty()
             val opts = apps.sortedBy { it.label.lowercase() }.map { e ->
@@ -288,9 +377,16 @@ internal fun HomeDialogs(
                 })
             }
             ListDialog(stringResource(R.string.pick_apps), opts, close)
-        }
+}
 
-        is Dlg.PickHdmi -> {
+@Composable
+private fun HdPickHdmi(dlg: Dlg.PickHdmi, e: HdEnv) {
+    val ctx = e.ctx; val scope = e.scope; val apps = e.apps; val setDlg = e.setDlg; val close = e.close; val updatesFooter = e.updatesFooter
+    val openAppSettings = e.openAppSettings; val on = e.on; val off = e.off; val startMove = e.startMove; val startMoveStatus = e.startMoveStatus
+    val pickImage = e.pickImage; val refreshWeather = e.refreshWeather; val addAppWidget = e.addAppWidget; val disableHome = e.disableHome
+    val openUpdates = e.openUpdates; val configureWidget = e.configureWidget
+    var lookAll by e.lookAllS
+    var wgAll by e.wgAllS
             val inputs by produceState(emptyList<TvIn>()) { value = withContext(Dispatchers.IO) { TvInputs.list(ctx) } }
             val row = HomeStore.row(dlg.rowId)
             val have = row?.items?.filter { it.kind == "hdmi" }?.associateBy { it.ref }.orEmpty()
@@ -303,9 +399,16 @@ internal fun HomeDialogs(
                 })
             }
             ListDialog(stringResource(R.string.pick_hdmi), opts, close)
-        }
+}
 
-        is Dlg.CardSource -> {
+@Composable
+private fun HdCardSource(dlg: Dlg.CardSource, e: HdEnv) {
+    val ctx = e.ctx; val scope = e.scope; val apps = e.apps; val setDlg = e.setDlg; val close = e.close; val updatesFooter = e.updatesFooter
+    val openAppSettings = e.openAppSettings; val on = e.on; val off = e.off; val startMove = e.startMove; val startMoveStatus = e.startMoveStatus
+    val pickImage = e.pickImage; val refreshWeather = e.refreshWeather; val addAppWidget = e.addAppWidget; val disableHome = e.disableHome
+    val openUpdates = e.openUpdates; val configureWidget = e.configureWidget
+    var lookAll by e.lookAllS
+    var wgAll by e.wgAllS
             val channels by produceState<List<ChRow>?>(null) { value = withContext(Dispatchers.IO) { Channels.load(ctx) } }
             val ch = channels
             val label = { pkg: String -> runCatching { ctx.packageManager.getApplicationLabel(ctx.packageManager.getApplicationInfo(pkg, 0)).toString() }.getOrDefault(pkg) }
@@ -333,9 +436,16 @@ internal fun HomeDialogs(
                 }
             }
             ListDialog(stringResource(R.string.src_title), opts, { setDlg(Dlg.RowD(dlg.rowId)) })
-        }
+}
 
-        is Dlg.CatQuery -> {
+@Composable
+private fun HdCatQuery(dlg: Dlg.CatQuery, e: HdEnv) {
+    val ctx = e.ctx; val scope = e.scope; val apps = e.apps; val setDlg = e.setDlg; val close = e.close; val updatesFooter = e.updatesFooter
+    val openAppSettings = e.openAppSettings; val on = e.on; val off = e.off; val startMove = e.startMove; val startMoveStatus = e.startMoveStatus
+    val pickImage = e.pickImage; val refreshWeather = e.refreshWeather; val addAppWidget = e.addAppWidget; val disableHome = e.disableHome
+    val openUpdates = e.openUpdates; val configureWidget = e.configureWidget
+    var lookAll by e.lookAllS
+    var wgAll by e.wgAllS
             val row = HomeStore.row(dlg.rowId)
             val name = runCatching { ctx.packageManager.getApplicationLabel(ctx.packageManager.getApplicationInfo(dlg.pkg, 0)).toString() }.getOrDefault(dlg.pkg)
             val cur = row?.auto?.takeIf { it.startsWith("cat:" + dlg.pkg + "|") }?.substringAfter('|').orEmpty()
@@ -345,17 +455,31 @@ internal fun HomeDialogs(
                     setDlg(Dlg.RowD(dlg.rowId))
                 }
             }, { setDlg(Dlg.CardSource(dlg.rowId)) })
-        }
+}
 
-        is Dlg.Rename -> {
+@Composable
+private fun HdRename(dlg: Dlg.Rename, e: HdEnv) {
+    val ctx = e.ctx; val scope = e.scope; val apps = e.apps; val setDlg = e.setDlg; val close = e.close; val updatesFooter = e.updatesFooter
+    val openAppSettings = e.openAppSettings; val on = e.on; val off = e.off; val startMove = e.startMove; val startMoveStatus = e.startMoveStatus
+    val pickImage = e.pickImage; val refreshWeather = e.refreshWeather; val addAppWidget = e.addAppWidget; val disableHome = e.disableHome
+    val openUpdates = e.openUpdates; val configureWidget = e.configureWidget
+    var lookAll by e.lookAllS
+    var wgAll by e.wgAllS
             val row = HomeStore.row(dlg.rowId)
             TextDialog(stringResource(R.string.row_title), row?.title.orEmpty(), stringResource(R.string.rename_hint), { v ->
                 HomeStore.updateRow(dlg.rowId) { it.copy(title = v) }
                 setDlg(Dlg.RowD(dlg.rowId))
             }, { setDlg(Dlg.RowD(dlg.rowId)) })
-        }
+}
 
-        is Dlg.WidgetD -> {
+@Composable
+private fun HdWidgetD(dlg: Dlg.WidgetD, e: HdEnv) {
+    val ctx = e.ctx; val scope = e.scope; val apps = e.apps; val setDlg = e.setDlg; val close = e.close; val updatesFooter = e.updatesFooter
+    val openAppSettings = e.openAppSettings; val on = e.on; val off = e.off; val startMove = e.startMove; val startMoveStatus = e.startMoveStatus
+    val pickImage = e.pickImage; val refreshWeather = e.refreshWeather; val addAppWidget = e.addAppWidget; val disableHome = e.disableHome
+    val openUpdates = e.openUpdates; val configureWidget = e.configureWidget
+    var lookAll by e.lookAllS
+    var wgAll by e.wgAllS
             val row = HomeStore.row(dlg.rowId)
             val w = row?.slots?.getOrNull(dlg.slot)
             if (row == null || w == null) { close(); return }
@@ -418,11 +542,16 @@ internal fun HomeDialogs(
                 add(Opt(stringResource(R.string.d_row_settings)) { setDlg(Dlg.RowD(row.id)) })
             }
             ListDialog(stringResource(R.string.wg_title), opts, close, footer = updatesFooter)
-        }
+}
 
-        is Dlg.WidgetStyle -> WidgetStyleDialog(dlg, setDlg)
-
-        is Dlg.WidgetType -> {
+@Composable
+private fun HdWidgetType(dlg: Dlg.WidgetType, e: HdEnv) {
+    val ctx = e.ctx; val scope = e.scope; val apps = e.apps; val setDlg = e.setDlg; val close = e.close; val updatesFooter = e.updatesFooter
+    val openAppSettings = e.openAppSettings; val on = e.on; val off = e.off; val startMove = e.startMove; val startMoveStatus = e.startMoveStatus
+    val pickImage = e.pickImage; val refreshWeather = e.refreshWeather; val addAppWidget = e.addAppWidget; val disableHome = e.disableHome
+    val openUpdates = e.openUpdates; val configureWidget = e.configureWidget
+    var lookAll by e.lookAllS
+    var wgAll by e.wgAllS
             val curSlot = HomeStore.row(dlg.rowId)?.slots?.getOrNull(dlg.slot)
             ListDialog(
                 stringResource(R.string.wg_type),
@@ -439,18 +568,32 @@ internal fun HomeDialogs(
                 } + Opt(stringResource(R.string.wg_android), if (curSlot?.type == "appwidget") "✓" else "") { setDlg(Dlg.AppWidgetPick(dlg.rowId, dlg.slot)) },
                 { setDlg(Dlg.WidgetD(dlg.rowId, dlg.slot)) },
             )
-        }
+}
 
-        is Dlg.WidgetRestore -> {
+@Composable
+private fun HdWidgetRestore(dlg: Dlg.WidgetRestore, e: HdEnv) {
+    val ctx = e.ctx; val scope = e.scope; val apps = e.apps; val setDlg = e.setDlg; val close = e.close; val updatesFooter = e.updatesFooter
+    val openAppSettings = e.openAppSettings; val on = e.on; val off = e.off; val startMove = e.startMove; val startMoveStatus = e.startMoveStatus
+    val pickImage = e.pickImage; val refreshWeather = e.refreshWeather; val addAppWidget = e.addAppWidget; val disableHome = e.disableHome
+    val openUpdates = e.openUpdates; val configureWidget = e.configureWidget
+    var lookAll by e.lookAllS
+    var wgAll by e.wgAllS
             // виджет из резервной копии: по записанному компоненту добавляется заново (система при необходимости спросит разрешение)
             val prov = HomeStore.row(dlg.rowId)?.slots?.getOrNull(dlg.slot)?.prov.orEmpty()
             val info = remember(dlg) { if (prov.isEmpty()) null else AppWidgets.providers(ctx).firstOrNull { it.provider.flattenToString() == prov } }
             androidx.compose.runtime.LaunchedEffect(dlg) {
                 if (info != null) { close(); addAppWidget(dlg.rowId, dlg.slot, info) } else setDlg(Dlg.AppWidgetPick(dlg.rowId, dlg.slot))
             }
-        }
+}
 
-        is Dlg.AppWidgetPick -> {
+@Composable
+private fun HdAppWidgetPick(dlg: Dlg.AppWidgetPick, e: HdEnv) {
+    val ctx = e.ctx; val scope = e.scope; val apps = e.apps; val setDlg = e.setDlg; val close = e.close; val updatesFooter = e.updatesFooter
+    val openAppSettings = e.openAppSettings; val on = e.on; val off = e.off; val startMove = e.startMove; val startMoveStatus = e.startMoveStatus
+    val pickImage = e.pickImage; val refreshWeather = e.refreshWeather; val addAppWidget = e.addAppWidget; val disableHome = e.disableHome
+    val openUpdates = e.openUpdates; val configureWidget = e.configureWidget
+    var lookAll by e.lookAllS
+    var wgAll by e.wgAllS
             val list = remember { AppWidgets.providers(ctx).sortedBy { runCatching { it.loadLabel(ctx.packageManager) }.getOrDefault("").lowercase() } }
             val opts = if (list.isEmpty()) listOf(Opt(stringResource(R.string.wg_none)) { close() })
             else list.map { p ->
@@ -465,9 +608,16 @@ internal fun HomeDialogs(
                 ) { close(); addAppWidget(dlg.rowId, dlg.slot, p) }
             }
             ListDialog(stringResource(R.string.wg_android), opts, { setDlg(Dlg.WidgetType(dlg.rowId, dlg.slot)) }, stringResource(R.string.wg_android_hint))
-        }
+}
 
-        Dlg.Empty -> {
+@Composable
+private fun HdEmpty(e: HdEnv) {
+    val ctx = e.ctx; val scope = e.scope; val apps = e.apps; val setDlg = e.setDlg; val close = e.close; val updatesFooter = e.updatesFooter
+    val openAppSettings = e.openAppSettings; val on = e.on; val off = e.off; val startMove = e.startMove; val startMoveStatus = e.startMoveStatus
+    val pickImage = e.pickImage; val refreshWeather = e.refreshWeather; val addAppWidget = e.addAppWidget; val disableHome = e.disableHome
+    val openUpdates = e.openUpdates; val configureWidget = e.configureWidget
+    var lookAll by e.lookAllS
+    var wgAll by e.wgAllS
             val opts = listOf(
                 Opt(stringResource(R.string.home_add_row)) { setDlg(Dlg.AddRow(HomeStore.layout.rows.lastOrNull()?.id)) },
                 Opt(stringResource(R.string.d_program_settings)) { openAppSettings() },
@@ -477,11 +627,16 @@ internal fun HomeDialogs(
                 Opt(stringResource(R.string.wifi_title) + "…") { close(); WifiReceive.open = true },
             )
             ListDialog(stringResource(R.string.empty_title), opts, close, footer = updatesFooter)
-        }
+}
 
-        Dlg.Screen -> HomeScreenDialog(setDlg, close, disableHome)
-
-        is Dlg.MoveToRow -> {
+@Composable
+private fun HdMoveToRow(dlg: Dlg.MoveToRow, e: HdEnv) {
+    val ctx = e.ctx; val scope = e.scope; val apps = e.apps; val setDlg = e.setDlg; val close = e.close; val updatesFooter = e.updatesFooter
+    val openAppSettings = e.openAppSettings; val on = e.on; val off = e.off; val startMove = e.startMove; val startMoveStatus = e.startMoveStatus
+    val pickImage = e.pickImage; val refreshWeather = e.refreshWeather; val addAppWidget = e.addAppWidget; val disableHome = e.disableHome
+    val openUpdates = e.openUpdates; val configureWidget = e.configureWidget
+    var lookAll by e.lookAllS
+    var wgAll by e.wgAllS
             val cur = HomeStore.rowOfItem(dlg.itemId)
             val rows = HomeStore.layout.rows.filter { it.kind == "apps" && it.id != cur?.id }
             val opts = if (rows.isEmpty()) listOf(Opt(stringResource(R.string.d_to_row_none)) { close() })
@@ -489,18 +644,31 @@ internal fun HomeDialogs(
                 Opt(r.title.ifBlank { stringResource(R.string.row_noname) + " " + (HomeStore.layout.rows.indexOf(r) + 1) }) { HomeStore.moveToRow(dlg.itemId, r.id); close() }
             }
             ListDialog(stringResource(R.string.d_to_row), opts, close)
-        }
+}
 
-
-        is Dlg.WidgetCity -> {
+@Composable
+private fun HdWidgetCity(dlg: Dlg.WidgetCity, e: HdEnv) {
+    val ctx = e.ctx; val scope = e.scope; val apps = e.apps; val setDlg = e.setDlg; val close = e.close; val updatesFooter = e.updatesFooter
+    val openAppSettings = e.openAppSettings; val on = e.on; val off = e.off; val startMove = e.startMove; val startMoveStatus = e.startMoveStatus
+    val pickImage = e.pickImage; val refreshWeather = e.refreshWeather; val addAppWidget = e.addAppWidget; val disableHome = e.disableHome
+    val openUpdates = e.openUpdates; val configureWidget = e.configureWidget
+    var lookAll by e.lookAllS
+    var wgAll by e.wgAllS
             val w = HomeStore.row(dlg.rowId)?.slots?.getOrNull(dlg.slot)
             TextDialog(stringResource(R.string.wg_city), w?.city.orEmpty(), stringResource(R.string.wg_city_hint), { v ->
                 HomeStore.updateSlot(dlg.rowId, dlg.slot) { it.copy(city = v) }
                 setDlg(Dlg.WidgetD(dlg.rowId, dlg.slot))
             }, { setDlg(Dlg.WidgetD(dlg.rowId, dlg.slot)) })
-        }
+}
 
-        is Dlg.Status -> {
+@Composable
+private fun HdStatus(dlg: Dlg.Status, e: HdEnv) {
+    val ctx = e.ctx; val scope = e.scope; val apps = e.apps; val setDlg = e.setDlg; val close = e.close; val updatesFooter = e.updatesFooter
+    val openAppSettings = e.openAppSettings; val on = e.on; val off = e.off; val startMove = e.startMove; val startMoveStatus = e.startMoveStatus
+    val pickImage = e.pickImage; val refreshWeather = e.refreshWeather; val addAppWidget = e.addAppWidget; val disableHome = e.disableHome
+    val openUpdates = e.openUpdates; val configureWidget = e.configureWidget
+    var lookAll by e.lookAllS
+    var wgAll by e.wgAllS
             val s = HomeStore.layout.top.status.firstOrNull { it.id == dlg.id }
             if (s == null) { close(); return }
             val opts = buildList {
@@ -517,9 +685,16 @@ internal fun HomeDialogs(
                 add(Opt(stringResource(R.string.st_top)) { setDlg(Dlg.Top) })
             }
             ListDialog(statusName(s.id), opts, close, footer = updatesFooter)
-        }
+}
 
-        Dlg.Top -> {
+@Composable
+private fun HdTop(e: HdEnv) {
+    val ctx = e.ctx; val scope = e.scope; val apps = e.apps; val setDlg = e.setDlg; val close = e.close; val updatesFooter = e.updatesFooter
+    val openAppSettings = e.openAppSettings; val on = e.on; val off = e.off; val startMove = e.startMove; val startMoveStatus = e.startMoveStatus
+    val pickImage = e.pickImage; val refreshWeather = e.refreshWeather; val addAppWidget = e.addAppWidget; val disableHome = e.disableHome
+    val openUpdates = e.openUpdates; val configureWidget = e.configureWidget
+    var lookAll by e.lookAllS
+    var wgAll by e.wgAllS
             val top = HomeStore.layout.top
             val opts = buildList {
                 add(Opt(stringResource(R.string.d_program_settings)) { openAppSettings() })      // настройки программы — первой строкой
@@ -538,11 +713,16 @@ internal fun HomeDialogs(
                 add(Opt(stringResource(R.string.bg_title)) { setDlg(Dlg.Bg) })
             }
             ListDialog(stringResource(R.string.top_title), opts, close, footer = updatesFooter)
-        }
+}
 
-        Dlg.Bg -> BgDialogHost(false) { setDlg(Dlg.Top) }
-
-        is Dlg.AppActions -> {
+@Composable
+private fun HdAppActions(dlg: Dlg.AppActions, e: HdEnv) {
+    val ctx = e.ctx; val scope = e.scope; val apps = e.apps; val setDlg = e.setDlg; val close = e.close; val updatesFooter = e.updatesFooter
+    val openAppSettings = e.openAppSettings; val on = e.on; val off = e.off; val startMove = e.startMove; val startMoveStatus = e.startMoveStatus
+    val pickImage = e.pickImage; val refreshWeather = e.refreshWeather; val addAppWidget = e.addAppWidget; val disableHome = e.disableHome
+    val openUpdates = e.openUpdates; val configureWidget = e.configureWidget
+    var lookAll by e.lookAllS
+    var wgAll by e.wgAllS
             val e = apps.firstOrNull { it.pkg == dlg.pkg }
             if (e == null) { close(); return }
             // карточка действий привязывается к месту, где вызвана: ставим её у центра экрана
@@ -551,10 +731,18 @@ internal fun HomeDialogs(
                     AppMenu(e, Cfg.isHidden(e.pkg), { Cfg.toggleHidden(e.pkg) }, {}, {}) { close(); Conn.refresh() }
                 }
             }
-        }
 
         // выбор стиля баннера: четыре готовых варианта с превью, нажатие сохраняет баннер плитки
-        is Dlg.BannerStyle -> {
+}
+
+@Composable
+private fun HdBannerStyle(dlg: Dlg.BannerStyle, e: HdEnv) {
+    val ctx = e.ctx; val scope = e.scope; val apps = e.apps; val setDlg = e.setDlg; val close = e.close; val updatesFooter = e.updatesFooter
+    val openAppSettings = e.openAppSettings; val on = e.on; val off = e.off; val startMove = e.startMove; val startMoveStatus = e.startMoveStatus
+    val pickImage = e.pickImage; val refreshWeather = e.refreshWeather; val addAppWidget = e.addAppWidget; val disableHome = e.disableHome
+    val openUpdates = e.openUpdates; val configureWidget = e.configureWidget
+    var lookAll by e.lookAllS
+    var wgAll by e.wgAllS
             val item = HomeStore.row(dlg.rowId)?.items?.firstOrNull { it.id == dlg.itemId }
             val entry = apps.firstOrNull { it.pkg == item?.ref }
             val back = { setDlg(Dlg.Look(dlg.rowId, dlg.itemId)) }
@@ -591,10 +779,18 @@ internal fun HomeDialogs(
                 else Toast.makeText(ctx, ctx.getString(R.string.failed), Toast.LENGTH_SHORT).show()
                 askHex = false
             }, { askHex = false })
-        }
 
         // предложение: у приложений на «Доме» нет баннера — создать красивые
-        is Dlg.BannerOffer -> {
+}
+
+@Composable
+private fun HdBannerOffer(dlg: Dlg.BannerOffer, e: HdEnv) {
+    val ctx = e.ctx; val scope = e.scope; val apps = e.apps; val setDlg = e.setDlg; val close = e.close; val updatesFooter = e.updatesFooter
+    val openAppSettings = e.openAppSettings; val on = e.on; val off = e.off; val startMove = e.startMove; val startMoveStatus = e.startMoveStatus
+    val pickImage = e.pickImage; val refreshWeather = e.refreshWeather; val addAppWidget = e.addAppWidget; val disableHome = e.disableHome
+    val openUpdates = e.openUpdates; val configureWidget = e.configureWidget
+    var lookAll by e.lookAllS
+    var wgAll by e.wgAllS
             val pairs = dlg.items.mapNotNull { (rowId, itemId) ->
                 val it = HomeStore.row(rowId)?.items?.firstOrNull { x -> x.id == itemId } ?: return@mapNotNull null
                 val e = apps.firstOrNull { a -> a.pkg == it.ref } ?: return@mapNotNull null
@@ -618,9 +814,8 @@ internal fun HomeDialogs(
                 Opt(stringResource(R.string.bn_never)) { BannerGen.setNever(ctx, true); close() },
             )
             ListDialog(stringResource(R.string.bn_offer_title, pairs.size), opts, close, hint = names + "\n" + stringResource(R.string.bn_offer_hint))
-        }
-    }
 }
+
 
 private fun sourceName(ctx: android.content.Context, auto: String): String = when {
     auto == "watch_next" -> ctx.getString(R.string.home_watch_next)

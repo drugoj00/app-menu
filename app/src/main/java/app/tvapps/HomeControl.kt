@@ -58,6 +58,47 @@ object HomeControl {
         return out.contains("Success", true)
     }
 
+    /**
+     * После обновления программы Android сбрасывает «приложение по умолчанию» для главного экрана, и при нажатии «Домой» появляется окно выбора.
+     * Если программа была главным экраном по умолчанию и включено «Помнить выбор», она сама возвращает себе эту роль командой set-home-activity
+     * (через root или ADB). Если по умолчанию выбран другой экран, это выбор человека: ничего не трогаем.
+     * Результат: ok_already, restored, off, alias_off, other, not_pinned, no_adb, failed.
+     */
+    suspend fun restoreDefault(ctx: Context, firstDelayMs: Long = 0L): String {
+        if (!Cfg.rememberHome) return "off"
+        if (!aliasEnabled(ctx)) return "alias_off"
+        if (firstDelayMs > 0) kotlinx.coroutines.delay(firstDelayMs)
+        val cur = currentHome(ctx)
+        if (cur == ctx.packageName) { Cfg.setHomePinned(true); return "ok_already" }
+        // другой настоящий главный экран выбран по умолчанию: так решил человек
+        if (cur != null && cur != "android") { Cfg.setHomePinned(false); return "other" }
+        if (!Cfg.homePinned()) return "not_pinned"
+        runCatching { autoConnect(ctx) }
+        if (!Adb.isConnected) {
+            Log.w("TVApps", "главный экран: вернуть выбор нечем (нет ADB и root)")
+            val h = android.os.Handler(android.os.Looper.getMainLooper())
+            h.post { runCatching { android.widget.Toast.makeText(ctx, ctx.getString(R.string.home_keep_pick), android.widget.Toast.LENGTH_LONG).show() } }
+            return "no_adb"
+        }
+        val ok = setDefault(ctx)
+        val now = currentHome(ctx) == ctx.packageName
+        Log.i("TVApps", "главный экран: возврат выбора после обновления: " + if (ok || now) "готово" else "не вышло")
+        return if (ok || now) "restored" else "failed"
+    }
+
+    /** Кнопка «Сделать домашним экраном сейчас». */
+    suspend fun makeDefaultNow(ctx: Context): Boolean {
+        runCatching { autoConnect(ctx) }
+        if (!Adb.isConnected) return false
+        setAlias(ctx, true)
+        val ok = setDefault(ctx) || currentHome(ctx) == ctx.packageName
+        if (ok) Cfg.setHomePinned(true)
+        return ok
+    }
+
+    /** Запоминает, что программа сейчас главный экран по умолчанию (дешёвая проверка при запуске окон). */
+    fun notePinned(ctx: Context) { runCatching { if (aliasEnabled(ctx) && currentHome(ctx) == ctx.packageName) Cfg.setHomePinned(true) } }
+
     /** Результат: пустая строка — всё хорошо, иначе причина отказа (для сообщения). */
     suspend fun hardOn(ctx: Context): String {
         if (!Integrity.safe(ctx)) return "integrity"

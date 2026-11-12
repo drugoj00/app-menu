@@ -139,6 +139,8 @@ class HomeActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        val appCtx0 = applicationContext
+        Thread { HomeControl.notePinned(appCtx0); runCatching { kotlinx.coroutines.runBlocking { HomeControl.restoreDefault(appCtx0) } } }.start()
         val f = android.content.IntentFilter().apply {
             addAction(Intent.ACTION_PACKAGE_ADDED); addAction(Intent.ACTION_PACKAGE_REMOVED); addAction(Intent.ACTION_PACKAGE_CHANGED); addDataScheme("package")
         }

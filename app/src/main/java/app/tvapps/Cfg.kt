@@ -57,6 +57,8 @@ object Cfg {
     var folders by mutableStateOf<List<Folder>>(emptyList()); private set
     /** Сохранять копию приложения перед удалением. */
     var backupOnDelete by mutableStateOf(true); private set
+    /** Помнить выбор главного экрана после обновления: если программа была главным экраном по умолчанию, после обновления она сама возвращает себе эту роль (нужен ADB или root). */
+    var rememberHome by mutableStateOf(true); private set
     /** Необязательный токен GitHub для поиска (без токена GitHub пускает около 10 поисковых запросов в минуту); хранится только на устройстве. */
     var githubToken by mutableStateOf(""); private set
     /** Пробовать права root (Magisk) вместо ADB, если они есть. */
@@ -150,6 +152,7 @@ object Cfg {
             if (p.size < 3) null else Folder(p[0], p[1], p[2].split(",").filter { it.isNotBlank() })
         }
         backupOnDelete = sp.getBoolean("backup_delete", true)
+        rememberHome = sp.getBoolean("remember_home", true)
         githubToken = sp.getString("github_token", "").orEmpty()
         useRoot = sp.getBoolean("use_root", true)
         updSkip = sp.getStringSet("upd_skip", emptySet())?.toSet() ?: emptySet()
@@ -294,6 +297,10 @@ object Cfg {
     fun changeUseRoot(v: Boolean) { useRoot = v; sp.edit().putBoolean("use_root", v).apply() }
     fun changeGithubToken(v: String) { githubToken = v.trim(); sp.edit().putString("github_token", v.trim()).apply() }
     fun changeBackupOnDelete(v: Boolean) { backupOnDelete = v; sp.edit().putBoolean("backup_delete", v).apply() }
+    fun changeRememberHome(v: Boolean) { rememberHome = v; sp.edit().putBoolean("remember_home", v).apply() }
+    /** Была ли программа главным экраном по умолчанию (ставится, когда это замечено или назначено самой программой). */
+    fun homePinned(): Boolean = sp.getBoolean("home_pinned", false)
+    fun setHomePinned(v: Boolean) { if (homePinned() != v) sp.edit().putBoolean("home_pinned", v).apply() }
 
     // ---- папки ----
     private fun saveFolders(list: List<Folder>) {

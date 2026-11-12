@@ -69,7 +69,7 @@ internal object WxSrc {
 }
 
 internal object WxProviders {
-    private const val UA = "AppMenu/5.3 (Android launcher weather widget)"
+    private const val UA = "AppMenu/6.0 (Android launcher weather widget)"
 
     // ------------------------------------------------------------------ общие помощники
 
