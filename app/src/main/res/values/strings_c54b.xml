@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="home_keep_title">Remember the Home screen choice after an update</string>
+    <string name="home_remember_hint">After an update Android forgets which app is the Home screen and asks again. When this is on and the app was the Home screen, it sets itself again (needs ADB or root). If another launcher was chosen, nothing is changed.</string>
+    <string name="home_now">Make this the Home screen now</string>
+    <string name="home_now_ok">Done: the app is the Home screen</string>
+    <string name="home_now_fail">Could not do it: connect ADB or turn on root in the settings</string>
+    <string name="home_keep_pick">Choose Always in the Home screen window</string>
+</resources>
