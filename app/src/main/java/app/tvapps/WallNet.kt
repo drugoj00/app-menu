@@ -69,6 +69,9 @@ object WallNet {
     fun bool(c: Context, k: String, d: Boolean) = sp(c).getBoolean(k, d)
     fun put(c: Context, k: String, v: String) { sp(c).edit().putString(k, v).apply() }
     fun put(c: Context, k: String, v: Boolean) { sp(c).edit().putBoolean(k, v).apply() }
+    /** Время последней попытки смены обоев. Читается без приведения типа: в версии 6.0 по ошибке могла лежать пустая строка, и getLong() падал при каждом запуске. */
+    fun lastTry(c: Context, target: String): Long = (sp(c).all["try_$target"] as? Long) ?: 0L
+    fun resetTry(c: Context, target: String) { sp(c).edit().remove("try_$target").apply() }
     fun key(c: Context, src: String) = str(c, "key_$src").trim()
 
     /** Поверхности: home («Дом»), menu («Меню приложений»), saver («Заставка»). У каждой свои источник, тема, ориентация и режим смены; пункт «Как у «Дома»» включается только самим пользователем; по умолчанию обои действуют лишь там, где их выбрали. */
@@ -369,12 +372,14 @@ object WallNet {
         val f = File(cacheDir(ctx), name)
         if (f.isFile && f.length() > 10_000) { f.setLastModified(System.currentTimeMillis()); p.portrait = isPortrait(f); return f }
         val tmp = File(cacheDir(ctx), "$name.part")
+        var ctype = ""
         try {
             val c = open(url, emptyMap())
             try {
                 check(c)
                 val len = c.contentLengthLong
-                if (len > 30_000_000L) throw WallErr("bad")
+                ctype = c.contentType.orEmpty()
+                if (len > 30_000_000L) { android.util.Log.w("TVApps", "обои: файл слишком большой: $len Б, ${p.source}, $ctype, ${url.take(90)}"); throw WallErr("bad") }
                 var total = 0L
                 c.inputStream.use { i -> tmp.outputStream().use { o ->
                     val buf = ByteArray(64 * 1024)
@@ -382,7 +387,7 @@ object WallNet {
                         val n = i.read(buf)
                         if (n < 0) break
                         total += n
-                        if (total > 30_000_000L) throw WallErr("bad")
+                        if (total > 30_000_000L) { android.util.Log.w("TVApps", "обои: файл больше 30 МБ, ${p.source}, $ctype"); throw WallErr("bad") }
                         o.write(buf, 0, n)
                     }
                 } }
@@ -394,7 +399,10 @@ object WallNet {
         }
         val b = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(tmp.path, b)
-        if (b.outWidth < 300 || b.outHeight < 200) { tmp.delete(); throw WallErr("bad") }
+        if (b.outWidth < 300 || b.outHeight < 200) {
+            android.util.Log.w("TVApps", "обои: файл не прошёл проверку: " + tmp.length() + " Б, " + b.outWidth + "x" + b.outHeight + ", тип=" + b.outMimeType + ", Content-Type=" + ctype + ", " + p.source + ", " + url.take(90))
+            tmp.delete(); throw WallErr("bad")
+        }
         f.delete()
         if (!tmp.renameTo(f)) { tmp.copyTo(f, overwrite = true); tmp.delete() }
         p.portrait = b.outHeight > b.outWidth
@@ -482,7 +490,8 @@ object WallNet {
     fun applyTo(ctx: Context, target: String, file: File, pic: WallPic): Boolean {
         if (target == "saver") { applySaver(ctx, file, pic); return true }
         val menu = target == "menu"
-        if (!HomeBgFiles.saveImage(ctx, Uri.fromFile(file), menu, pic.portrait)) return false
+        if (!HomeBgFiles.saveImage(ctx, Uri.fromFile(file), menu, pic.portrait)) { android.util.Log.w("TVApps", "обои: не применено ($target): причина " + HomeBgFiles.lastFail); return false }
+        android.util.Log.i("TVApps", "обои: применено ($target)" + (if (pic.portrait) ", портрет" else ""))
         setCredit(ctx, target + (if (pic.portrait) "_p" else ""), pic, HomeBgFiles.image(ctx, menu, pic.portrait))
         Handler(Looper.getMainLooper()).post {
             if (menu) { if (HomeStore.menuBg.type != "image") HomeStore.changeMenuBg(HomeStore.menuBg.copy(type = "image")) }
@@ -756,7 +765,7 @@ object WallNet {
                     if (mode == "off" || str(ctx, "last_$target") == today) continue
                     if (target == "saver" && !saverOn(ctx)) continue
                     val now = System.currentTimeMillis()
-                    if (now - sp(ctx).getLong("try_$target", 0L) < 3 * 3600_000L) continue
+                    if (now - lastTry(ctx, target) < 3 * 3600_000L) continue
                     if (bool(ctx, "wifi_only", true) && !unmetered(ctx)) continue
                     sp(ctx).edit().putLong("try_$target", now).apply()
                     try {
@@ -764,8 +773,15 @@ object WallNet {
                         val sides = when (cfg(ctx, target, "orient", "auto")) { "port" -> listOf(true); "land" -> listOf(false); else -> if (target == "saver") listOf(wantPortrait(ctx)) else listOf(false, true) }
                         var last: WallPic? = null
                         for (portrait in sides) {
-                            val pc = pick(ctx, cfg(ctx, target, "src", "commons"), cfg(ctx, target, "cat", "nature"), mode == "day", portrait)
-                            val f = download(ctx, pc)
+                            var pc = pick(ctx, cfg(ctx, target, "src", "commons"), cfg(ctx, target, "cat", "nature"), mode == "day", portrait)
+                            var f: File? = null
+                            var tries = 0
+                            while (f == null) {
+                                tries++
+                                try { f = download(ctx, pc) } catch (e: WallErr) {
+                                    if (e.kind == "bad" && tries < 3) pc = pick(ctx, cfg(ctx, target, "src", "commons"), cfg(ctx, target, "cat", "nature"), mode == "day", portrait) else throw e
+                                }
+                            }
                             if (!applyTo(ctx, target, f, pc)) throw WallErr("bad")
                             last = pc
                         }

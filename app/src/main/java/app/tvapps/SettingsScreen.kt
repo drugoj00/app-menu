@@ -558,8 +558,8 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                                 }
                                 setHomeMode(ctx, true)
                                 if (Adb.isConnected) {
-                                    val out = runCatching { Adb.shell("cmd package set-home-activity ${ctx.packageName}/app.tvapps.HomeAlias") }.getOrDefault("")
-                                    Toast.makeText(ctx, ctx.getString(if (out.contains("Success", true)) R.string.home_set_ok else R.string.failed), Toast.LENGTH_LONG).show()
+                                    val okSet = HomeControl.setHomeCmd("${ctx.packageName}/app.tvapps.HomeAlias") || HomeControl.currentHome(ctx) == ctx.packageName
+                                    Toast.makeText(ctx, ctx.getString(if (okSet) R.string.home_set_ok else R.string.failed), Toast.LENGTH_LONG).show()
                                 } else {
                                     Toast.makeText(ctx, ctx.getString(R.string.home_choose_always), Toast.LENGTH_LONG).show()
                                     runCatching { ctx.startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
@@ -571,7 +571,7 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                                 // возвращаем прежний главный экран и только потом выключаем режим
                                 val ri = nativeHomes(ctx).firstOrNull { it.activityInfo.packageName == Cfg.nativeHome } ?: nativeHomes(ctx).firstOrNull()
                                 if (Adb.isConnected && ri != null) {
-                                    runCatching { Adb.shell("cmd package set-home-activity ${ri.activityInfo.packageName}/${ri.activityInfo.name}") }
+                                    runCatching { HomeControl.setHomeCmd("${ri.activityInfo.packageName}/${ri.activityInfo.name}") }
                                 }
                                 setHomeMode(ctx, false)
                                 Toast.makeText(ctx, ctx.getString(R.string.set_home_off_done), Toast.LENGTH_LONG).show()
@@ -621,6 +621,14 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                         if (!it) { Adb.disableRoot(); Conn.refresh() }
                     }
                     SectionHint(stringResource(R.string.root_hint))
+                    // по умолчанию выключено: su в фоне не запускается, пока человек сам не включит датчик бездействия через root
+                    var rootSensor by remember { mutableStateOf(ctx.getSharedPreferences("tvapps", android.content.Context.MODE_PRIVATE).getBoolean("saver_root_sensor", false)) }
+                    Text(stringResource(R.string.root_sensor_title), color = t.sub, fontSize = 13.sp)
+                    Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), rootSensor) {
+                        rootSensor = it
+                        ctx.getSharedPreferences("tvapps", android.content.Context.MODE_PRIVATE).edit().putBoolean("saver_root_sensor", it).apply()
+                    }
+                    SectionHint(stringResource(R.string.root_sensor_hint))
                 }
                 Section(stringResource(R.string.about_title)) {
                     Text(stringResource(R.string.about_version, BuildConfig.VERSION_NAME), color = t.sub, fontSize = 14.sp)

@@ -97,7 +97,8 @@ object CompileBoost {
             try {
                 // немного подождать, чтобы не мешать запуску и первым кадрам
                 Thread.sleep(15_000)
-                if (!Adb.isRoot && !Adb.isConnected) return@Thread
+                // с root в фоне su не запускается (раньше запускался): компиляция только через ADB
+                if (Adb.isRoot || !Adb.isConnected) return@Thread
                 val done = sp(app).getString("compile_for", "") == marker(app) && (sp(app).getString("compile_res", "") ?: "").startsWith("speed")
                 val now = System.currentTimeMillis()
                 if (!needsStateCheck(done, sp(app).getLong("compile_chk", 0L), now)) return@Thread
@@ -125,22 +126,6 @@ object CompileBoost {
 
     private fun musicActive(ctx: Context): Boolean = runCatching { (ctx.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager).isMusicActive }.getOrDefault(false)
 
-    /** Команда от root (su) или, без root, от пользователя shell через подключённый ADB. */
-    private fun run(cmd: String, timeoutMs: Long): String =
-        if (Adb.isRoot) rootRun(cmd, timeoutMs) else kotlinx.coroutines.runBlocking { Adb.shell(cmd, timeoutMs) }
-
-    private fun rootRun(cmd: String, timeoutMs: Long): String {
-        val p = ProcessBuilder("su", "-c", cmd).redirectErrorStream(true).start()
-        val out = StringBuilder()
-        val rd = Thread { runCatching { out.append(p.inputStream.bufferedReader().readText()) } }.also { it.start() }
-        val t0 = System.currentTimeMillis()
-        var done = false
-        while (System.currentTimeMillis() - t0 < timeoutMs) {
-            if (runCatching { p.exitValue() }.isSuccess) { done = true; break }
-            Thread.sleep(500)
-        }
-        if (!done) p.destroy()
-        rd.join(2000)
-        return out.toString()
-    }
+    /** Команда от root (общий постоянный root-процесс) или, без root, от пользователя shell через подключённый ADB. */
+    private fun run(cmd: String, timeoutMs: Long): String = kotlinx.coroutines.runBlocking { Adb.shell(cmd, timeoutMs) }
 }

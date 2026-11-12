@@ -259,10 +259,15 @@ class SaverService : Service() {
      * Root: читаются сами файлы устройств ввода (/dev/input/eventN): любые байты считаются действием.
      * Утилита getevent при выводе в канал буферизует строки и опаздывает, поэтому читаем устройства напрямую; датчики положения, света и т. п. пропускаются.
      */
+    /** «Использовать root для датчика бездействия»: по умолчанию выключен. */
+    private fun rootSensorOn(ctx: android.content.Context): Boolean =
+        ctx.getSharedPreferences("tvapps", android.content.Context.MODE_PRIVATE).getBoolean("saver_root_sensor", false)
+
     private fun startRootWatch() {
         val s = SaverBus.sensors.getValue("root")
         if (rootProc != null) return
         if (!Adb.isRoot) { s.alive = false; s.note = "no_root"; return }
+        if (!rootSensorOn(this)) { s.alive = false; s.note = "off"; return }   // su только по переключателю пользователя
         if (!rootBusy.compareAndSet(false, true)) return
         Thread {
             runCatching {
@@ -339,6 +344,15 @@ class SaverService : Service() {
 
     private fun scanElevated() {
         if (!SaverPerm.control()) return
+        // с root без включённого переключателя su в фоне не запускается
+        if (Adb.isRoot && !rootSensorOn(this)) { SaverBus.sensors.getValue("power").let { it.alive = false; it.note = "off" }; return }
+        // root уже выдан, а бездействие и так видят другие датчики (наблюдатель ввода root, доступность, статистика использования), /proc/interrupts читается напрямую:
+        // отдельный запрос `su` каждые 30 с лишний, а менеджер root на каждый такой запрос показывает уведомление «права суперпользователя предоставлены»
+        val sv = SaverBus.sensors
+        if (Adb.isRoot && irqDirect && (sv.getValue("root").alive || sv.getValue("access").alive || sv.getValue("usage").alive)) {
+            sv.getValue("power").let { it.alive = false; it.note = "skipped" }
+            return
+        }
         val needFg = !SaverBus.sensors.getValue("access").alive && !SaverBus.sensors.getValue("usage").alive
         val cmd = (if (!irqDirect) "cat /proc/interrupts; " else "") + "dumpsys power | grep mLastUserActivityTime=" +
             (if (needFg) "; dumpsys activity activities | grep -E 'mResumedActivity|mFocusedActivity' | head -2" else "")

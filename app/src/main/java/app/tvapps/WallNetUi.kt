@@ -37,6 +37,7 @@ import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -217,6 +218,7 @@ fun CropDialog(target: String, startPortrait: Boolean, onClose: () -> Unit) {
  * «Обои из интернета»: поверхность (Дом, меню, заставка), картинки или видео, источник, тема, ориентация, предпросмотр в рамке, «Другая»,
  * автосмена картинок раз в сутки, подпись, кэш. Применение идёт прямо отсюда (WallNet.applyTo / applyVideoTo).
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun WallNetDialog(initial: String, onOwn: () -> Unit, onOwnVideo: () -> Unit, onClose: () -> Unit) {
     val ctx = LocalContext.current
@@ -242,6 +244,14 @@ fun WallNetDialog(initial: String, onOwn: () -> Unit, onOwnVideo: () -> Unit, on
     var cacheN by remember { mutableStateOf(WallNet.cacheCount(ctx) + WallNet.videoCacheCount(ctx)) }
     var cropFor by remember { mutableStateOf<Boolean?>(null) }
     var warn by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val applyReq = remember { FocusRequester() }
+    val applyBiv = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+    var appliedPath by remember { mutableStateOf("") }   // файл, который уже поставлен: для напоминания при закрытии окна
+    var askClose by remember { mutableStateOf(false) }
+    val pending = cur != null && cur?.second?.path != appliedPath
+    fun requestClose() { if (busy) return; if (pending) askClose = true else onClose() }
+    // после загрузки картинки фокус сам переходит на «Поставить»: шаг «Поставить» не теряется под предпросмотром
+    LaunchedEffect(cur?.second?.path) { if (cur != null) { delay(300); val okF = runCatching { applyReq.requestFocus() }; okF.onFailure { android.util.Log.w("TVApps", "обои: фокус на «Поставить» не встал: " + it.message) }; android.util.Log.i("TVApps", "обои: фокус на «Поставить»: " + okF.getOrNull()); delay(100); runCatching { applyBiv.bringIntoView() } } }
     val surfaceNames = mapOf("home" to R.string.wn_surf_home, "menu" to R.string.wn_surf_menu, "saver" to R.string.wn_surf_saver)
     val screenPortrait = LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
     val wantPortrait = when (orient) { "port" -> true; "land" -> false; else -> screenPortrait }
@@ -260,15 +270,26 @@ fun WallNetDialog(initial: String, onOwn: () -> Unit, onOwnVideo: () -> Unit, on
                         withContext(Dispatchers.Main) { status = ctx.getString(R.string.vid_downloading) }
                         pic to WallNet.downloadVideo(ctx, pic)
                     } else {
-                        val pic = WallNet.pick(ctx, src, cat, today, wantPortrait)
-                        withContext(Dispatchers.Main) { status = ctx.getString(R.string.wn_downloading) }
-                        pic to WallNet.download(ctx, pic)
+                        // картинка может не пройти проверку (не изображение, слишком мала): берём другую, до 3 раз, и только потом показываем ошибку
+                        var attempt = 0
+                        var res: Pair<WallPic, File>? = null
+                        while (res == null) {
+                            attempt++
+                            val pic = WallNet.pick(ctx, src, cat, today, wantPortrait)
+                            withContext(Dispatchers.Main) { status = ctx.getString(R.string.wn_downloading) }
+                            try { res = pic to WallNet.download(ctx, pic) } catch (e: WallErr) {
+                                if (e.kind == "bad" && attempt < 3) android.util.Log.i("TVApps", "обои: картинка не подошла, попытка " + (attempt + 1) + " из 3") else throw e
+                            }
+                        }
+                        res!!
                     }
                 }
                 cur = r
                 status = ""
                 cacheN = WallNet.cacheCount(ctx) + WallNet.videoCacheCount(ctx)
+                android.util.Log.i("TVApps", "обои: скачано " + r.first.source + (if (video) " (видео)" else "") + ", " + (r.second.length() / 1024) + " КБ")
             } catch (e: Throwable) {
+                android.util.Log.w("TVApps", "обои: ошибка загрузки (" + src + ", " + cat + "): " + e.javaClass.simpleName + ": " + e.message, e)
                 status = WallNet.errText(ctx, e)
             }
             busy = false
@@ -278,10 +299,18 @@ fun WallNetDialog(initial: String, onOwn: () -> Unit, onOwnVideo: () -> Unit, on
     fun applyNow(pv: Pair<WallPic, File>) {
         scope.launch {
             busy = true
+            android.util.Log.i("TVApps", "обои: нажато «Поставить»: " + target + (if (pv.first.video) " (видео)" else "") + ", файл " + pv.second.name + ", " + (pv.second.length() / 1024) + " КБ")
+            var why = ""
             val ok = withContext(Dispatchers.IO) {
-                runCatching { if (pv.first.video) WallNet.applyVideoTo(ctx, target, pv.second, pv.first) else WallNet.applyTo(ctx, target, pv.second, pv.first) }.getOrDefault(false)
+                runCatching { if (pv.first.video) WallNet.applyVideoTo(ctx, target, pv.second, pv.first) else WallNet.applyTo(ctx, target, pv.second, pv.first) }
+                    .onFailure { why = it.javaClass.simpleName + ": " + it.message; android.util.Log.w("TVApps", "обои: «Поставить» не вышло, исключение: " + why, it) }
+                    .getOrDefault(false)
             }
             busy = false
+            if (ok) appliedPath = pv.second.path
+            if (!ok && why.isEmpty() && HomeBgFiles.lastFail.isNotEmpty()) why = HomeBgFiles.lastFail
+            android.util.Log.i("TVApps", "обои: «Поставить» " + target + " -> " + (if (ok) "готово" else "не вышло" + (if (why.isNotEmpty()) ": $why" else "")))
+            if (!ok && why.isNotEmpty()) status = ctx.getString(R.string.failed) + ": " + why
             Toast.makeText(ctx, ctx.getString(if (ok) R.string.wn_applied else R.string.failed), Toast.LENGTH_SHORT).show()
         }
     }
@@ -297,12 +326,15 @@ fun WallNetDialog(initial: String, onOwn: () -> Unit, onOwnVideo: () -> Unit, on
     )
     val catLabels = mapOf("nature" to R.string.wn_cat_nature, "space" to R.string.wn_cat_space, "city" to R.string.wn_cat_city, "abstract" to R.string.wn_cat_abstract)
 
-    HDialog(onDismissRequest = { if (!busy) onClose() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    HDialog(onDismissRequest = { requestClose() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
             Modifier.fillMaxSize().padding(24.dp).clip(RoundedCornerShape(20.dp)).background(t.bg).border(1.dp, t.border, RoundedCornerShape(20.dp)).padding(18.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(stringResource(R.string.wn_title), color = t.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            if (pending) Text(stringResource(R.string.wn_pending, stringResource(surfaceNames[target]!!)), color = t.accent, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            // состояние и ошибка загрузки видны сразу, а не внизу длинного окна, куда пультом не долистать
+            if (status.isNotEmpty()) Text(status, color = t.accent, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Text(stringResource(R.string.wn_surface), color = t.sub, fontSize = 13.sp)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 for (sf in WallNet.SURFACES) Chip(stringResource(surfaceNames[sf]!!), target == sf) { target = sf; cur = null; status = "" }
@@ -361,17 +393,16 @@ fun WallNetDialog(initial: String, onOwn: () -> Unit, onOwnVideo: () -> Unit, on
                     if (menuS) HomeStore.menuBg.dim else if (target == "home") HomeStore.layout.bg.dim else 0)
                 Text(pv.first.credit(), color = t.text, fontSize = 13.sp)
             }
-            if (status.isNotEmpty()) Text(status, color = t.accent, fontSize = 14.sp)
 
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Chip(stringResource(R.string.wn_other), true) { load(false) }
-                if (!video) Chip(stringResource(R.string.wn_today), false) { load(true) }
-                if (pv != null) Chip(stringResource(R.string.wn_apply) + ": " + stringResource(surfaceNames[target]!!), true) {
+                if (pv != null) Chip(stringResource(R.string.wn_apply) + ": " + stringResource(surfaceNames[target]!!), true, Modifier.focusRequester(applyReq).bringIntoViewRequester(applyBiv)) {
                     if (!busy) {
                         // видео нагружает устройство: при включении спрашиваем
                         if (pv.first.video && !WallNet.videoActive(ctx, target)) warn = { applyNow(pv) } else applyNow(pv)
                     }
                 }
+                Chip(stringResource(R.string.wn_other), pv == null) { load(false) }
+                if (!video) Chip(stringResource(R.string.wn_today), false) { load(true) }
                 if (!video) Chip(stringResource(R.string.crop_btn), false) { cropFor = pv?.first?.portrait ?: wantPortrait }
             }
 
@@ -379,7 +410,7 @@ fun WallNetDialog(initial: String, onOwn: () -> Unit, onOwnVideo: () -> Unit, on
                 Text(stringResource(R.string.wn_auto), color = t.sub, fontSize = 13.sp)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     for ((m, r) in listOf("off" to R.string.wn_mode_off, "day" to R.string.wn_mode_day, "random" to R.string.wn_mode_random))
-                        Chip(stringResource(r), mode == m) { WallNet.put(ctx, "mode_$target", m); WallNet.put(ctx, "last_$target", ""); WallNet.put(ctx, "try_$target", ""); tick++ }
+                        Chip(stringResource(r), mode == m) { WallNet.put(ctx, "mode_$target", m); WallNet.put(ctx, "last_$target", ""); WallNet.resetTry(ctx, target); if (m != "off") WallNet.autoRefresh(ctx); tick++ }
                 }
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -395,10 +426,31 @@ fun WallNetDialog(initial: String, onOwn: () -> Unit, onOwnVideo: () -> Unit, on
                     val n = WallNet.clearCache(ctx) + WallNet.clearVideoCache(ctx); cacheN = WallNet.cacheCount(ctx) + WallNet.videoCacheCount(ctx)
                     Toast.makeText(ctx, ctx.getString(R.string.wn_cache_cleared, n), Toast.LENGTH_SHORT).show()
                 }
-                Chip(stringResource(R.string.close), false) { if (!busy) onClose() }
+                Chip(stringResource(R.string.close), false) { requestClose() }
             }
         }
     }
     warn?.let { w -> VideoWarnDialog(onYes = { warn = null; w() }, onNo = { warn = null }) }
+    if (askClose) {
+        val pv2 = cur
+        HDialog(onDismissRequest = { askClose = false }) {
+            Column(
+                Modifier.clip(RoundedCornerShape(20.dp)).background(t.bg).border(1.dp, t.border, RoundedCornerShape(20.dp)).padding(20.dp).fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                val askReq = remember { FocusRequester() }
+                LaunchedEffect(Unit) { delay(150); runCatching { askReq.requestFocus() } }
+                Text(stringResource(R.string.wn_ask_title), color = t.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.wn_ask_text, stringResource(surfaceNames[target]!!)), color = t.sub, fontSize = 15.sp)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Chip(stringResource(R.string.wn_ask_yes), true, Modifier.focusRequester(askReq)) {
+                        askClose = false
+                        if (pv2 != null) { applyNow(pv2); onClose() } else onClose()
+                    }
+                    Chip(stringResource(R.string.wn_ask_no), false) { askClose = false; onClose() }
+                }
+            }
+        }
+    }
     cropFor?.let { p -> CropDialog(target, p) { cropFor = null; tick++ } }
 }
