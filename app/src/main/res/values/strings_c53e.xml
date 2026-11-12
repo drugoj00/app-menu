@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="wsrc_vc">Visual Crossing (your key)</string>
+    <string name="wsrc_wb">Weatherbit (your key)</string>
+    <string name="wsrc_mb">Meteoblue (your key)</string>
+    <string name="wsrc_acc">AccuWeather (needs a paid key)</string>
+</resources>

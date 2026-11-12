@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="net_hint_gh">GitHub: enter the owner name (for example drugoj00), a repository name, owner/repo or a package name (app.tvapps)</string>
+    <string name="net_nothing_gh">Nothing found. Try the owner name, a repository name or owner/repo</string>
+    <string name="net_gh_rate">GitHub limits searches (about 10 per minute without a token). Wait a minute or enter a token below</string>
+    <string name="net_gh_token_bad">GitHub did not accept the token. Check it or clear the field</string>
+    <string name="net_err_code">The catalog answered with error %1$d</string>
+    <string name="net_gh_token_show">GitHub token (optional)…</string>
+    <string name="net_gh_token_hide">Hide the token</string>
+    <string name="net_gh_token_label">GitHub token (stored only on this device)</string>
+    <string name="adbn_btn">Turn on ADB over network…</string>
+    <string name="adbn_title">ADB over network</string>
+    <string name="adbn_usb">USB debugging</string>
+    <string name="adbn_port">Network ADB port</string>
+    <string name="adbn_ip">IP address of this device</string>
+    <string name="adbn_reach">Port 5555 answers</string>
+    <string name="adbn_root">Root access</string>
+    <string name="adbn_yes">yes</string>
+    <string name="adbn_no">no</string>
+    <string name="adbn_unknown">unknown</string>
+    <string name="adbn_dev">Open Developer options</string>
+    <string name="adbn_dev_fail">Developer options are not available. Open Settings, About, and tap Build number 7 times</string>
+    <string name="adbn_root_btn">Raise ADB on port 5555 (root)</string>
+    <string name="adbn_check">Check again</string>
+    <string name="adbn_copy">Copy the command</string>
+    <string name="adbn_cmd">On a computer: adb connect %1$s:5555. If the port is closed, connect the box by USB once and run: adb tcpip 5555</string>
+    <string name="adbn_noroot">Without root and without a USB connection to a computer the app cannot turn on network ADB by itself</string>
+    <string name="adbn_ok">Network ADB is up: %1$s:5555</string>
+    <string name="adbn_fail">Port 5555 is still closed</string>
+    <string name="adbn_working">Working…</string>
+    <string name="adbn_close">Close</string>
+</resources>

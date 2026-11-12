@@ -200,7 +200,7 @@
     <string name="move">Move</string>
     <string name="move_hint">Move the icon with the arrows (touch: tap the new place). OK or \"Done\" finishes. The order is remembered.</string>
     <string name="backup_title">Backup of settings</string>
-    <string name="backup_hint">The copy has all settings, the order of icons, hidden apps and own icons. The ADB key is not included. A copy is also saved automatically in the program folder every time you leave the program.</string>
+    <string name="backup_hint">The copy has all settings, the order of icons, hidden apps and own icons. The ADB key is not included. A copy is also saved automatically in the program folder every time you leave the program (one per day, the last 7 are kept).</string>
     <string name="backup_save">Save copy to a file...</string>
     <string name="backup_load">Restore from a file...</string>
     <string name="backup_here">Save copy in the program folder</string>

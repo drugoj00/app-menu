@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="bg_blur">Blur</string>
+    <string name="wn_kind_image">Pictures</string>
+    <string name="wn_kind_video">Video</string>
+    <string name="vid_link">Link</string>
+    <string name="vid_link_label">Direct link to a video file (mp4, webm, mkv, 3gp)</string>
+    <string name="vid_link_bad">Enter a link that starts with http</string>
+    <string name="vid_own">My own file from a folder…</string>
+    <string name="vid_downloading">Downloading the video…</string>
+    <string name="vid_help">Video wallpapers play without sound, in a loop, cropped to the screen. Free without a key: Wikimedia Commons (free licenses) and NASA (public domain). Pexels and Pixabay work with your own key (stored only on this device). A direct link or your own file also works. The maximum is 1080p (720p on weak devices); up to 3 videos are kept in the cache. Playback pauses when the screen is off or another app is on top. Off by default.</string>
+    <string name="vid_warn_title">Turn on video wallpaper?</string>
+    <string name="vid_warn">Video loads the processor and memory. On weak set-top boxes it is better to keep it off.</string>
+    <string name="vid_warn_low">This device has little memory (1 GB or less): video may slow it down and close other apps. Not recommended.</string>
+    <string name="vid_enable">Turn on</string>
+    <string name="vid_enable_anyway">Turn on anyway</string>
+    <string name="vid_err_decoder">The video could not be played on this device: a still frame is shown</string>
+    <string name="wn_err_big">The file is too big (more than 120 MB)</string>
+    <string name="crop_btn">Move / Zoom…</string>
+    <string name="crop_title">Move / Zoom</string>
+    <string name="crop_none">Set a picture first</string>
+    <string name="crop_mode_move">Move (OK switches to zoom)</string>
+    <string name="crop_mode_zoom">Zoom (OK switches to move)</string>
+    <string name="crop_reset">Reset</string>
+    <string name="crop_done">Done</string>
+    <string name="crop_saved">Frame saved</string>
+</resources>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="bkp_pick_title">Restore from a copy</string>
+    <string name="bkp_pick_hint">Choose a copy: the settings will be replaced by the data from it. The current settings are saved first as AppMenu_before_restore.zip in the program folder, so the restore can be undone.</string>
+    <string name="bkp_pick_none">No copies found. Put the copy file (for example tvapps-backup.zip) into the device storage or open the system picker.</string>
+    <string name="bkp_pick_none_app">There are no copies in the program folder yet</string>
+    <string name="backup_err_open">the file could not be opened</string>
+    <string name="backup_err_notcopy">this is not a copy of the Apps menu: there are no settings inside</string>
+    <string name="backup_err_broken">the file is damaged or cut off</string>
+    <string name="backup_err_other">the settings could not be applied</string>
+    <string name="backup_restored_undo">Settings restored. The previous ones are saved in the program folder (AppMenu_before_restore.zip)</string>
+    <string name="bg_saving">Saving the background…</string>
+    <string name="bg_err_decode">the file does not open as a picture</string>
+    <string name="bg_err_mem">not enough memory, choose a smaller picture</string>
+    <string name="bg_err_read">the file could not be read</string>
+</resources>
