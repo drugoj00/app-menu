@@ -906,4 +906,13 @@
     <string name="glow_weak">Weak</string>
     <string name="glow_strong">Strong</string>
     <string name="sel_glow_hint">A soft glow of the selection ring color around the selected tile or button on Home. Off by default.</string>
+    <string name="all_panel">“All apps” panel on Home</string>
+    <string name="all_panel_hint">A scrollable grid of all installed apps on Home, below the widgets, on a glass background (the order and hidden apps are the same as in the menu). Remote: Up, Down, Left, Right move between the Home rows and the panel, OK opens an app, long OK opens its actions, Back returns to the top of Home. The search field of the top bar searches in this panel. Tile size follows the program settings (icon size, scale, columns). Off by default.</string>
+    <string name="all_panel_glass">Glass of the “All apps” panel</string>
+    <string name="all_panel_glass_hint">How transparent the panel background is: light shows the wallpaper through it, dense almost does not. The background behind the panel is not blurred.</string>
+    <string name="glass_light">Light</string>
+    <string name="glass_mid">Medium</string>
+    <string name="glass_dense">Dense</string>
+    <string name="all_panel_filter">Search: %1$s</string>
+    <string name="all_panel_empty">Nothing found</string>
 </resources>
