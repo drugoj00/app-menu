@@ -227,7 +227,7 @@
     <string name="native_auto">Автоматично</string>
     <string name="no_restore">Не вмикати знову після завантаження</string>
     <string name="home_set_ok">Готово: кнопка «Додому» тепер відкриває це меню</string>
-    <string name="home_choose_always">ADB не підключено: у списку, що з’явиться, обери цю програму та натисни «Завжди»</string>
+    <string name="home_choose_always">Немає ні ADB, ні root: відкрито системне вікно вибору головного екрана. Обери «Меню застосунків» і натисни «Завжди». Якщо вікно не з’явилося, натисни нижче «Налаштування лаунчера за замовчуванням».</string>
     <string name="set_return">Після закриття запущеної програми («Назад»)</string>
     <string name="return_menu">Повернутися в це меню</string>
     <string name="return_home">Повернутися на рідний головний екран</string>
@@ -915,4 +915,7 @@
     <string name="glass_dense">Щільне</string>
     <string name="all_panel_filter">Пошук: %1$s</string>
     <string name="all_panel_empty">Нічого не знайдено</string>
+    <string name="home_cmd_failed">Не вдалося призначити головний екран командою (причина в журналі, мітка TVApps). Відкрито системне вікно: обери «Меню застосунків»; якщо воно не з’явилося, натисни «Налаштування лаунчера за замовчуванням».</string>
+    <string name="home_settings_btn">Налаштування лаунчера за замовчуванням</string>
+    <string name="home_settings_none">У цій прошивці немає екрана лаунчера за замовчуванням. Відкрий налаштування Android: «Застосунки», «Застосунки за замовчуванням», «Головний екран».</string>
 </resources>
