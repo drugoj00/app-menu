@@ -271,7 +271,7 @@
     <string name="fb_other_host">Other computer</string>
     <string name="wifi_open">Receive files over Wi-Fi (from a phone or computer)...</string>
     <string name="wifi_title">Receiving files over Wi-Fi</string>
-    <string name="wifi_hint">On your phone or computer in the same network open this address in a browser, choose APK files or archives and press \"Send\". While this window is open, the device accepts files.</string>
+    <string name="wifi_hint">“Developer options” opened. Tap the name “Wireless debugging” (not the switch), then “Pair device with pairing code”. The code goes into the “App Menu: ADB pairing” notification: pull down the shade and press “Enter code”.</string>
     <string name="wifi_no_net">No local network found. Connect the device to Wi-Fi or a cable, or turn on a hotspot on the phone and connect the device to it.</string>
     <string name="wifi_received">Received files: %1$d</string>
     <string name="wifi_check">Check received (%1$d)</string>
@@ -366,7 +366,7 @@
     <string name="pair_waiting">Waiting for the pairing window...</string>
     <string name="notif_channel">ADB pairing</string>
     <string name="notif_title">App Menu: ADB pairing</string>
-    <string name="notif_enter_code">Open \"Pair device with pairing code\" in the settings and type the 6-digit code here</string>
+    <string name="notif_enter_code">Open “Pair device with pairing code” in the settings (Samsung: “Wireless debugging”, then “Pair device with pairing code”) and type the 6-digit code here</string>
     <string name="notif_action">Enter code</string>
     <string name="notif_code_short">The code has 6 digits: type it again</string>
     <string name="notif_no_port">The pairing window is not open: choose \"Pair device with pairing code\" and type the code again</string>
@@ -918,4 +918,12 @@
     <string name="home_cmd_failed">Could not set the home screen by command (see the log, tag TVApps). The system window is open: choose “App Menu”; if it did not appear, press “Default launcher settings”.</string>
     <string name="home_settings_btn">Default launcher settings</string>
     <string name="home_settings_none">This firmware has no screen for the default launcher. Open Android Settings, Apps, Default apps, Home app.</string>
+    <string name="why_port_closed_old">Network ADB (port 5555) is off. On Android 10 and older turn it on once with a command from a computer: adb tcpip 5555 (button below), or use root.</string>
+    <string name="why_port_closed_new">Wireless debugging is not responding. Turn on “Wireless debugging” in Developer options and connect to Wi‑Fi, then press “Connect automatically” or enter the pairing code below.</string>
+    <string name="why_pair_needed">Pairing is needed: the app is not yet in the trusted devices of wireless debugging. Press “Connect automatically” or enter the pairing code (buttons below).</string>
+    <string name="why_wifi_off">Wireless debugging is off or the device is not on Wi‑Fi. Turn on “Wireless debugging” in Developer options and connect to the same Wi‑Fi network.</string>
+    <string name="why_timeout">The device did not answer. If the “Allow debugging?” window appeared, press “Allow” (tick “Always allow from this device”) and try again.</string>
+    <string name="why_pair_fail">Pairing failed: wrong code or the code window was closed. Open the code window again and enter the code at once.</string>
+    <string name="notif_denied">Notifications are off for this app, and the pairing code is entered in a notification. Allow notifications (button below) and press “Or manually” again.</string>
+    <string name="notif_settings_btn">Notification settings</string>
 </resources>
