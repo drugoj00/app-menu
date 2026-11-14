@@ -14,29 +14,28 @@ App Menu replaces the stock app list with a big grid made for a remote and for t
 
 ## Download
 
-**Version 6.2.** [AppMenu-6.2.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
+**Version 7.0.** [AppMenu-7.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `11ca66c2a8703764d5b6b27acabcab1990d1104575ba4b51c03327341f9ac081`
+SHA-256: `7d5abb431b2c37b118c71e7a59121758bf723a56417661bf43f976f8ac2401cc`
 
-## What's new in 6.2
+## What's new in 7.0
 
-- Two ways to receive files: “Over local network” (address and QR code in the window, as before) and “Direct (Wi-Fi Direct)”: no router needed, the device creates its own network and shows the network name, password, a QR code to connect and the page address
-- On the local network the device is visible by name (mDNS, type _tvapps-recv._tcp; fallbacks: a UDP request on port 47330 and the /whoami address), so programs can find it without typing the address
-- The chosen receiving mode is remembered
-- Icons, date and time in the Home top bar have an outline: visible on any background, no settings
-- “Wallpapers from the Internet” window: the status and the download error text are shown at the top of the window; the app log records the download, the “Apply” press, the result and the reason of a failure
-- The “Use root for the idle sensor” switch (off by default)
+- **Home:** top bar with crisp colors: buttons and the search field are opaque, the field border uses the accent color, a bright accent over a picture background; the USB and Settings icons with display turned on are visible on boxes that do not report themselves as TV when the top bar is forced on
+- **Appearance:** top bar settings of Home (the look stays as before by default): status icon outline (Auto by background brightness, Dark, White, None), button background (opaque, translucent, none), button corners (normal, round, small), program name next to the menu button, selection ring glow (none, weak, strong); the items are also in the app Settings with a collapsed explanation
+- **Android widgets:** on Android 12 and newer the binding is allowed in several ways through ADB or root; when a widget in a Home cell is replaced, the new look and its settings show at once; “Widget settings” no longer replaces or deletes the widget
+- **Batch install:** when refused for a version lower than the installed one or a different signature, a “Fix” button with confirmation: through ADB or root the lower version is installed over the top, otherwise keeping the data, with a different signature the old app is removed with its data and the previous one is put back if the install fails; without ADB and root a “Remove the installed version and install this one?” dialog and a replacement through the system removal and install windows; instead of “file is damaged” any parse refusal shows a neutral message with the system code; a refused downgrade is no longer shown as success
+- **Passwords:** an “eye” icon in the network folder password field
 
 **Fixed:**
 
-- Crash at launch after choosing the “Picture of the day” or “Random” wallpaper mode (version 6.0 on GitHub was replaced with a file without this bug)
-- After the app is updated, Home opens again instead of the previous window (for example Settings)
-- Wallpapers from the Internet: after an image loads, “Apply” is first and focused with a hint at the top; closing without “Apply” asks; an unsuitable image is replaced by another up to 3 times
-- Root certificates for old Android (7.1 and older): wallpapers, weather and updates work with more sites
-- Restoring from a backup: the background and banners show on screen at once (before, only after a restart); Android widgets are bound again automatically
-- root is requested only for an action that needs it: no background launches (before, on some devices a root notification popped up every 30 seconds), one persistent process
-- More reliable “Restart” button
-- Installing a file received over Wi‑Fi without root and ADB no longer crashes (Android 7.1); at launch without network ADB the app no longer waits extra seconds
+- The USB and Settings icons are no longer missing on boxes that do not report themselves as TV (top bar forced on)
+- A replaced Android widget in a Home cell now shows its new look at once; “Widget settings” no longer replaces or deletes the widget
+- A refused downgrade is no longer shown as a successful install; any parse refusal shows a neutral message with the system code instead of “file is damaged”
+
+**Requirements and limits:**
+
+- “Fix” through ADB or root needs no system windows; without them the replacement goes through the system removal and install windows, the app data is lost, and each window must be confirmed (if removal is declined, nothing is installed)
+- Android allows a downgrade over the top only on some builds (usually for debuggable apps only); then the data is kept by removing the app with the “keep data” flag
 
 ## Features
 
@@ -68,7 +67,7 @@ SHA-256: `11ca66c2a8703764d5b6b27acabcab1990d1104575ba4b51c03327341f9ac081`
 
 ## Quick start
 
-1. Download AppMenu-6.2.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
+1. Download AppMenu-7.0.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
 2. Open it: apps are launched with OK or a tap, a long press (or holding OK, or the Menu key) opens the action card. To use it instead of the stock menu turn on “Launcher mode” in Settings.
 3. To act on other apps connect ADB: Settings → “Connect ADB”. Android 9 and older TV boxes with network ADB connect by themselves. Android 11+: turn on the “App Menu” service in Accessibility once, press “Connect automatically”. Android 10 and older: run adb tcpip 5555 once from a computer (repeat after a reboot). With root none of this is needed: allow root for the app once and it connects by itself.
 
