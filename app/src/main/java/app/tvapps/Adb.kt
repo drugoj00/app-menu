@@ -8,6 +8,51 @@ import kotlinx.coroutines.runInterruptible
 import android.util.Log
 import java.io.InputStream
 
+/** Причина последней неудачи подключения ADB: показывается в окне подключения понятным текстом вместо «Не удалось подключиться». */
+object AdbWhy {
+    const val NONE = 0
+    const val PORT_CLOSED = 1   // сетевой ADB (порт 5555) выключен
+    const val PAIR_NEEDED = 2   // беспроводная отладка найдена, но программа не сопряжена
+    const val WIFI_OFF = 3      // беспроводная отладка выключена или нет Wi-Fi
+    const val TIMEOUT = 4       // устройство не ответило: ждёт «Разрешить отладку?»
+    const val PAIR_FAIL = 5     // неверный код / окно кода закрылось
+    @Volatile var last = NONE
+    @Volatile var local = NONE
+    @Volatile var wireless = NONE
+
+    private fun chain(t: Throwable?): Sequence<Throwable> = generateSequence(t) { it.cause }
+
+    fun ofLocal(t: Throwable?): Int = when {
+        t == null -> NONE
+        chain(t).any { it is IllegalStateException && it.message == "adb port closed" } -> PORT_CLOSED
+        else -> TIMEOUT
+    }
+
+    fun ofWireless(ctx: Context, t: Throwable?): Int = when {
+        t == null -> NONE
+        chain(t).any { it.javaClass.simpleName.contains("PairingRequired") || (it.message ?: "").contains("pairing is required", true) } -> PAIR_NEEDED
+        wifiDebugOff(ctx) || noLan(ctx) -> WIFI_OFF
+        else -> TIMEOUT
+    }
+
+    /** Нет подключения к локальной сети (ни Wi-Fi, ни кабеля): беспроводная отладка работает только внутри сети. */
+    fun noLan(ctx: Context): Boolean = runCatching {
+        val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+        val caps = cm.getNetworkCapabilities(cm.activeNetwork)
+        caps == null || !(caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) || caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET))
+    }.getOrDefault(false)
+
+    /** Беспроводная отладка выключена в системе (Android 11+): Settings.Global.adb_wifi_enabled = 0. */
+    fun wifiDebugOff(ctx: Context): Boolean = android.os.Build.VERSION.SDK_INT >= 30 &&
+        runCatching { android.provider.Settings.Global.getInt(ctx.contentResolver, "adb_wifi_enabled", 1) == 0 }.getOrDefault(false)
+
+    /** Главная причина для показа: на Android 11+ важнее состояние беспроводной отладки, на старых — порт 5555. */
+    fun summary(): Int {
+        if (android.os.Build.VERSION.SDK_INT >= 30 && wireless != NONE) return wireless
+        return if (local != NONE) local else wireless
+    }
+}
+
 /** Единая точка работы с ADB этого же телефона. */
 object Adb {
     /** Соединение ADB создаётся при первом обращении (вместе с шифрованием Conscrypt и ключом): на приставках с root и у тех, кто ADB не использует, оно не занимает память. */
@@ -170,11 +215,12 @@ object Adb {
                 last = r.exceptionOrNull() ?: IllegalStateException("connect failed")
             }
             if (!done) throw last ?: IllegalStateException("connect failed")
-        }.onFailure { Log.e("TVApps", "connect error", it) }
+        }.onFailure { Log.e("TVApps", "connect error", it); AdbWhy.local = AdbWhy.ofLocal(it); AdbWhy.last = AdbWhy.local }
+            .onSuccess { AdbWhy.local = AdbWhy.NONE; AdbWhy.wireless = AdbWhy.NONE; AdbWhy.last = AdbWhy.NONE }
     }
 
     suspend fun pair(port: Int, code: String, host: String = "127.0.0.1"): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching { mgr.pair(host, port, code) }.map { }.onFailure { Log.e("TVApps", "pair error", it) }
+        runCatching { mgr.pair(host, port, code) }.map { }.onFailure { Log.e("TVApps", "pair error", it); AdbWhy.last = AdbWhy.PAIR_FAIL; AdbWhy.wireless = AdbWhy.PAIR_FAIL }
     }
 
     /** Беспроводная отладка: порт ищется сам (mDNS), при неудаче используется порт, введённый вручную. */
@@ -183,13 +229,16 @@ object Adb {
         runCatching {
             runCatching { mgr.disconnect() }
             var ok = false
+            var autoErr: Throwable? = null
             if (host == "127.0.0.1" && android.os.Build.VERSION.SDK_INT >= 30) {
                 ok = runCatching { mgr.autoConnect(context.applicationContext, 7000) }
-                    .onFailure { Log.e("TVApps", "autoConnect error", it) }.getOrDefault(false)
+                    .onFailure { Log.e("TVApps", "autoConnect error", it); autoErr = it }.getOrDefault(false)
             }
             if (!ok && manualPort != null) ok = mgr.connect(host, manualPort)
-            if (!ok) error("connect failed")
-        }.onFailure { Log.e("TVApps", "wireless connect error", it) }
+            // причина автоподключения (нужно сопряжение, отладка выключена) сохраняется в исключении: по ней окно показывает понятный текст
+            if (!ok) throw IllegalStateException("connect failed", autoErr)
+        }.onFailure { Log.e("TVApps", "wireless connect error", it); AdbWhy.wireless = AdbWhy.ofWireless(context, it); AdbWhy.last = AdbWhy.wireless }
+            .onSuccess { AdbWhy.local = AdbWhy.NONE; AdbWhy.wireless = AdbWhy.NONE; AdbWhy.last = AdbWhy.NONE }
     }
 
     suspend fun disconnect() = withContext(Dispatchers.IO) { rootOn = false; runCatching { mgr.disconnect() } }

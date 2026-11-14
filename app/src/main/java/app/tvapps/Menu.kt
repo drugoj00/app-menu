@@ -100,7 +100,9 @@ import kotlin.math.max
 object Conn {
     var connected by mutableStateOf(false)
     var root by mutableStateOf(false)
-    fun refresh() { connected = Adb.isConnected; root = Adb.isRoot }
+    /** Причина, по которой ADB не подключён (AdbWhy.*): 0 — причина неизвестна или подключено. */
+    var why by mutableIntStateOf(0)
+    fun refresh() { connected = Adb.isConnected; root = Adb.isRoot; why = if (connected) 0 else AdbWhy.summary() }
     /** Строка состояния: «ADB: подключено», «Root: подключено» или «не подключено». */
     val statusRes: Int get() = if (!connected) R.string.adb_off else if (root) R.string.root_on else R.string.adb_on
 }
@@ -760,6 +762,16 @@ private fun BatteryPanel(e: Entry, first: FocusRequester, onBack: () -> Unit) {
     }
 }
 
+/** Понятная причина неудачи подключения ADB (AdbWhy.*) или null, если причина неизвестна. */
+private fun whyText(ctx: android.content.Context, why: Int): String? = when (why) {
+    AdbWhy.PORT_CLOSED -> ctx.getString(if (android.os.Build.VERSION.SDK_INT >= 30) R.string.why_port_closed_new else R.string.why_port_closed_old)
+    AdbWhy.PAIR_NEEDED -> ctx.getString(R.string.why_pair_needed)
+    AdbWhy.WIFI_OFF -> ctx.getString(R.string.why_wifi_off)
+    AdbWhy.TIMEOUT -> ctx.getString(R.string.why_timeout)
+    AdbWhy.PAIR_FAIL -> ctx.getString(R.string.why_pair_fail)
+    else -> null
+}
+
 @Composable
 private fun ConnectPanel(first: FocusRequester, onDone: () -> Unit, onBack: () -> Unit) {
     val ctx = LocalContext.current
@@ -768,6 +780,8 @@ private fun ConnectPanel(first: FocusRequester, onDone: () -> Unit, onBack: () -
     var code by remember { mutableStateOf("") }
     var port by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
+    var notifDenied by remember { mutableStateOf(false) }
+    var devHint by remember { mutableStateOf(false) }
     fun run(block: suspend () -> Result<Unit>) {
         scope.launch {
             busy = true
@@ -775,7 +789,7 @@ private fun ConnectPanel(first: FocusRequester, onDone: () -> Unit, onBack: () -
             busy = false
             Conn.refresh()
             if (r.isSuccess && Adb.isConnected) { toast(ctx, ctx.getString(R.string.adb_ok)); onDone() }
-            else toast(ctx, ctx.getString(R.string.adb_fail))
+            else toast(ctx, whyText(ctx, Conn.why) ?: ctx.getString(R.string.adb_fail))
         }
     }
     LaunchedEffect(Unit) { if (!Adb.isConnected && Cfg.useRoot && Adb.tryRoot()) { Conn.refresh(); toast(ctx, ctx.getString(R.string.adb_ok)); onDone() } }
@@ -794,6 +808,7 @@ private fun ConnectPanel(first: FocusRequester, onDone: () -> Unit, onBack: () -
     }
     BackRow(first, onBack)
     Text(stringResource(Conn.statusRes), color = if (Conn.connected) Pop.accent else Pop.sub, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp))
+    if (!Conn.connected) whyText(ctx, Conn.why)?.let { Text(it, color = Pop.danger, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(horizontal = 8.dp)) }
     PopButton(stringResource(R.string.root_connect_btn), enabled = !busy) {
         run { if (Adb.tryRoot()) Result.success(Unit) else Result.failure(IllegalStateException("no root")) }
     }
@@ -827,10 +842,14 @@ private fun ConnectPanel(first: FocusRequester, onDone: () -> Unit, onBack: () -
             Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS),
         )
         var ok = false
-        for (i in tries) { if (runCatching { ctx.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess) { ok = true; break } }
+        for ((idx, i) in tries.withIndex()) { if (runCatching { ctx.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess) { ok = true; devHint = idx > 0; break } }
         if (!ok) toast(ctx, ctx.getString(R.string.no_settings_page))
     }
-    val notifPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { openWireless() }
+    // без разрешения на уведомления код сопряжения ввести негде: говорим об этом и даём кнопку, а не открываем настройки молча
+    val notifPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        notifDenied = !granted
+        if (granted) openWireless() else Pairing.cancel(ctx)
+    }
     if (sdk30) {
         // полностью автоматически: служба спецвозможностей сама проходит по настройкам и читает код (включается один раз)
         Text(stringResource(R.string.autopair_hint), color = Pop.text, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 8.dp))
@@ -839,10 +858,20 @@ private fun ConnectPanel(first: FocusRequester, onDone: () -> Unit, onBack: () -
         }
         PopButton(stringResource(R.string.autopair_run), enabled = autoOn) { Pairing.autoStart(); openWireless(false) }
         PopButton(stringResource(R.string.open_wireless_dbg_manual)) {
+            val nm = ctx.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
             if (android.os.Build.VERSION.SDK_INT >= 33 && ctx.checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED)
                 notifPerm.launch("android.permission.POST_NOTIFICATIONS")
-            else openWireless()
+            else if (!nm.areNotificationsEnabled()) notifDenied = true
+            else { notifDenied = false; openWireless() }
         }
+        if (notifDenied) {
+            Text(stringResource(R.string.notif_denied), color = Pop.danger, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 8.dp))
+            PopButton(stringResource(R.string.notif_settings_btn)) {
+                val i = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, ctx.packageName).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                if (runCatching { ctx.startActivity(i) }.isFailure) toast(ctx, ctx.getString(R.string.no_settings_page))
+            }
+        }
+        if (devHint) Text(stringResource(R.string.wifi_hint), color = Pop.text, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 8.dp))
         Text(
             if (Pairing.port > 0) stringResource(R.string.pair_found, Pairing.port) else stringResource(R.string.pair_waiting),
             color = if (Pairing.port > 0) Pop.accent else Pop.sub, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(horizontal = 8.dp),
@@ -893,7 +922,7 @@ fun AdbConnectDialog(onClose: () -> Unit) {
     HDialog(onDismissRequest = onClose) {
         Column(
             Modifier.clip(RoundedCornerShape(24.dp)).background(Pop.card).padding(14.dp).fillMaxWidth()
-                .heightIn(max = 560.dp).barScroll(),
+                .heightIn(max = with(androidx.compose.ui.platform.LocalDensity.current) { (LocalContext.current.resources.displayMetrics.heightPixels * 0.88f).toDp() }).barScroll(),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) { ConnectPanel(first, onDone = onClose, onBack = onClose) }
     }
