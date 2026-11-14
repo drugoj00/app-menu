@@ -14,31 +14,18 @@ App Menu replaces the stock app list with a big grid made for a remote and for t
 
 ## Download
 
-**Version 7.0.** [AppMenu-7.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
+**Version 7.1.** [AppMenu-7.1.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `8eebccaef7ca1316ce7414b72e1acab5c0e0594b204a54939daf9c36c064395b`
+SHA-256: `5f4283e1e25d67fd73d98c3bbd3deebb9fd686bcdbfc9a11fde90461e89809a8`
 
-## What's new in 7.0
+## What's new in 7.1
 
-- **“All apps” panel:** the setting “‘All apps’ panel on Home” (off by default): a scrollable grid of all apps under the widgets on a glass background; remote (arrows between the Home rows and the panel, Back returns to the top), mouse and touch; tile size follows the program settings; “Panel glass”: light, medium, dense; the top bar search on Home searches in the panel
-- **Home:** top bar with crisp colors: buttons and the search field are opaque, the field border uses the accent color, a bright accent over a picture background; the USB and Settings icons with display turned on are visible on boxes that do not report themselves as TV when the top bar is forced on
-- **Appearance:** top bar settings of Home (the look is set by the settings; by default the buttons have an opaque background and the search field has an accent-colored border): status icon outline (Auto by background brightness, Dark, White, None), button background (opaque, translucent, none), button corners (normal, round, small), program name next to the menu button, selection ring glow (none, weak, strong); the items are also in the app Settings with a collapsed explanation
-- **Android widgets:** on Android 12 and newer the binding is allowed in several ways through ADB or root; when a widget in a Home cell is replaced, the new look and its settings show at once; “Widget settings” no longer replaces or deletes the widget
-- **Batch install:** when refused for a version lower than the installed one or a different signature, a “Fix” button with confirmation: through ADB or root the lower version is installed over the top, otherwise keeping the data, with a different signature the old app is removed with its data and the previous one is put back if the install fails; without ADB and root a “Remove the installed version and install this one?” dialog and a replacement through the system removal and install windows; instead of “file is damaged” any parse refusal shows a neutral message with the system code; a refused downgrade is no longer shown as success; “Fix” is offered only for a real signature mismatch or a lower version (the system compares the signatures), for any other refusal a message with the system code is shown and the data is not removed; after the system removal the app waits up to 5 seconds; a “Fix” job is valid for 10 minutes
-- Eye icon in the input field
+- **Settings:** “App Menu”, “Home module” and the home screen choice are in one block, one after another; new “Default launcher settings” button
+- **Home screen:** the “Turn on and choose...” button asks for root itself, then sets the app by commands (on Android 10 and newer also by the Home role); without ADB and root it opens the system home screen picker; on failure a message is shown instead of nothing
 
 **Fixed:**
 
-- The USB and Settings icons are no longer missing on boxes that do not report themselves as TV (top bar forced on)
-- A replaced Android widget in a Home cell now shows its new look at once; “Widget settings” no longer replaces or deletes the widget
-- A refused downgrade is no longer shown as a successful install; any parse refusal shows a neutral message with the system code instead of “file is damaged”
-- “Fix” is offered only for a real signature mismatch or a lower version; after the system removal the app waits up to 5 seconds; a “Fix” job is valid for 10 minutes
-
-**Requirements and limits:**
-
-- The background behind the “All apps” panel is not blurred, only the glass transparency; the panel scrolls smoothly, without pages
-- “Fix” through ADB or root needs no system windows; without them the replacement goes through the system removal and install windows, the app data is lost, and each window must be confirmed (if removal is declined, nothing is installed)
-- Android allows a downgrade over the top only on some builds (usually for debuggable apps only); then the data is kept by removing the app with the “keep data” flag
+- **Home screen choice:** “App Menu” is always in the system list (it was missing while the Home mode was off)
 
 ## Features
 
@@ -70,7 +57,7 @@ SHA-256: `8eebccaef7ca1316ce7414b72e1acab5c0e0594b204a54939daf9c36c064395b`
 
 ## Quick start
 
-1. Download AppMenu-7.0.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
+1. Download AppMenu-7.1.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
 2. Open it: apps are launched with OK or a tap, a long press (or holding OK, or the Menu key) opens the action card. To use it instead of the stock menu turn on “Launcher mode” in Settings.
 3. To act on other apps connect ADB: Settings → “Connect ADB”. Android 9 and older TV boxes with network ADB connect by themselves. Android 11+: turn on the “App Menu” service in Accessibility once, press “Connect automatically”. Android 10 and older: run adb tcpip 5555 once from a computer (repeat after a reboot). With root none of this is needed: allow root for the app once and it connects by itself.
 
