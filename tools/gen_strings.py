@@ -8,6 +8,7 @@ RES = r'C:\Программы\AppMenu\app\src\main\res'
 S = {
     'app_name': ('App Menu', 'Меню приложений', 'Меню застосунків'),
     'title': ('App Menu', 'Меню приложений', 'Меню застосунків'),
+    'header_title': ('Apps', 'Приложения', 'Застосунки'),
     'count': ('%1$d', '%1$d', '%1$d'),
     'hint': ('Tap or OK: open · long tap, hold OK, Menu or right mouse button: actions', 'Касание или ОК: открыть · долгое касание, удержание ОК, «Меню» или правая кнопка мыши: действия', 'Дотик або ОК: відкрити · довгий дотик, утримання ОК, «Меню» або права кнопка миші: дії'),
     'about': ('App info', 'О приложении', 'Про застосунок'),
@@ -115,10 +116,10 @@ S = {
     'upd_src_on': ('on', 'включён', 'увімкнено'),
     'upd_src_off': ('off', 'выключен', 'вимкнено'),
     'upd_src_github': ('GitHub', 'GitHub', 'GitHub'),
-    'root_on': ('Root (Magisk): connected', 'Root (Magisk): подключено', 'Root (Magisk): підключено'),
-    'root_connect_btn': ('Connect via root (Magisk)', 'Подключить через root (Magisk)', 'Підключити через root (Magisk)'),
-    'root_use_title': ('Use root (Magisk) instead of ADB', 'Использовать root (Magisk) вместо ADB', 'Використовувати root (Magisk) замість ADB'),
-    'root_hint': ('If the device has root, ADB and a computer are not needed. On first start allow root for this app in Magisk. The switch decides what is used at start; the ADB connect buttons switch to ADB.', 'Если на устройстве есть root, ADB и компьютер не нужны. При первом запуске разрешите root этому приложению в Magisk. Что использовать при запуске, решает переключатель; кнопки подключения ADB переключают на ADB.', "Якщо на пристрої є root, ADB і комп'ютер не потрібні. Під час першого запуску дозвольте root цьому застосунку в Magisk. Що використовувати під час запуску, вирішує перемикач; кнопки підключення ADB перемикають на ADB."),
+    'root_on': ('Root: connected', 'Root: подключено', 'Root: підключено'),
+    'root_connect_btn': ('Connect via root', 'Подключить через root', 'Підключити через root'),
+    'root_use_title': ('Use root instead of ADB', 'Использовать root вместо ADB', 'Використовувати root замість ADB'),
+    'root_hint': ('If the device has root, ADB and a computer are not needed. On first start allow root for this app. The switch decides what is used at start; the ADB connect buttons switch to ADB.', 'Если на устройстве есть root, ADB и компьютер не нужны. При первом запуске разрешите root этому приложению. Что использовать при запуске, решает переключатель; кнопки подключения ADB переключают на ADB.', "Якщо на пристрої є root, ADB і комп'ютер не потрібні. Під час першого запуску дозвольте root цьому застосунку. Що використовувати під час запуску, вирішує перемикач; кнопки підключення ADB перемикають на ADB."),
     'adb_ok': ('Connected', 'Подключено', 'Підключено'),
     'adb_fail': ('Could not connect', 'Не удалось подключиться', 'Не вдалося підключитися'),
     'connect_text': (
