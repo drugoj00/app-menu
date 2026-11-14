@@ -21,10 +21,10 @@ SHA-256: `7d5abb431b2c37b118c71e7a59121758bf723a56417661bf43f976f8ac2401cc`
 ## What's new in 7.0
 
 - **Home:** top bar with crisp colors: buttons and the search field are opaque, the field border uses the accent color, a bright accent over a picture background; the USB and Settings icons with display turned on are visible on boxes that do not report themselves as TV when the top bar is forced on
-- **Appearance:** top bar settings of Home (the look stays as before by default): status icon outline (Auto by background brightness, Dark, White, None), button background (opaque, translucent, none), button corners (normal, round, small), program name next to the menu button, selection ring glow (none, weak, strong); the items are also in the app Settings with a collapsed explanation
+- **Appearance:** top bar settings of Home (the look is set by the settings; by default the buttons have an opaque background and the search field has an accent-colored border): status icon outline (Auto by background brightness, Dark, White, None), button background (opaque, translucent, none), button corners (normal, round, small), program name next to the menu button, selection ring glow (none, weak, strong); the items are also in the app Settings with a collapsed explanation
 - **Android widgets:** on Android 12 and newer the binding is allowed in several ways through ADB or root; when a widget in a Home cell is replaced, the new look and its settings show at once; “Widget settings” no longer replaces or deletes the widget
 - **Batch install:** when refused for a version lower than the installed one or a different signature, a “Fix” button with confirmation: through ADB or root the lower version is installed over the top, otherwise keeping the data, with a different signature the old app is removed with its data and the previous one is put back if the install fails; without ADB and root a “Remove the installed version and install this one?” dialog and a replacement through the system removal and install windows; instead of “file is damaged” any parse refusal shows a neutral message with the system code; a refused downgrade is no longer shown as success
-- **Passwords:** an “eye” icon in the network folder password field
+- **Passwords:** an “eye” icon (show or hide) in the password field
 
 **Fixed:**
 
