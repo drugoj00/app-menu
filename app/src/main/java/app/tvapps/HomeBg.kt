@@ -43,6 +43,9 @@ import kotlinx.coroutines.withContext
 /** Фон экрана «Дом»: цвет, живой градиент, картинка, видео или анимация; поверх можно положить затемнение. */
 @Composable
 internal fun HomeBackground(bg: HBg, menu: Boolean = false) {
+    // яркость фона в полосе под значками верхней строки «Дома»: от неё зависит сила тёмного контура значков состояния (на светлой картинке он мягкий)
+    val ctx0 = LocalContext.current
+    if (!menu) androidx.compose.runtime.LaunchedEffect(bg.type, bg.color, bg.dim, HomeStore.imgTick) { BgLum.top = withContext(Dispatchers.IO) { BgLum.measure(ctx0, bg) } }
     if (bg.type == "none") return
     val ctx = LocalContext.current
     Box(Modifier.fillMaxSize()) {
@@ -102,6 +105,42 @@ private fun decodeBg(path: String): android.graphics.Bitmap? {
         runCatching { BitmapFactory.decodeFile(path, o) }.getOrNull()?.let { return it }
     }
     return BitmapFactory.decodeFile(path)
+}
+
+/** Яркость фона «Дома» под верхней строкой (0 тёмный, 1 светлый); null — неизвестна (нет фона, видео или анимация). */
+internal object BgLum {
+    var top by androidx.compose.runtime.mutableStateOf<Float?>(null)
+
+    fun measure(ctx: android.content.Context, bg: HBg): Float? = runCatching {
+        val dim = 1f - bg.dim.coerceIn(0, 90) / 100f
+        when (bg.type) {
+            "color", "gradient" -> {
+                val c = Color(bg.color.toInt())
+                (0.299f * c.red + 0.587f * c.green + 0.114f * c.blue).coerceAtMost(if (bg.type == "gradient") 0.5f else 1f) * dim
+            }
+            "image" -> {
+                val portrait = ctx.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+                val f = HomeBgFiles.image(ctx, false, portrait).takeIf { portrait && it.exists() } ?: HomeBgFiles.image(ctx, false)
+                if (!f.exists()) return@runCatching null
+                val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeFile(f.path, o)
+                if (o.outWidth <= 0) return@runCatching null
+                val o2 = BitmapFactory.Options().apply { inSampleSize = maxOf(1, o.outWidth / 96) }
+                val bmp = BitmapFactory.decodeFile(f.path, o2) ?: return@runCatching null
+                val rows = maxOf(1, (bmp.height * 0.15f).toInt())
+                var sum = 0.0
+                var n = 0
+                for (y in 0 until rows) for (x in 0 until bmp.width) {
+                    val p = bmp.getPixel(x, y)
+                    sum += (0.2126 * ((p shr 16) and 255) + 0.7152 * ((p shr 8) and 255) + 0.0722 * (p and 255)) / 255.0
+                    n++
+                }
+                bmp.recycle()
+                if (n == 0) null else (sum / n).toFloat() * dim
+            }
+            else -> null
+        }
+    }.getOrNull()
 }
 
 /** Последняя показанная картинка фона: при возврате на «Дом» не мигает. */
@@ -247,11 +286,14 @@ internal fun adaptTheme(tc: TC, bg: HBg): TC {
     val c = Color(bg.color.toInt())
     val lum = 0.299f * c.red + 0.587f * c.green + 0.114f * c.blue
     val lightBg = (bg.type == "color" || bg.type == "gradient") && lum > 0.55f && bg.dim < 40
+    // акцент подбирается под вид «Дома» поверх фона (тёмный или светлый), а не под тему системы: иначе на тёмном фоне при светлой теме
+    // значки и слова верхней строки получались тёмно-бирюзовыми (0F766E) и тонули в плитках
+    val (acc, sel) = accentPair(Cfg.accent, !lightBg)
     return if (lightBg) tc.copy(
         dark = false, bg = Color(0xFFF1F5F9), text = Color(0xFF111827), sub = Color(0xFF334155), hint = Color(0xFF475569),
-        tile = Color(0xCCFFFFFF), tileFocus = Color(0xFFD7EEEC), border = Color(0xFFCBD5E1),
+        tile = Color(0xCCFFFFFF), tileFocus = Color(0xFFD7EEEC), border = Color(0xFFCBD5E1), accent = acc, chipSel = sel,
     ) else tc.copy(
         dark = true, bg = Color(0xFF14141C), text = Color.White, sub = Color(0xFFD1D9E6), hint = Color(0xFFA7B3C6),
-        tile = Color(0xA0101018), tileFocus = Color(0xE01E293B), border = Color(0x55FFFFFF),
+        tile = Color(0xA0101018), tileFocus = Color(0xE01E293B), border = Color(0x55FFFFFF), accent = acc, chipSel = sel,
     )
 }

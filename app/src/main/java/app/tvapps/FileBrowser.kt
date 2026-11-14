@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.material3.Icon
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -100,6 +101,7 @@ fun FileBrowser(onApks: (List<ApkFile>) -> Unit, onClose: () -> Unit) {
     var host by remember { mutableStateOf("") }
     var user by remember { mutableStateOf("") }
     var pass by remember { mutableStateOf("") }
+    var passShow by remember { mutableStateOf(false) }
     val fr = remember { FocusRequester() }
 
     val fs: Fs? = when (kind) { "local" -> LocalFs; "adb" -> AdbFs; else -> smb }
@@ -184,7 +186,15 @@ fun FileBrowser(onApks: (List<ApkFile>) -> Unit, onClose: () -> Unit) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     OutlinedTextField(user, { user = it }, label = { Text(stringResource(R.string.fb_user)) }, singleLine = true, colors = fields, modifier = Modifier.weight(1f))
                     OutlinedTextField(pass, { pass = it }, label = { Text(stringResource(R.string.fb_pass)) }, singleLine = true, colors = fields,
-                        visualTransformation = PasswordVisualTransformation(), modifier = Modifier.weight(1f))
+                        visualTransformation = if (passShow) androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),
+                        // «глазик» справа в полосе поля: по умолчанию пароль скрыт; цвет акцента, компактно
+                        trailingIcon = {
+                            Icon(
+                                if (passShow) HIcons.eyeOff else HIcons.eye, stringResource(R.string.pass_show), tint = t.accent,
+                                modifier = Modifier.size(34.dp).clip(RoundedCornerShape(8.dp)).clickable { passShow = !passShow }.padding(5.dp),
+                            )
+                        },
+                        modifier = Modifier.weight(1f))
                 }
                 Chip(stringResource(R.string.fb_connect), true) { if (host.isNotBlank()) smb = SmbFs(host, user, pass) }
             } else {

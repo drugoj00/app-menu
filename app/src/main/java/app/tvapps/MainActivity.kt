@@ -1025,8 +1025,8 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
             // ShrinkToFit: при трёхзначном счётчике на узком телефоне шестерёнка уезжала за край экрана
             ShrinkToFit(Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TitleMenuBox({ deskMenu = true }) { Text(stringResource(R.string.title).uppercase(), fontSize = btnSp(19), color = Color(0xFF4ADE80), maxLines = 1, softWrap = false) }
-                    Text(stringResource(R.string.count, allShown.size), fontSize = btnSp(19), color = t.sub, maxLines = 1)
+                    TitleMenuBox({ deskMenu = true }) { Text(stringResource(R.string.header_title).uppercase(), fontSize = btnSp(19), color = t.sub, maxLines = 1, softWrap = false) }
+                    Text(stringResource(R.string.count, allShown.size), fontSize = btnSp(19), color = Color(0xFF4ADE80), maxLines = 1)
                     Spacer(Modifier.weight(1f))
                     rightButtons()
                 }
@@ -1037,8 +1037,8 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
         } else {
             ShrinkToFit(Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    TitleMenuBox({ deskMenu = true }) { Text(stringResource(R.string.title).uppercase(), fontSize = btnSp(19), color = Color(0xFF4ADE80), maxLines = 1, softWrap = false) }
-                    Text(if (allShown.isEmpty() && !loadedOnce) "…" else stringResource(R.string.count, allShown.size), fontSize = btnSp(19), color = t.sub, maxLines = 1, modifier = Modifier.padding(start = 6.dp))
+                    TitleMenuBox({ deskMenu = true }) { Text(stringResource(R.string.header_title).uppercase(), fontSize = btnSp(19), color = t.sub, maxLines = 1, softWrap = false) }
+                    Text(if (allShown.isEmpty() && !loadedOnce) "…" else stringResource(R.string.count, allShown.size), fontSize = btnSp(19), color = Color(0xFF4ADE80), maxLines = 1, modifier = Modifier.padding(start = 6.dp))
                         Spacer(Modifier.weight(1f))
                     headerButtons()
                 }

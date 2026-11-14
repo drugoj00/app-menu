@@ -532,6 +532,27 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                     SectionHint(stringResource(R.string.home_auto_add_hint))
                     Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.homeAutoAdd) { Cfg.changeHomeAutoAdd(it) }
                 }
+                // оформление верхней строки и выделения на «Доме» (по умолчанию вид прежний; выбор применяется сразу; пояснения свёрнуты под названием)
+                Section(stringResource(R.string.top_outline)) {
+                    SectionHint(stringResource(R.string.top_outline_hint))
+                    Options(listOf("auto" to stringResource(R.string.top_o_auto), "dark" to stringResource(R.string.top_o_dark), "white" to stringResource(R.string.top_o_white), "none" to stringResource(R.string.top_o_none)), Cfg.statusOutline) { Cfg.changeStatusOutline(it) }
+                }
+                Section(stringResource(R.string.top_fill)) {
+                    SectionHint(stringResource(R.string.top_fill_hint))
+                    Options(listOf("solid" to stringResource(R.string.top_f_solid), "glass" to stringResource(R.string.top_f_glass), "none" to stringResource(R.string.top_f_none)), Cfg.barFill) { Cfg.changeBarFill(it) }
+                }
+                Section(stringResource(R.string.top_shape)) {
+                    SectionHint(stringResource(R.string.top_shape_hint))
+                    Options(listOf("normal" to stringResource(R.string.top_s_normal), "round" to stringResource(R.string.top_s_round), "square" to stringResource(R.string.top_s_square)), Cfg.barShape) { Cfg.changeBarShape(it) }
+                }
+                Section(stringResource(R.string.top_title_btn)) {
+                    SectionHint(stringResource(R.string.top_title_hint))
+                    Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.barTitle) { Cfg.changeBarTitle(it) }
+                }
+                Section(stringResource(R.string.sel_glow)) {
+                    SectionHint(stringResource(R.string.sel_glow_hint))
+                    Options(listOf("none" to stringResource(R.string.glow_none), "weak" to stringResource(R.string.glow_weak), "strong" to stringResource(R.string.glow_strong)), Cfg.selGlow) { Cfg.changeSelGlow(it) }
+                }
                 // выключатель меню виден всегда (раньше исчезал при выключенном «Доме»); оба модуля сразу выключить нельзя
                 Section(stringResource(R.string.menu_module_title)) {
                     SectionHint(stringResource(R.string.menu_module_hint))

@@ -210,7 +210,7 @@ private fun SearchBar(big: Boolean, onVoice: () -> Unit, onSearch: (String) -> U
     val kb = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
-    val shape = androidx.compose.foundation.shape.RoundedCornerShape((if (big) 28f else 22f).times(sc).dp)
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(barR((if (big) 28f else 22f).times(sc).dp))
     val fs = (if (big) 20f else 15f).times(sc).sp
     fun startEdit() {
         if (editing) { kb?.show(); return }
@@ -228,8 +228,8 @@ private fun SearchBar(big: Boolean, onVoice: () -> Unit, onSearch: (String) -> U
         }
     }
     Row(
-        modifier.clip(shape).background(t.tile)
-            .border(if (focused) 3.dp else 1.dp, if (focused) t.accent else t.border, shape),
+        modifier.clip(shape).background(barBg(t.tile))
+            .border(if (focused) 3.dp else 1.5.dp, t.accent, shape),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         HomeBox(shape = androidx.compose.foundation.shape.CircleShape, onClick = onVoice, onLong = onLong) {
@@ -285,8 +285,10 @@ internal fun HomeTopBar(
     // на телефоне и планшете полоска мельче (значки, часы, поле поиска)
     val big = top.big && TopMode.isTv(ctx)
     val tv = TopMode.isTv(ctx)
-    // на телефоне и планшете нет значков внешнего накопителя и шестерёнки (настройки доступны системой)
-    val vis = top.status.filter { it.visible && (tv || (it.id != "usb" && it.id != "gear")) }
+    // на телефоне и планшете нет значков внешнего накопителя и шестерёнки (настройки доступны системой), но если пользователь сам включил
+    // «Показывать верхнюю строку» (режим 1), значки USB и «Настройки» с включённым показом должны быть видны и на приставке, которая не назвалась ТВ
+    // (просьба пользователя 4PDA: «не отображаются USB и Settings, отображение включено»)
+    val vis = top.status.filter { it.visible && (tv || TopMode.get(ctx) == 1 || (it.id != "usb" && it.id != "gear")) }
     // узкий экран (телефон в портрете): поле поиска вторым рядом, чтобы часы не обрезались
     val stack = !tv && androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 600
     val showHdmi = top.hdmi && tv
@@ -303,6 +305,7 @@ internal fun HomeTopBar(
         val box = { icon: Float, pad: Float -> icon + 2 * pad }
         val left = mutableListOf<Float>()
         if (top.menu) left += box(if (big0) 38f else 28f, 4f)
+        if (top.menu && Cfg.barTitle) left += tw(stringResource(R.string.title), if (big0) 22f else 17f, 500) + 8f
         if (top.recent && tv) left += box(if (big0) 34f else 26f, if (big0) 9f else 7f)
         if (top.clean) left += box(if (big0) 34f else 26f, if (big0) 9f else 7f)
         if (showHdmi) left += box(if (big0) 34f else 26f, if (big0) 9f else 7f)
@@ -331,15 +334,17 @@ internal fun HomeTopBar(
     Column(Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(lv.left.dp)) {
         if (top.menu) HomeBox(
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp), bg = t.tile, focusReq = menuReq,
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(barR(14.dp)), bg = barBg(t.tile), focusReq = menuReq,
             // долгое нажатие на кнопку меню — недавние (настройки верхней полоски: «Настройки экрана»)
             onClick = onMenu, onLong = { TopUi.recents.value = true },
         ) {
             if (appIcon != null) androidx.compose.foundation.Image(appIcon, null, Modifier.padding((4f * sc).dp).size((if (big) 38f else 28f).times(sc).dp))
             else Icon(HIcons.apps, null, tint = t.accent, modifier = Modifier.padding((6f * sc).dp).size((if (big) 32f else 24f).times(sc).dp))
         }
+        // название программы рядом с кнопкой меню (по выбору в настройках верхней строки; по умолчанию выключено)
+        if (top.menu && Cfg.barTitle) Text(stringResource(R.string.title), color = t.text, fontSize = (if (big) 22f else 17f).times(sc).sp, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false)
         if (top.recent && tv) HomeBox(
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp), bg = t.tile,
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(barR(14.dp)), bg = barBg(t.tile),
             onClick = { TopUi.recents.value = true }, onLong = onTopLong,
         ) { Icon(HIcons.recent, null, tint = t.accent, modifier = Modifier.padding((if (big) 9f else 7f).times(sc).dp).size((if (big) 34f else 26f).times(sc).dp)) }
         // «Очистка памяти»: после «Недавних»; на телефоне и планшете тоже (кнопка небольшая)
@@ -347,7 +352,7 @@ internal fun HomeTopBar(
             val cleanScope = androidx.compose.runtime.rememberCoroutineScope()
             val cleanBusy = remember { booleanArrayOf(false) }
             HomeBox(
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp), bg = t.tile,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(barR(14.dp)), bg = barBg(t.tile),
                 onClick = {
                     if (!cleanBusy[0]) {
                         cleanBusy[0] = true
@@ -360,13 +365,13 @@ internal fun HomeTopBar(
             ) { Icon(HIcons.memory, ctx.getString(R.string.mem_clean), tint = t.accent, modifier = Modifier.padding((if (big) 9f else 7f).times(sc).dp).size((if (big) 34f else 26f).times(sc).dp)) }
         }
         if (showHdmi) HomeBox(
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp), bg = t.tile,
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(barR(14.dp)), bg = barBg(t.tile),
             onClick = { TopUi.hdmi.value = true }, onLong = onTopLong,
         ) { Icon(HIcons.hdmi, null, tint = t.accent, modifier = Modifier.padding((if (big) 9f else 7f).times(sc).dp).size((if (big) 34f else 26f).times(sc).dp)) }
         // строка поиска занимает всё свободное место между кнопками слева и значками справа
         if (top.search && !stack) SearchBar(big, onVoice, onSearch, onTopLong, Modifier.weight(1f), sc)
         else if (top.voice && !top.search) HomeBox(
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp), bg = t.tile, onClick = onVoice, onLong = onTopLong,
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(barR(24.dp)), bg = barBg(t.tile), onClick = onVoice, onLong = onTopLong,
         ) {
             Row(Modifier.padding(horizontal = (16f * sc).dp, vertical = (8f * sc).dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy((8f * sc).dp)) {
                 Icon(HIcons.mic, null, tint = t.accent, modifier = Modifier.size((if (big) 28f else 22f).times(sc).dp))
@@ -411,9 +416,45 @@ internal fun HomeTopBar(
     }
 }
 
-/** Контур значков и текста строки состояния: цвет противоположный цвету значка (светлому тёмный, тёмному светлый), чтобы их было видно на любом фоне без настроек. */
-private fun outlineOf(c: androidx.compose.ui.graphics.Color): androidx.compose.ui.graphics.Color =
-    if (c.luminance() > 0.5f) androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.85f) else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.85f)
+/**
+ * Контур значков и текста строки состояния: тёмная тень вокруг светлых значков и букв, чтобы их было видно на светлой картинке фона.
+ * Белого контура нет: раньше тусклые значки (колокольчик без уведомлений, USB без накопителя; цвет «подсказки» ниже порога яркости 0,5) получали
+ * белую окантовку, а яркие чёрную, и значки в одном ряду выглядели по-разному. Тёмные значки (светлая тема на светлом фоне) идут без контура.
+ */
+private fun outlineOf(c: androidx.compose.ui.graphics.Color): androidx.compose.ui.graphics.Color {
+    // выбор пользователя («Контур значков строки состояния»): Тёмный, Белый, Нет или Авто (по яркости фона)
+    when (Cfg.statusOutline) {
+        "none" -> return androidx.compose.ui.graphics.Color.Transparent
+        "dark" -> return androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.85f)
+        "white" -> return androidx.compose.ui.graphics.Color.White.copy(alpha = 0.85f)
+    }
+    if (c.luminance() <= 0.2f) return androidx.compose.ui.graphics.Color.Transparent
+    // Авто: сила тёмного контура по яркости фона под строкой (просьба пользователя 4PDA: на светлой картинке чёрная обводка не подходит): светлый фон — мягкая
+    // тень, средний — заметный контур, тёмный — лишь лёгкая тень (светлым значкам там и так видно); фон неизвестен (видео, нет фона) — средний
+    val l = BgLum.top
+    val a = when {
+        l == null -> 0.6f
+        l >= 0.7f -> 0.25f
+        l >= 0.55f -> 0.4f
+        l >= 0.3f -> 0.7f
+        else -> 0.3f
+    }
+    return androidx.compose.ui.graphics.Color.Black.copy(alpha = a)
+}
+
+/** Фон кнопок и поля поиска верхней строки по выбору пользователя: непрозрачный (по умолчанию), полупрозрачный цвет плиток темы, без фона. */
+private fun barBg(c: androidx.compose.ui.graphics.Color): androidx.compose.ui.graphics.Color = when (Cfg.barFill) {
+    "glass" -> c
+    "none" -> androidx.compose.ui.graphics.Color.Transparent
+    else -> c.copy(alpha = 1f)
+}
+
+/** Скругление кнопок и поля поиска верхней строки по выбору пользователя. */
+private fun barR(d: androidx.compose.ui.unit.Dp): androidx.compose.ui.unit.Dp = when (Cfg.barShape) {
+    "round" -> 40.dp
+    "square" -> 6.dp
+    else -> d
+}
 
 private val OUTLINE_DIRS = listOf(1f to 0f, -1f to 0f, 0f to 1f, 0f to -1f, 0.7f to 0.7f, -0.7f to 0.7f, 0.7f to -0.7f, -0.7f to -0.7f)
 

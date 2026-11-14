@@ -39,6 +39,12 @@ val accentKeys: List<String> get() = Accents.keys.toList()
 /** Цвет акцента с этим ключом в тёмной или светлой теме (для образцов цвета в настройках). */
 fun accentSwatch(key: String, dark: Boolean): Color { val a = Accents[key] ?: Accents.getValue("teal"); return Color(if (dark) a.dk else a.lt) }
 
+/** Акцент и цвет выбранной плашки выбранного ключа для тёмного или светлого оформления (нужно «Дому» поверх фона-картинки: его вид не зависит от темы системы). */
+fun accentPair(key: String, dark: Boolean): Pair<Color, Color> {
+    val a = Accents[key] ?: Accents.getValue("teal")
+    return if (dark) Color(a.dk) to Color(a.dkSel) else Color(a.lt) to Color(a.ltSel)
+}
+
 val LocalTh = compositionLocalOf { DarkTC }
 
 @Composable

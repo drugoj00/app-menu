@@ -38,6 +38,9 @@ object Adb {
     /** Подключено ли управление (ADB или root). У копии с чужой подписью всегда нет: см. Integrity. */
     val isConnected: Boolean get() = Integrity.ok() && (rootOn || (mgrInst?.isConnected == true))
 
+    /** Есть ли подключение root или ADB само по себе, без учёта проверки целостности (только для выдачи разрешения на привязку виджета, см. shellWidgetGrant). */
+    val controlAvailable: Boolean get() = rootOn || (mgrInst?.isConnected == true)
+
     /**
      * Проверяет, дал ли менеджер root (или другой su) права root этому приложению. При первом запуске на экране появится запрос менеджере root:
      * ждём ответа до 30 секунд. Успех включает режим root для всех команд ниже.
@@ -190,6 +193,26 @@ object Adb {
     }
 
     suspend fun disconnect() = withContext(Dispatchers.IO) { rootOn = false; runCatching { mgr.disconnect() } }
+
+    /**
+     * Узкое исключение из проверки целостности: ТОЛЬКО выдача этому же приложению права на привязку виджета
+     * («cmd appwidget grantbind --package <наш пакет> …» или «appops set <наш пакет> BIND_APPWIDGET allow»). Остальные команды сюда не проходят
+     * (самообновление, установка, остановка приложений по-прежнему требуют Integrity.safe()). Причина «чужой» среды пишется в журнал TVApps.
+     */
+    suspend fun shellWidgetGrant(cmd: String, pkg: String, timeoutMs: Long = 12_000): String = withContext(Dispatchers.IO) {
+        val allowed = cmd == "cmd appwidget grantbind --package $pkg --user 0" ||
+            cmd == "appwidget grantbind --package $pkg --user 0" ||
+            cmd == "appops set $pkg BIND_APPWIDGET allow"
+        if (!allowed) return@withContext ""
+        if (!Integrity.ok()) Log.w("TVApps", "виджет: проверка целостности не пройдена (why=${Integrity.why}), разрешение на привязку выдаётся только для нашего пакета")
+        lock.lock()
+        Log.i("TVApps", "shell(widget)> ${cmd.take(200)}")
+        val res = try {
+            runCatching { if (rootOn) rootRun(cmd, null, timeoutMs) else readAll(mgr.openStream(AdbText.safe("shell:$cmd")), timeoutMs, cmd) }
+        } finally { lock.unlock() }
+        Log.i("TVApps", "shell(widget)< ${(res.getOrNull() ?: res.exceptionOrNull()?.message).orEmpty().take(200).replace("\n", " ⏎ ")}")
+        res.getOrDefault("")
+    }
 
     /** Выполнить команду оболочки и вернуть её вывод. */
     suspend fun shell(cmd: String, timeoutMs: Long = 25_000): String = withContext(Dispatchers.IO) {

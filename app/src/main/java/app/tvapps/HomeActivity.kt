@@ -156,6 +156,8 @@ class HomeActivity : ComponentActivity() {
         HomeControl.noteVisible(this, true)
         SysBars.apply(this)
         resumeTick.intValue++
+        // очередь системных окон (удаление и установка без ADB) продолжается и когда окно установки было открыто на «Доме»
+        Pending.next(this)
     }
 
     override fun onPause() {
@@ -236,12 +238,15 @@ private fun HomeScreen(tick: Int, again: Int) {
             else { dropWidget(f); Toast.makeText(ctx, ctx.getString(R.string.wg_bind_fail), Toast.LENGTH_LONG).show() }
         }
     }
+    // настройка уже стоящего виджета идёт своим запуском: его результат не должен попадать в обработчик добавления (там по недозавершённому
+    // добавлению мог заменяться или удаляться чужой виджет), раскладка при этом не меняется
+    val cfgExistingLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { _ -> }
     // «Настройка виджета» (долгое нажатие на виджет): открывает экран настройки самого Android-виджета (если у него есть)
     val configureWidget: (String) -> Boolean = cw@{ ref ->
         val id = ref.toIntOrNull() ?: return@cw false
         val cfg = runCatching { android.appwidget.AppWidgetManager.getInstance(ctx).getAppWidgetInfo(id)?.configure }.getOrNull() ?: return@cw false
         runCatching {
-            cfgLauncher.launch(Intent(android.appwidget.AppWidgetManager.ACTION_APPWIDGET_CONFIGURE).setComponent(cfg).putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, id))
+            cfgExistingLauncher.launch(Intent(android.appwidget.AppWidgetManager.ACTION_APPWIDGET_CONFIGURE).setComponent(cfg).putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, id))
         }.isSuccess
     }
     val addAppWidget: (String, Int, android.appwidget.AppWidgetProviderInfo) -> Unit = { rowId, slot, info ->
@@ -251,9 +256,20 @@ private fun HomeScreen(tick: Int, again: Int) {
             val id = host.allocateAppWidgetId()
             var ok = runCatching { mgr.bindAppWidgetIdIfAllowed(id, info.provider) }.getOrDefault(false)
             // без системного разрешения привязку разрешает ADB или root: appops BIND_APPWIDGET
-            if (!ok && Adb.isConnected) {
-                withContext(Dispatchers.IO) { runCatching { Adb.shell("appops set ${ctx.packageName} BIND_APPWIDGET allow") } }
-                ok = runCatching { mgr.bindAppWidgetIdIfAllowed(id, info.provider) }.getOrDefault(false)
+            if (!ok && Adb.controlAvailable) {
+                // Android 12 и новее: «appops BIND_APPWIDGET» может не действовать, там привязку разрешает «cmd appwidget grantbind»;
+                // пробуем способы по очереди, после каждого повторяем привязку; результат пишем в журнал TVApps
+                for (cmd in listOf(
+                    "cmd appwidget grantbind --package ${ctx.packageName} --user 0",
+                    "appwidget grantbind --package ${ctx.packageName} --user 0",
+                    "appops set ${ctx.packageName} BIND_APPWIDGET allow",
+                )) {
+                    val out = withContext(Dispatchers.IO) { runCatching { Adb.shellWidgetGrant(cmd, ctx.packageName) }.getOrNull().orEmpty() }
+                    android.util.Log.i("TVApps", "виджет: «" + cmd.take(40) + "» -> " + out.trim().take(80))
+                    ok = runCatching { mgr.bindAppWidgetIdIfAllowed(id, info.provider) }.getOrDefault(false)
+                    if (ok) break
+                }
+                android.util.Log.i("TVApps", "виджет: привязка " + info.provider + if (ok) " разрешена" else " отказ")
             }
             val f = WidgetFlow(rowId, slot, id, info)
             if (ok) afterBind(f)

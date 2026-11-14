@@ -6,7 +6,7 @@ import android.os.Build
 import java.io.File
 
 /** Результат установки одного файла (APK или набора частей: APKS, APKM, XAPK). */
-data class InstallRes(val name: String, val pkg: String, val ok: Boolean, val note: String, val time: Long = System.currentTimeMillis())
+data class InstallRes(val name: String, val pkg: String, val ok: Boolean, val note: String, val time: Long = System.currentTimeMillis(), val raw: String = "")
 
 /**
  * Журнал установок (последние 200 записей, файл install_log.tsv во внутренней памяти программы): остаётся после закрытия окна,
@@ -75,10 +75,13 @@ object InstallLog {
         if (Build.VERSION.SDK_INT >= 28) pi.longVersionCode else pi.versionCode.toLong()
     }.getOrNull()
 
-    /** Поставлено ли на самом деле (версия не ниже ожидаемой): успех считается по системе, а не по тексту ответа. */
+    /**
+     * Поставлено ли на самом деле (стоит именно эта версия): успех считается по системе, а не по тексту ответа.
+     * Раньше проверялось «не ниже»: при отказе в понижении версии (стоит более новая) окно ошибочно писало «поставлено».
+     */
     fun installedByFact(ctx: Context, pkg: String, code: Long): Boolean {
         if (pkg.isBlank() || code <= 0) return false
         val now = installedCode(ctx, pkg) ?: return false
-        return now >= code
+        return now == code
     }
 }

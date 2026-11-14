@@ -111,9 +111,88 @@ fun InstallDialog(files: List<ApkFile>, onClose: () -> Unit) {
     var cur by remember { mutableStateOf("") }
     var progress by remember { mutableStateOf(0 to 0) }
     var logOpen by remember { mutableStateOf(false) }
+    // отказы, которые можно исправить после подтверждения: версия ниже установленной или другая подпись
+    var fixable by remember { mutableStateOf<List<Pair<ApkFile, Batch.Fix>>>(emptyList()) }
+    var fixAsk by remember { mutableStateOf(false) }
+    // без ADB и root «Исправить» идёт системными окнами (удаление, затем установка): sysFix — это окно подтверждения, restFiles — остальные файлы выбора
+    var sysFix by remember { mutableStateOf(false) }
+    var restFiles by remember { mutableStateOf<List<ApkFile>>(emptyList()) }
     val fr = remember { FocusRequester() }
     LaunchedEffect(results == null, busy) { runCatching { fr.requestFocus() } }
     if (logOpen) InstallLogDialog { logOpen = false }
+    // установка без ADB: файлы по одному системным окном (наборы частей одной сессией), затем окно закрывается
+    fun startSystemInstall(list: List<ApkFile>) {
+        busy = true
+        scope.launch {
+            list.forEach {
+                val parts = it.parts
+                if (parts != null) {
+                    // OBB кладём до установки, при неудаче убираем
+                    val copied = if (it.obb.isEmpty()) 0 else Bundles.copyObbAny(it.obb)
+                    if (copied < 0) Toast.makeText(ctx, ctx.getString(R.string.bundle_no_storage), Toast.LENGTH_LONG).show()
+                    else runCatching { SessionInstaller.install(ctx, parts, { Bundles.deleteObb(it.obb) }, it.name) }
+                        .onFailure { e ->
+                            Bundles.deleteObb(it.obb)
+                            InstallLog.add(ctx, InstallRes(it.name, it.pkg.orEmpty(), false, e.message ?: e.javaClass.simpleName))
+                            Toast.makeText(ctx, ctx.getString(R.string.bundle_failed) + ": " + (e.message ?: ""), Toast.LENGTH_LONG).show()
+                        }
+                }
+                else Pending.installs.add(Batch.shareUri(ctx, Batch.materialize(it)))
+            }
+            busy = false
+            Pending.next(ctx)
+            onClose()
+        }
+    }
+    if (fixAsk && sysFix) FixDialog(fixable, system = true, onNo = {
+        // отказ: файлы с конфликтом не ставятся, остальные идут как обычно
+        fixAsk = false; sysFix = false
+        Toast.makeText(ctx, ctx.getString(R.string.install_fix_skipped, fixable.size), Toast.LENGTH_LONG).show()
+        fixable = emptyList()
+        startSystemInstall(restFiles)
+    }) {
+        fixAsk = false; sysFix = false
+        val todo = fixable
+        fixable = emptyList()
+        busy = true
+        scope.launch {
+            todo.forEach { (f, _) ->
+                val ff = runCatching { Batch.materialize(f) }.getOrDefault(f)
+                val file = ff.file
+                val m = file?.let { InstallLog.meta(ctx, listOf(it)) }
+                if (file != null && m != null) Pending.addFix(ctx, m.first, f.name, file.absolutePath, m.second)
+            }
+            busy = false
+            startSystemInstall(restFiles)
+        }
+    }
+    else if (fixAsk) FixDialog(fixable, onNo = { fixAsk = false }) {
+        fixAsk = false
+        val todo = fixable
+        busy = true
+        scope.launch {
+            val now = (results ?: emptyList()).toMutableList()
+            todo.forEachIndexed { i, (f, fx) ->
+                progress = i to todo.size; cur = f.name
+                val r = Batch.fixInstall(ctx, f, fx)
+                InstallLog.add(ctx, r)
+                val at = now.indexOfFirst { it.name == f.name }
+                if (at >= 0) now[at] = r else now.add(r)
+                results = now.toList()
+                // ADB или root не смогли удалить установленную версию: то же самое системными окнами (подтверждение про потерю данных уже получено)
+                if (!r.ok && r.note.startsWith(ctx.getString(R.string.install_fix_unfail))) {
+                    val ff = runCatching { Batch.materialize(f) }.getOrDefault(f)
+                    val file = ff.file
+                    val m = file?.let { InstallLog.meta(ctx, listOf(it)) }
+                    if (file != null && m != null) Pending.addFix(ctx, m.first, f.name, file.absolutePath, m.second)
+                }
+            }
+            fixable = emptyList()
+            busy = false
+            AppsMem.stamp = 0L; Cfg.bumpList()
+            Pending.next(ctx)
+        }
+    }
     HDialog(onDismissRequest = { if (!busy) onClose() }) {
         Column(
             Modifier.clip(RoundedCornerShape(20.dp)).background(t.tile).border(1.dp, t.border, RoundedCornerShape(20.dp)).padding(18.dp).fillMaxWidth(),
@@ -170,30 +249,27 @@ fun InstallDialog(files: List<ApkFile>, onClose: () -> Unit) {
                                     progress = done to total; cur = name; results = list
                                 }
                                 results = all
+                                fixable = all.filter { !it.ok }.mapNotNull { r ->
+                                    val f = picked.firstOrNull { it.name == r.name } ?: return@mapNotNull null
+                                    Batch.fixFor(ctx, f, r.raw)?.let { f to it }
+                                }
                                 busy = false
                                 AppsMem.stamp = 0L; Cfg.bumpList()
                             }
                         } else {
+                            // без ADB и root система сама не поставит версию ниже установленной и с другой подписью: заранее находим такие файлы
+                            // и предлагаем «Удалить установленную версию и поставить эту?» (системное окно удаления, затем системный установщик)
                             busy = true
                             scope.launch {
-                                picked.forEach {
-                                    val parts = it.parts
-                                    if (parts != null) {
-                                        // OBB кладём до установки, при неудаче убираем
-                                        val copied = if (it.obb.isEmpty()) 0 else Bundles.copyObbAny(it.obb)
-                                        if (copied < 0) Toast.makeText(ctx, ctx.getString(R.string.bundle_no_storage), Toast.LENGTH_LONG).show()
-                                        else runCatching { SessionInstaller.install(ctx, parts, { Bundles.deleteObb(it.obb) }, it.name) }
-                                            .onFailure { e ->
-                                                Bundles.deleteObb(it.obb)
-                                                InstallLog.add(ctx, InstallRes(it.name, it.pkg.orEmpty(), false, e.message ?: e.javaClass.simpleName))
-                                                Toast.makeText(ctx, ctx.getString(R.string.bundle_failed) + ": " + (e.message ?: ""), Toast.LENGTH_LONG).show()
-                                            }
-                                    }
-                                    else Pending.installs.add(Batch.shareUri(ctx, Batch.materialize(it)))
-                                }
+                                val conflicts = picked.mapNotNull { f -> Batch.predictConflict(ctx, f)?.let { f to it } }
                                 busy = false
-                                Pending.next(ctx)
-                                onClose()
+                                if (conflicts.isEmpty()) startSystemInstall(picked)
+                                else {
+                                    fixable = conflicts
+                                    restFiles = picked.filter { p -> conflicts.none { it.first.name == p.name } }
+                                    sysFix = true
+                                    fixAsk = true
+                                }
                             }
                         }
                     }
@@ -201,8 +277,38 @@ fun InstallDialog(files: List<ApkFile>, onClose: () -> Unit) {
                     Chip(stringResource(R.string.install_log_btn), false) { logOpen = true }
                 } else {
                     Chip(stringResource(R.string.close), !busy, Modifier.focusRequester(fr)) { if (!busy) onClose() }
+                    if (!busy && fixable.isNotEmpty()) Chip(stringResource(R.string.install_fix_btn, fixable.size), false) { fixAsk = true }
                     Chip(stringResource(R.string.install_log_btn), false) { logOpen = true }
                 }
+            }
+        }
+    }
+}
+
+/** Подтверждение замены установленной версии: что будет сделано с каждым файлом и что пропадёт. */
+@Composable
+private fun FixDialog(items: List<Pair<ApkFile, Batch.Fix>>, system: Boolean = false, onNo: () -> Unit, onYes: () -> Unit) {
+    val t = LocalTh.current
+    val fr = remember { FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { fr.requestFocus() } }
+    HDialog(onDismissRequest = onNo) {
+        Column(
+            Modifier.clip(RoundedCornerShape(20.dp)).background(t.tile).border(1.dp, t.border, RoundedCornerShape(20.dp)).padding(18.dp).fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(stringResource(if (system) R.string.install_fix_title_sys else R.string.install_fix_title), color = t.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            val sc = rememberScrollState()
+            Column(Modifier.heightIn(max = 300.dp).verticalScrollbar(sc).verticalScroll(sc).padding(end = ScrollbarMath.RESERVE_DP.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items.forEach { (f, fx) -> Text(f.name, color = t.text, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+                if (system) Text(stringResource(R.string.install_fix_sys), color = Color(0xFFDC2626), fontSize = 13.sp)
+                else {
+                    if (items.any { it.second == Batch.Fix.DOWNGRADE }) Text(stringResource(R.string.install_fix_down), color = t.sub, fontSize = 13.sp)
+                    if (items.any { it.second == Batch.Fix.SIGNATURE }) Text(stringResource(R.string.install_fix_sig), color = Color(0xFFDC2626), fontSize = 13.sp)
+                }
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Chip(stringResource(R.string.cancel), true, Modifier.focusRequester(fr)) { onNo() }
+                Chip(stringResource(R.string.install_fix_yes), false) { onYes() }
             }
         }
     }

@@ -382,6 +382,9 @@ private fun AppWidgetBody(w: HWidget, onLong: () -> Unit) {
             if (lc == null || lc.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) hv[0]?.let { v -> if (sz[0] > 0) AppWidgets.kick(v, id, info, sz[0], sz[1]) }
         }
     }
+    // key(id): когда в ячейке виджет заменили другим (новый номер), вид создаётся заново. Иначе AndroidView оставлял вид удалённого виджета:
+    // он застывал (часы стояли), а настройки нового виджета на экране не появлялись до перезапуска «Дома»
+    androidx.compose.runtime.key(id) {
     BoxWithConstraints(Modifier.fillMaxSize().clipToBounds()) {
         // «Масштаб шрифта» для чужого виджета: ему даётся площадь в k раз меньше, а нарисованное увеличивается в k раз (текст и значки крупнее, как при большом шрифте)
         val k = w.fs.coerceIn(50, 250) / 100f
@@ -400,6 +403,7 @@ private fun AppWidgetBody(w: HWidget, onLong: () -> Unit) {
             modifier = Modifier.requiredSize(maxWidth / k, maxHeight / k)
                 .graphicsLayer(scaleX = k, scaleY = k, transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)),
         )
+    }
     }
 }
 

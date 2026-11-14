@@ -707,6 +707,16 @@ private fun HdTop(e: HdEnv) {
                 add(Opt(stringResource(R.string.top_voice_btn), onOff(top.voice, on, off), onClick = { HomeStore.updateTop { it.copy(voice = !it.voice) } }))
                 add(Opt(stringResource(R.string.voice_engine), Voice.label(ctx).take(26), onClick = { Voice.picking.value = true; close() }))
                 add(Opt(stringResource(R.string.voice_bind_key), Voice.keyName(Voice.customCode(ctx)).ifEmpty { stringResource(R.string.voice_key_default) }, onClick = { Voice.capturing.value = true; close() }))
+                // оформление верхней строки (по умолчанию как прежде; выбор применяется сразу): контур значков состояния, фон и скругление кнопок
+                add(Opt(stringResource(R.string.top_outline), stringResource(when (Cfg.statusOutline) { "dark" -> R.string.top_o_dark; "white" -> R.string.top_o_white; "none" -> R.string.top_o_none; else -> R.string.top_o_auto }),
+                    onClick = { Cfg.changeStatusOutline(when (Cfg.statusOutline) { "auto" -> "dark"; "dark" -> "white"; "white" -> "none"; else -> "auto" }) }))
+                add(Opt(stringResource(R.string.top_fill), stringResource(when (Cfg.barFill) { "glass" -> R.string.top_f_glass; "none" -> R.string.top_f_none; else -> R.string.top_f_solid }),
+                    onClick = { Cfg.changeBarFill(when (Cfg.barFill) { "solid" -> "glass"; "glass" -> "none"; else -> "solid" }) }))
+                add(Opt(stringResource(R.string.top_shape), stringResource(when (Cfg.barShape) { "round" -> R.string.top_s_round; "square" -> R.string.top_s_square; else -> R.string.top_s_normal }),
+                    onClick = { Cfg.changeBarShape(when (Cfg.barShape) { "normal" -> "round"; "round" -> "square"; else -> "normal" }) }))
+                add(Opt(stringResource(R.string.sel_glow), stringResource(when (Cfg.selGlow) { "weak" -> R.string.glow_weak; "strong" -> R.string.glow_strong; else -> R.string.glow_none }),
+                    onClick = { Cfg.changeSelGlow(when (Cfg.selGlow) { "none" -> "weak"; "weak" -> "strong"; else -> "none" }) }))
+                add(Opt(stringResource(R.string.top_title_btn), onOff(Cfg.barTitle, on, off), onClick = { Cfg.changeBarTitle(!Cfg.barTitle) }))
                 top.status.forEach { s ->
                     add(Opt(statusName(s.id), onOff(s.visible, stringResource(R.string.top_shown), stringResource(R.string.top_hidden)), onClick = { HomeStore.updateStatus(s.id) { it.copy(visible = !it.visible) } }))
                 }

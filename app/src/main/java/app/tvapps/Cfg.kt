@@ -49,6 +49,16 @@ object Cfg {
     var selRing by mutableIntStateOf(0); private set
     /** Цвет рамки выделения на экране «Дом» (свой, отдельно от меню): номер в [RING_COLORS]; 0 — акцент темы (так при первом запуске). */
     var homeRing by mutableIntStateOf(0); private set
+    /** Оформление верхней строки «Дома» (по умолчанию как раньше: ничего у прежних пользователей не меняется). Контур значков состояния: "auto" (по яркости фона), "dark", "white", "none". */
+    var statusOutline by androidx.compose.runtime.mutableStateOf("auto"); private set
+    /** Фон кнопок и поля поиска верхней строки: "solid" (непрозрачный, как в 7.0), "glass" (полупрозрачный, цвет плиток темы), "none" (без фона). */
+    var barFill by androidx.compose.runtime.mutableStateOf("solid"); private set
+    /** Скругление кнопок и поля поиска верхней строки: "normal", "round" (круглые, капсулой), "square" (малое). */
+    var barShape by androidx.compose.runtime.mutableStateOf("normal"); private set
+    /** Название программы рядом с кнопкой меню в верхней строке «Дома» (по умолчанию выключено). */
+    var barTitle by androidx.compose.runtime.mutableStateOf(false); private set
+    /** Свечение рамки выделения на «Доме»: "none" (по умолчанию), "weak", "strong". */
+    var selGlow by androidx.compose.runtime.mutableStateOf("none"); private set
     /** Новые установленные приложения сами попадают на «Дом» (строка «Новые приложения»). */
     var homeAutoAdd by mutableStateOf(true); private set
     /** Фон плиток значков: true — прозрачный (по умолчанию), false — карточки. */
@@ -170,6 +180,11 @@ object Cfg {
         plates = sp.getBoolean("plates", true)
         // рамки меню и «Дома»: при первом запуске «По умолчанию» (цвет темы), белый выбирается в настройках
         homeRing = sp.getInt("home_ring", 0).coerceIn(0, RING_COLORS.size - 1)
+        statusOutline = sp.getString("status_outline", "auto").orEmpty().takeIf { it in listOf("auto", "dark", "white", "none") } ?: "auto"
+        barFill = sp.getString("bar_fill", "solid").orEmpty().takeIf { it in listOf("solid", "glass", "none") } ?: "solid"
+        barTitle = sp.getBoolean("bar_title", false)
+        selGlow = sp.getString("sel_glow", "none").orEmpty().takeIf { it in listOf("none", "weak", "strong") } ?: "none"
+        barShape = sp.getString("bar_shape", "normal").orEmpty().takeIf { it in listOf("normal", "round", "square") } ?: "normal"
         selRing = sp.getInt("sel_ring", 0).coerceIn(0, RING_COLORS.size - 1)
         iconPack = sp.getString("icon_pack", "") ?: ""
         nativeHome = sp.getString("native_home", "") ?: ""
@@ -262,6 +277,11 @@ object Cfg {
     fun changeTheme(v: String) { theme = v; sp.edit().putString("theme", v).apply() }
     fun changeAccent(v: String) { accent = v; sp.edit().putString("accent", v).apply() }
     fun changeLang(v: String) { lang = v; sp.edit().putString("lang", v).apply() }
+    fun changeStatusOutline(v: String) { statusOutline = v; sp.edit().putString("status_outline", v).apply() }
+    fun changeBarFill(v: String) { barFill = v; sp.edit().putString("bar_fill", v).apply() }
+    fun changeSelGlow(v: String) { selGlow = v; sp.edit().putString("sel_glow", v).apply() }
+    fun changeBarTitle(v: Boolean) { barTitle = v; sp.edit().putBoolean("bar_title", v).apply() }
+    fun changeBarShape(v: String) { barShape = v; sp.edit().putString("bar_shape", v).apply() }
     fun changeHomeRing(v: Int) { homeRing = v.coerceIn(0, RING_COLORS.size - 1); sp.edit().putInt("home_ring", homeRing).apply() }
     fun homeRingOr(accent: androidx.compose.ui.graphics.Color): androidx.compose.ui.graphics.Color =
         if (homeRing == 0) accent else androidx.compose.ui.graphics.Color(RING_COLORS[homeRing].toInt())
