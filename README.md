@@ -14,11 +14,11 @@ App Menu replaces the stock app list with a big grid made for a remote and for t
 
 ## Download
 
-**Version 7.1.** [AppMenu-7.1.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
+**Version 7.2.** [AppMenu-7.2.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
 SHA-256: `5f4283e1e25d67fd73d98c3bbd3deebb9fd686bcdbfc9a11fde90461e89809a8`
 
-## What's new in 7.1
+## What's new in 7.2
 
 - **Settings:** “App Menu”, “Home module” and the home screen choice are in one block, one after another; new “Default launcher settings” button
 - **Home screen:** the “Turn on and choose...” button asks for root itself, then sets the app by commands (on Android 10 and newer also by the Home role); without ADB and root it opens the system home screen picker; on failure a message is shown instead of nothing
@@ -57,7 +57,7 @@ SHA-256: `5f4283e1e25d67fd73d98c3bbd3deebb9fd686bcdbfc9a11fde90461e89809a8`
 
 ## Quick start
 
-1. Download AppMenu-7.1.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
+1. Download AppMenu-7.2.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
 2. Open it: apps are launched with OK or a tap, a long press (or holding OK, or the Menu key) opens the action card. To use it instead of the stock menu turn on “Launcher mode” in Settings.
 3. To act on other apps connect ADB: Settings → “Connect ADB”. Android 9 and older TV boxes with network ADB connect by themselves. Android 11+: turn on the “App Menu” service in Accessibility once, press “Connect automatically”. Android 10 and older: run adb tcpip 5555 once from a computer (repeat after a reboot). With root none of this is needed: allow root for the app once and it connects by itself.
 
