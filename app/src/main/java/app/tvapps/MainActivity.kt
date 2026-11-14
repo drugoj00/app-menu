@@ -289,6 +289,7 @@ class MainActivity : ComponentActivity() {
     // если есть очередь пакетных удалений или установок без ADB, открывается следующее окно
     override fun onResume() {
         super.onResume()
+        runCatching { HomeControl.restoreAliasAfterPicker(this) }
         onScreen = true
         HomeNav.menuOn = true
         resumeTick.intValue++

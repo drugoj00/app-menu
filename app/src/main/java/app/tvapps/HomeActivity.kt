@@ -480,7 +480,7 @@ private fun HomeScreen(tick: Int, again: Int) {
                         // видимая высота области «Дома» нужна панели «Все приложения»: она занимает её целиком (сетка прокручивается внутри)
                         androidx.compose.foundation.layout.BoxWithConstraints(Modifier.weight(1f)) {
                         val viewH = maxHeight
-                        Column(Modifier.fillMaxSize().nestedScroll(swipeMenu).verticalScroll(scroll)) {
+                        Column(Modifier.fillMaxSize().nestedScroll(swipeMenu).verticalScrollbar(scroll).verticalScroll(scroll)) {
                             // поля сверху и снизу: выбранный элемент увеличивается и не должен обрезаться краем прокручиваемой области
                             Column(Modifier.padding(vertical = 10.dp)) {
                                 HomeRowsView(

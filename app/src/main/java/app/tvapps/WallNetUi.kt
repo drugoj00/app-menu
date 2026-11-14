@@ -148,7 +148,7 @@ fun CropDialog(target: String, startPortrait: Boolean, onClose: () -> Unit) {
 
     HDialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
-            Modifier.fillMaxSize().padding(24.dp).clip(RoundedCornerShape(20.dp)).background(t.bg).border(1.dp, t.border, RoundedCornerShape(20.dp)).padding(18.dp).verticalScroll(rememberScrollState()),
+            Modifier.fillMaxSize().padding(24.dp).clip(RoundedCornerShape(20.dp)).background(t.bg).border(1.dp, t.border, RoundedCornerShape(20.dp)).padding(18.dp).barScroll(),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(stringResource(R.string.crop_title), color = t.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
@@ -328,7 +328,7 @@ fun WallNetDialog(initial: String, onOwn: () -> Unit, onOwnVideo: () -> Unit, on
 
     HDialog(onDismissRequest = { requestClose() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
-            Modifier.fillMaxSize().padding(24.dp).clip(RoundedCornerShape(20.dp)).background(t.bg).border(1.dp, t.border, RoundedCornerShape(20.dp)).padding(18.dp).verticalScroll(rememberScrollState()),
+            Modifier.fillMaxSize().padding(24.dp).clip(RoundedCornerShape(20.dp)).background(t.bg).border(1.dp, t.border, RoundedCornerShape(20.dp)).padding(18.dp).barScroll(),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(stringResource(R.string.wn_title), color = t.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
@@ -359,11 +359,15 @@ fun WallNetDialog(initial: String, onOwn: () -> Unit, onOwnVideo: () -> Unit, on
                 link, { link = it; WallNet.put(ctx, "vlink", it) }, singleLine = true, colors = fields,
                 label = { Text(stringResource(R.string.vid_link_label)) }, modifier = Modifier.fillMaxWidth(),
             )
-            if (WallNet.hasKeyField(src) && src != "link") OutlinedTextField(
-                key, { key = it; WallNet.put(ctx, "key_$src", it.trim()) }, singleLine = true, colors = fields,
-                label = { Text(stringResource(if (src == "nasa") R.string.wn_key_nasa else R.string.wn_key_label)) },
-                modifier = Modifier.fillMaxWidth(),
-            )
+            if (WallNet.hasKeyField(src) && src != "link") {
+                var keyShown by remember { mutableStateOf(false) }   // 7.0: ключ API скрыт, глазик справа в поле
+                OutlinedTextField(
+                    key, { key = it; WallNet.put(ctx, "key_$src", it.trim()) }, singleLine = true, colors = fields,
+                    label = { Text(stringResource(if (src == "nasa") R.string.wn_key_nasa else R.string.wn_key_label)) },
+                    visualTransformation = secretTransform(keyShown), trailingIcon = { SecretEye(keyShown, t.accent) { keyShown = !keyShown } },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
 
             if (!(video && src == "link")) {
                 Text(stringResource(R.string.wn_cat), color = t.sub, fontSize = 13.sp)

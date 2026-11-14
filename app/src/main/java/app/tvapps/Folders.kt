@@ -141,9 +141,10 @@ fun FolderDialog(id: String, apps: List<Entry>, menuFor: Entry?, setMenu: (Entry
                 Chip(stringResource(R.string.close), true) { onClose() }
             }
             if (members.isEmpty()) Text(stringResource(R.string.folder_empty), color = t.sub, fontSize = 13.sp)
+            val gridSt = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
             LazyVerticalGrid(
-                columns = GridCells.Fixed(cols), modifier = Modifier.fillMaxWidth().weight(1f),
-                contentPadding = PaddingValues(2.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(2.dp),
+                columns = GridCells.Fixed(cols), state = gridSt, modifier = Modifier.fillMaxWidth().weight(1f).verticalScrollbar(gridSt),
+                contentPadding = PaddingValues(start = 2.dp, top = 2.dp, bottom = 2.dp, end = ScrollbarMath.RESERVE_DP.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 gridItems(members, key = { it.pkg }) { e ->
                     AppTile(

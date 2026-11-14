@@ -518,6 +518,14 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                 Section(stringResource(R.string.set_return)) {
                     Options(listOf("menu" to stringResource(R.string.return_menu), "home" to stringResource(R.string.return_home)), Cfg.returnTo) { Cfg.changeReturnTo(it) }
                 }
+                // выключатель меню виден всегда (раньше исчезал при выключенном «Доме»); оба модуля сразу выключить нельзя
+                Section(stringResource(R.string.menu_module_title)) {
+                    SectionHint(stringResource(R.string.menu_module_hint))
+                    Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.menuModule) { v ->
+                        if (!v && !Cfg.homeModule) Toast.makeText(ctx, ctx.getString(R.string.menu_module_need_home), Toast.LENGTH_LONG).show()
+                        else Cfg.changeMenuModule(v)
+                    }
+                }
                 Section(stringResource(R.string.home_module_title)) {
                     SectionHint(stringResource(R.string.home_module_hint))
                     Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.homeModule) { v ->
@@ -525,6 +533,57 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                         else scope.launch {
                             val r = HomeModule.disable(ctx)
                             Toast.makeText(ctx, ctx.getString(if (r.isEmpty()) R.string.home_module_off_ok else if (r == HomeModule.NEED_MENU) R.string.home_module_need_menu else R.string.home_module_off_fail), Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+                Section(stringResource(R.string.set_home)) {
+                    SectionHint(stringResource(R.string.set_home_hint))
+                    SectionHint(stringResource(R.string.native_home_hint))
+                    // список родных экранов с названиями собирается в фоне: loadLabel обращается к ресурсам и Binder, в главном потоке это до 150 мс (журнал магнитолы)
+                    val natives by androidx.compose.runtime.produceState(emptyList<Pair<String, String>>()) {
+                        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { nativeHomes(ctx).map { it.activityInfo.packageName to it.loadLabel(ctx.packageManager).toString() } }
+                    }
+                    if (natives.isNotEmpty()) Options(listOf("" to stringResource(R.string.native_auto)) + natives, Cfg.nativeHome) { Cfg.changeNativeHome(it) }
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Chip(stringResource(R.string.set_home_btn), false) {
+                            scope.launch {
+                                // запоминаем нынешний главный экран, чтобы второе «Домой» и «Выключить» вели на него
+                                if (Cfg.nativeHome.isEmpty()) {
+                                    val cur = ctx.packageManager.resolveActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName
+                                    if (cur != null && cur != ctx.packageName && cur != "android") Cfg.changeNativeHome(cur)
+                                }
+                                when (HomeControl.enableAsHome(ctx)) {
+                                    "ok" -> Toast.makeText(ctx, ctx.getString(R.string.home_set_ok), Toast.LENGTH_LONG).show()
+                                    "no_control" -> { Toast.makeText(ctx, ctx.getString(R.string.home_choose_always), Toast.LENGTH_LONG).show(); HomeControl.openHomePicker(ctx) }
+                                    else -> { Toast.makeText(ctx, ctx.getString(R.string.home_cmd_failed), Toast.LENGTH_LONG).show(); HomeControl.openHomePicker(ctx) }
+                                }
+                            }
+                        }
+                        Chip(stringResource(R.string.home_settings_btn), false) {
+                            val r = HomeControl.openHomeSettings(ctx)
+                            if (r == "none") Toast.makeText(ctx, ctx.getString(R.string.home_settings_none), Toast.LENGTH_LONG).show()
+                        }
+                        Chip(stringResource(R.string.set_home_off), false) {
+                            scope.launch {
+                                // возвращаем прежний главный экран и только потом выключаем режим
+                                val ri = nativeHomes(ctx).firstOrNull { it.activityInfo.packageName == Cfg.nativeHome } ?: nativeHomes(ctx).firstOrNull()
+                                if (Adb.isConnected && ri != null) {
+                                    runCatching { HomeControl.setHomeCmd("${ri.activityInfo.packageName}/${ri.activityInfo.name}") }
+                                }
+                                setHomeMode(ctx, false)
+                                Toast.makeText(ctx, ctx.getString(R.string.set_home_off_done), Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                    HomeHardBlock()
+                }
+                Section(stringResource(R.string.home_keep_title)) {
+                    Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.rememberHome) { Cfg.changeRememberHome(it) }
+                    SectionHint(stringResource(R.string.home_remember_hint))
+                    Chip(stringResource(R.string.home_now), false) {
+                        scope.launch {
+                            val ok = HomeControl.makeDefaultNow(ctx)
+                            Toast.makeText(ctx, ctx.getString(if (ok) R.string.home_now_ok else R.string.home_now_fail), Toast.LENGTH_LONG).show()
                         }
                     }
                 }
@@ -560,64 +619,6 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                 if (Cfg.homeAllPanel) Section(stringResource(R.string.all_panel_glass)) {
                     SectionHint(stringResource(R.string.all_panel_glass_hint))
                     Options(listOf("light" to stringResource(R.string.glass_light), "mid" to stringResource(R.string.glass_mid), "dense" to stringResource(R.string.glass_dense)), Cfg.homeAllGlass) { Cfg.changeHomeAllGlass(it) }
-                }
-                // выключатель меню виден всегда (раньше исчезал при выключенном «Доме»); оба модуля сразу выключить нельзя
-                Section(stringResource(R.string.menu_module_title)) {
-                    SectionHint(stringResource(R.string.menu_module_hint))
-                    Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.menuModule) { v ->
-                        if (!v && !Cfg.homeModule) Toast.makeText(ctx, ctx.getString(R.string.menu_module_need_home), Toast.LENGTH_LONG).show()
-                        else Cfg.changeMenuModule(v)
-                    }
-                }
-                Section(stringResource(R.string.set_home)) {
-                    SectionHint(stringResource(R.string.set_home_hint))
-                    SectionHint(stringResource(R.string.native_home_hint))
-                    // список родных экранов с названиями собирается в фоне: loadLabel обращается к ресурсам и Binder, в главном потоке это до 150 мс (журнал магнитолы)
-                    val natives by androidx.compose.runtime.produceState(emptyList<Pair<String, String>>()) {
-                        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { nativeHomes(ctx).map { it.activityInfo.packageName to it.loadLabel(ctx.packageManager).toString() } }
-                    }
-                    if (natives.isNotEmpty()) Options(listOf("" to stringResource(R.string.native_auto)) + natives, Cfg.nativeHome) { Cfg.changeNativeHome(it) }
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Chip(stringResource(R.string.set_home_btn), false) {
-                            scope.launch {
-                                // запоминаем нынешний главный экран, чтобы второе «Домой» и «Выключить» вели на него
-                                if (Cfg.nativeHome.isEmpty()) {
-                                    val cur = ctx.packageManager.resolveActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName
-                                    if (cur != null && cur != ctx.packageName && cur != "android") Cfg.changeNativeHome(cur)
-                                }
-                                setHomeMode(ctx, true)
-                                if (Adb.isConnected) {
-                                    val okSet = HomeControl.setHomeCmd("${ctx.packageName}/app.tvapps.HomeAlias") || HomeControl.currentHome(ctx) == ctx.packageName
-                                    Toast.makeText(ctx, ctx.getString(if (okSet) R.string.home_set_ok else R.string.failed), Toast.LENGTH_LONG).show()
-                                } else {
-                                    Toast.makeText(ctx, ctx.getString(R.string.home_choose_always), Toast.LENGTH_LONG).show()
-                                    runCatching { ctx.startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-                                }
-                            }
-                        }
-                        Chip(stringResource(R.string.set_home_off), false) {
-                            scope.launch {
-                                // возвращаем прежний главный экран и только потом выключаем режим
-                                val ri = nativeHomes(ctx).firstOrNull { it.activityInfo.packageName == Cfg.nativeHome } ?: nativeHomes(ctx).firstOrNull()
-                                if (Adb.isConnected && ri != null) {
-                                    runCatching { HomeControl.setHomeCmd("${ri.activityInfo.packageName}/${ri.activityInfo.name}") }
-                                }
-                                setHomeMode(ctx, false)
-                                Toast.makeText(ctx, ctx.getString(R.string.set_home_off_done), Toast.LENGTH_LONG).show()
-                            }
-                        }
-                    }
-                    HomeHardBlock()
-                }
-                Section(stringResource(R.string.home_keep_title)) {
-                    Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.rememberHome) { Cfg.changeRememberHome(it) }
-                    SectionHint(stringResource(R.string.home_remember_hint))
-                    Chip(stringResource(R.string.home_now), false) {
-                        scope.launch {
-                            val ok = HomeControl.makeDefaultNow(ctx)
-                            Toast.makeText(ctx, ctx.getString(if (ok) R.string.home_now_ok else R.string.home_now_fail), Toast.LENGTH_LONG).show()
-                        }
-                    }
                 }
                 Section(stringResource(R.string.set_backups)) {
                     Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.backupOnDelete) { Cfg.changeBackupOnDelete(it) }

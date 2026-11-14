@@ -287,7 +287,7 @@ fun CatalogResults(query: String, modifier: Modifier = Modifier) {
             }
             // новая строка встала над текущей — список остаётся на самом верху, пока владелица ничего не прокручивала
             LaunchedEffect(groups.size) { if (listState.firstVisibleItemIndex <= 1) runCatching { listState.scrollToItem(0) } }
-            LazyColumn(Modifier.fillMaxSize().onFocusChanged { CatFocus.hasFocus = it.hasFocus }, state = listState, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            LazyColumn(Modifier.fillMaxSize().verticalScrollbar(listState).onFocusChanged { CatFocus.hasFocus = it.hasFocus }, state = listState, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 itemsIndexed(groups.toList(), key = { _, g -> g.pkg }) { gi, g -> CatRow(g, query.trim(), reqs.getOrPut(g.pkg) { androidx.compose.ui.focus.FocusRequester() }) }
             }
         }

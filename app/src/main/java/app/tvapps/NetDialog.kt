@@ -156,10 +156,14 @@ fun NetDialog(onClose: () -> Unit) {
             // необязательный токен GitHub: без него GitHub пускает около 10 поисковых запросов в минуту
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Chip(stringResource(if (tokenOpen) R.string.net_gh_token_hide else R.string.net_gh_token_show), tokenOpen, Modifier.focusRequester(frToggle).focusProperties { up = frLink }) { tokenOpen = !tokenOpen }
-                if (tokenOpen) OutlinedTextField(
-                    token, { token = it; Cfg.changeGithubToken(it) }, label = { Text(stringResource(R.string.net_gh_token_label)) }, singleLine = true, colors = fields,
-                    modifier = Modifier.weight(1f),
-                )
+                if (tokenOpen) {
+                    var tokShown by remember { mutableStateOf(false) }   // 7.0: токен скрыт, глазик справа в поле
+                    OutlinedTextField(
+                        token, { token = it; Cfg.changeGithubToken(it) }, label = { Text(stringResource(R.string.net_gh_token_label)) }, singleLine = true, colors = fields,
+                        visualTransformation = secretTransform(tokShown), trailingIcon = { SecretEye(tokShown, t.accent) { tokShown = !tokShown } },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
             if (status.isNotEmpty()) Text(status, color = t.accent, fontSize = 14.sp)
             BarLazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {

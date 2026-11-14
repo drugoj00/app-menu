@@ -2,6 +2,8 @@ package app.tvapps
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.gestures.ScrollableState
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.Arrangement
@@ -22,6 +24,10 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -105,9 +111,28 @@ private fun Modifier.scrollbar(state: ScrollableState, metrics: (Float) -> Tripl
     val tv = TopMode.isTv(LocalContext.current)
     val scope = rememberCoroutineScope()
     var active by remember { mutableStateOf(false) }
-    val widthDp by animateFloatAsState(if (active) (if (tv) 8f else 6f) else (if (tv) 6f else 4f), label = "barW")
-    val alpha by animateFloatAsState(if (active) 1f else if (tv) 0.6f else 0.5f, label = "barA")
+    var edgeFocus by remember { mutableStateOf(false) }
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    val step = with(androidx.compose.ui.platform.LocalDensity.current) { 220.dp.toPx() }
+    val widthDp by animateFloatAsState(if (edgeFocus) 14f else if (active) (if (tv) 8f else 6f) else (if (tv) 6f else 4f), label = "barW")
+    val alpha by animateFloatAsState(if (active || edgeFocus) 1f else if (tv) 0.6f else 0.5f, label = "barA")
     this
+        // пульт: стрелка вправо, когда дальше двигать фокус некуда, «берёт» полосу; вверх/вниз прокручивают, влево/ОК/Назад отпускают
+        .onPreviewKeyEvent { e ->
+            if (!edgeFocus) return@onPreviewKeyEvent false
+            val down = e.type == androidx.compose.ui.input.key.KeyEventType.KeyDown
+            when (e.key) {
+                androidx.compose.ui.input.key.Key.DirectionUp, androidx.compose.ui.input.key.Key.PageUp -> { if (down) scope.launch { runCatching { state.animateScrollBy(-step) } }; true }
+                androidx.compose.ui.input.key.Key.DirectionDown, androidx.compose.ui.input.key.Key.PageDown -> { if (down) scope.launch { runCatching { state.animateScrollBy(step) } }; true }
+                androidx.compose.ui.input.key.Key.DirectionLeft, androidx.compose.ui.input.key.Key.DirectionRight, androidx.compose.ui.input.key.Key.DirectionCenter, androidx.compose.ui.input.key.Key.Enter, androidx.compose.ui.input.key.Key.Back, androidx.compose.ui.input.key.Key.Escape -> { if (down) edgeFocus = false; true }
+                else -> { edgeFocus = false; false }
+            }
+        }
+        .onKeyEvent { e ->
+            if (e.type != androidx.compose.ui.input.key.KeyEventType.KeyDown || e.key != androidx.compose.ui.input.key.Key.DirectionRight) return@onKeyEvent false
+            if (!focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Right) && metrics(1000f)?.let { ScrollbarMath.thumb(it.first, it.second, it.third, 1f) } != null) edgeFocus = true
+            true
+        }
         .pointerInput(state) {
             val zone = ScrollbarMath.ZONE_DP.dp.toPx()
             val minThumb = 36.dp.toPx()
@@ -155,8 +180,18 @@ private fun Modifier.scrollbar(state: ScrollableState, metrics: (Float) -> Tripl
             val x = size.width - w
             drawRoundRect(t.accent.copy(alpha = 0.16f * alpha), Offset(x, 0f), Size(w, size.height), CornerRadius(w / 2))
             drawRoundRect(t.accent.copy(alpha = alpha), Offset(x, th.top), Size(w, th.height), CornerRadius(w / 2))
+            // пульт держит полосу: рамка вокруг ползунка
+            if (edgeFocus) drawRoundRect(t.accent, Offset(x - 3.dp.toPx(), th.top - 3.dp.toPx()), Size(w + 6.dp.toPx(), th.height + 6.dp.toPx()), CornerRadius(w / 2 + 3.dp.toPx()), style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
         }
 }
+
+/** Вертикальная прокрутка с общей полосой (вместо verticalScroll(rememberScrollState())): место под полосу оставляется справа. */
+internal fun Modifier.barScroll(initial: Int = 0): Modifier = composed {
+    val s = androidx.compose.foundation.rememberScrollState(initial)
+    this.verticalScrollbar(s).verticalScroll(s).padding(end = ScrollbarMath.RESERVE_DP.dp)
+}
+
+
 
 /** Прокручиваемый список окна: LazyColumn с общей полосой прокрутки. */
 @Composable

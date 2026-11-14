@@ -178,7 +178,7 @@ fun DeskMenuDialog(pages: List<DeskPage>, act: DeskMenuActions, onClose: () -> U
         Box(Modifier.onPreviewKeyEvent { OkGuard.eats(it, shownAt) }) {
             Column(
                 Modifier.clip(RoundedCornerShape(20.dp)).background(t.tile).border(1.dp, t.border, RoundedCornerShape(20.dp)).padding(16.dp).fillMaxWidth()
-                    .heightIn(max = maxH).verticalScroll(rememberScrollState()),
+                    .heightIn(max = maxH).barScroll(),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 when (sub) {

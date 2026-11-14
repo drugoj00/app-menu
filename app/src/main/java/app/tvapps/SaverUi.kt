@@ -204,7 +204,7 @@ private fun MainScreen(ctx: Context, go: (String) -> Unit) {
         val c = java.util.Calendar.getInstance(); c.set(2024, 0, 1 + i)      // 1 января 2024: понедельник
         java.text.SimpleDateFormat("EE", Locale.getDefault()).format(c.time)
     } }
-    LazyColumn(Modifier.fillMaxSize()) {
+    BarLazyColumn(Modifier.fillMaxSize()) {
         item {
             Item(stringResource(R.string.sv_enable), if (cfg.enabled) on else off, stringResource(R.string.sv_enable_sub), onClick = {
                 val n = !cfg.enabled
@@ -310,7 +310,7 @@ private fun AppsScreen(ctx: Context) {
         l.sortedBy { it.second.lowercase() }
     }
     val list = all.filter { q.isBlank() || it.second.contains(q, true) || it.first.contains(q, true) }
-    LazyColumn(Modifier.fillMaxSize()) {
+    BarLazyColumn(Modifier.fillMaxSize()) {
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 4.dp)) {
                 SvChip(stringResource(R.string.sv_apps_default), false) { upd { it.copy(apps = SaverPrefs.DEFAULT_APPS) } }
@@ -401,7 +401,7 @@ private fun WizardScreen(ctx: Context, go: (String) -> Unit) {
     val s = STEPS[idx]
     val st = s.ok(ctx)
     val done = st == true || (st == null && s.key in manualDone)
-    LazyColumn(Modifier.fillMaxSize()) {
+    BarLazyColumn(Modifier.fillMaxSize()) {
         item {
             Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 STEPS.forEachIndexed { i, x ->
@@ -479,7 +479,7 @@ private fun DiagScreen(ctx: Context, go: (String) -> Unit) {
     val now = SystemClock.elapsedRealtime()
     val ago = { t: Long -> if (t == 0L) ctx.getString(R.string.sv_never) else ctx.getString(R.string.sv_ago, ((now - t) / 1000).toInt()) }
     val ov = SaverPerm.overlay(ctx)
-    LazyColumn(Modifier.fillMaxSize()) {
+    BarLazyColumn(Modifier.fillMaxSize()) {
         item {
             val shown = if (SaverBus.shown) stringResource(R.string.sv_now_shown, SaverBus.shownBy) else stringResource(R.string.sv_now_hidden, SaverBus.reason.ifBlank { "—" })
             Item(stringResource(R.string.sv_state), sub = shown)
@@ -558,7 +558,7 @@ private fun LogScreen(ctx: Context) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 6.dp)) {
             SvChip(stringResource(R.string.sv_log_copy), false) { copyLog(ctx) }
         }
-        Column(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(10.dp)).background(TILE).verticalScroll(rememberScrollState(Int.MAX_VALUE)).padding(10.dp)) {
+        Column(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(10.dp)).background(TILE).barScroll(Int.MAX_VALUE).padding(10.dp)) {
             Text(header(ctx) + "\n" + text.ifBlank { "—" }, color = TXT, fontSize = 11.sp, lineHeight = 14.sp)
         }
     }

@@ -139,6 +139,82 @@ object HomeControl {
         return ok
     }
 
+    /**
+     * Кнопка «Включить и выбрать...»: включает режим лаунчера и назначает программу главным экраном.
+     * Раньше без уже подключённых ADB/root кнопка только открывала системный список: на магнитолах и приставках,
+     * где главный экран по умолчанию уже выбран, список не появляется и казалось, что ничего не происходит.
+     * Теперь: сначала пробуется root (по запросу менеджера root), затем ADB; через них назначение идёт командами
+     * cmd package / pm set-home-activity, а на Android 10+ ещё и ролью HOME (cmd role). Результат: ok, no_control, cmd_failed.
+     */
+    suspend fun enableAsHome(ctx: Context): String {
+        prepareAliasForPicker(ctx)
+        runCatching { autoConnect(ctx) }
+        // человек сам нажал кнопку: можно запросить root у менеджера (раньше root проверялся только в окне «Подключить ADB...»)
+        if (!Adb.isConnected && Cfg.useRoot) runCatching { if (Adb.tryRoot()) Conn.refresh() }
+        if (!Adb.isConnected) { Log.w("TVApps", "включение «Дома»: нет ни ADB, ни root, открываю системный выбор"); return "no_control" }
+        if (setDefault(ctx) || currentHome(ctx) == ctx.packageName) { Cfg.setHomePinned(true); fgPrefs(ctx).edit().putBoolean(PICKER_PREF, false).commit(); return "ok" }
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            val out = runCatching { Adb.shell("cmd role add-role-holder --user 0 android.app.role.HOME ${ctx.packageName} 0") }.getOrDefault("")
+            Log.i("TVApps", "cmd role add-role-holder HOME: ${out.take(160)}")
+            kotlinx.coroutines.delay(600)
+            if (currentHome(ctx) == ctx.packageName) { Cfg.setHomePinned(true); fgPrefs(ctx).edit().putBoolean(PICKER_PREF, false).commit(); return "ok" }
+        }
+        Log.w("TVApps", "включение «Дома»: команды не назначили главный экран, текущий=${currentHome(ctx)}")
+        return "cmd_failed"
+    }
+
+    /**
+     * Системное окно выбора главного экрана без ADB и root. Порядок: запрос роли HOME (Android 10+), настройки
+     * «Главный экран/Лаунчер по умолчанию», общие «Приложения по умолчанию», обычный запрос «Домой».
+     * Возвращает, что открыто: role, home_settings, default_apps, home_intent, none.
+     */
+    fun openHomePicker(ctx: Context): String {
+        prepareAliasForPicker(ctx)
+        fun go(i: Intent): Boolean = runCatching { ctx.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true }.getOrDefault(false)
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            val rm = runCatching { ctx.getSystemService(android.app.role.RoleManager::class.java) }.getOrNull()
+            if (rm != null && runCatching { rm.isRoleAvailable(android.app.role.RoleManager.ROLE_HOME) }.getOrDefault(false) &&
+                go(rm.createRequestRoleIntent(android.app.role.RoleManager.ROLE_HOME))) return "role"
+        }
+        return openHomeSettings(ctx, true)
+    }
+
+    /** Настройки лаунчера по умолчанию (кнопка «Настройки лаунчера по умолчанию»). */
+    fun openHomeSettings(ctx: Context, withIntent: Boolean = false): String {
+        prepareAliasForPicker(ctx)
+        fun go(i: Intent): Boolean = runCatching { ctx.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true }.getOrDefault(false)
+        if (go(Intent(android.provider.Settings.ACTION_HOME_SETTINGS))) return "home_settings"
+        if (go(Intent(android.provider.Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))) return "default_apps"
+        if (withIntent && go(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME))) return "home_intent"
+        restoreAliasAfterPicker(ctx)
+        return "none"
+    }
+
+    private const val PICKER_PREF = "picker_alias_was_off"
+
+    /**
+     * Системный список «Главный экран» показывает только включённые лаунчеры, а HomeAlias по умолчанию выключен
+     * (пока «Дом» и режим лаунчера не включены), поэтому наш лаунчер в списке отсутствовал. Перед открытием выбора
+     * алиас включается; если он был выключен, это запоминается и после закрытия выбора состояние возвращается
+     * (restoreAliasAfterPicker), когда выбран не наш лаунчер.
+     */
+    fun prepareAliasForPicker(ctx: Context) {
+        if (aliasEnabled(ctx)) return
+        runCatching { setAlias(ctx, true) }
+        fgPrefs(ctx).edit().putBoolean(PICKER_PREF, true).commit()
+        Log.i("TVApps", "выбор главного экрана: HomeAlias временно включён, чтобы лаунчер был в списке")
+    }
+
+    /** Вызывается при возврате в программу: если алиас включали только ради выбора и наш лаунчер не выбран, выключает его снова. */
+    fun restoreAliasAfterPicker(ctx: Context) {
+        val p = fgPrefs(ctx)
+        if (!p.getBoolean(PICKER_PREF, false)) return
+        p.edit().putBoolean(PICKER_PREF, false).commit()
+        if (currentHome(ctx) == ctx.packageName) { Cfg.setHomePinned(true); Log.i("TVApps", "выбор главного экрана: выбран наш лаунчер, HomeAlias оставлен включённым"); return }
+        runCatching { setAlias(ctx, false) }
+        Log.i("TVApps", "выбор главного экрана: выбран другой лаунчер, HomeAlias выключен снова")
+    }
+
     /** Запоминает, что программа сейчас главный экран по умолчанию (дешёвая проверка при запуске окон). */
     fun notePinned(ctx: Context) { runCatching { if (aliasEnabled(ctx) && currentHome(ctx) == ctx.packageName) Cfg.setHomePinned(true) } }
 

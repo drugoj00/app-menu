@@ -355,7 +355,7 @@ fun AppMenu(e: Entry, hidden: Boolean, onToggleHide: () -> Unit, onSelect: () ->
             if (provider.below) Tail(provider.tailX, up = true, color = Pop.card)
             val cardScroll = rememberScrollState()
             Column(
-                Modifier.clip(RoundedCornerShape(28.dp)).background(Pop.card).heightIn(max = 560.dp).mouseDragScroll(cardScroll).verticalScroll(cardScroll),
+                Modifier.clip(RoundedCornerShape(28.dp)).background(Pop.card).heightIn(max = 560.dp).mouseDragScroll(cardScroll).verticalScrollbar(cardScroll).verticalScroll(cardScroll),
             ) {
                 // шапка: название по центру и кружок «i» справа, как в One UI
                 Box(Modifier.fillMaxWidth().padding(start = 16.dp, end = 10.dp, top = 12.dp, bottom = 6.dp), contentAlignment = Alignment.Center) {
@@ -893,7 +893,7 @@ fun AdbConnectDialog(onClose: () -> Unit) {
     HDialog(onDismissRequest = onClose) {
         Column(
             Modifier.clip(RoundedCornerShape(24.dp)).background(Pop.card).padding(14.dp).fillMaxWidth()
-                .heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
+                .heightIn(max = 560.dp).barScroll(),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) { ConnectPanel(first, onDone = onClose, onBack = onClose) }
     }
