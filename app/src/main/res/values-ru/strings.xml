@@ -227,7 +227,7 @@
     <string name="native_auto">Автоматически</string>
     <string name="no_restore">Не включать заново после загрузки</string>
     <string name="home_set_ok">Готово: кнопка «Домой» теперь открывает это меню</string>
-    <string name="home_choose_always">ADB не подключён: в появившемся списке выбери эту программу и нажми «Всегда»</string>
+    <string name="home_choose_always">Нет ни ADB, ни root: открыто системное окно выбора главного экрана. Выбери «Меню приложений» и нажми «Всегда». Если окно не появилось, нажми ниже «Настройки лаунчера по умолчанию».</string>
     <string name="set_return">После закрытия запущенной программы («Назад»)</string>
     <string name="return_menu">Вернуться в это меню</string>
     <string name="return_home">Вернуться на родной главный экран</string>
@@ -915,4 +915,7 @@
     <string name="glass_dense">Плотное</string>
     <string name="all_panel_filter">Поиск: %1$s</string>
     <string name="all_panel_empty">Ничего не найдено</string>
+    <string name="home_cmd_failed">Не удалось назначить главный экран командой (причина в журнале, метка TVApps). Открыто системное окно: выбери «Меню приложений»; если оно не появилось, нажми «Настройки лаунчера по умолчанию».</string>
+    <string name="home_settings_btn">Настройки лаунчера по умолчанию</string>
+    <string name="home_settings_none">В этой прошивке нет экрана лаунчера по умолчанию. Открой настройки Android: «Приложения», «Приложения по умолчанию», «Главный экран».</string>
 </resources>
