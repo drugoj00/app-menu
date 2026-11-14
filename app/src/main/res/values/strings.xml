@@ -227,7 +227,7 @@
     <string name="native_auto">Automatic</string>
     <string name="no_restore">Do not turn on again after boot</string>
     <string name="home_set_ok">Done: the Home button now opens this menu</string>
-    <string name="home_choose_always">ADB is off: in the list that appears choose this app and press \"Always\"</string>
+    <string name="home_choose_always">No ADB or root: the system window to choose the home screen is open. Choose “App Menu” and press “Always”. If the window did not appear, press “Default launcher settings” below.</string>
     <string name="set_return">After a launched app is closed (Back)</string>
     <string name="return_menu">Return to this menu</string>
     <string name="return_home">Return to the native home screen</string>
@@ -915,4 +915,7 @@
     <string name="glass_dense">Dense</string>
     <string name="all_panel_filter">Search: %1$s</string>
     <string name="all_panel_empty">Nothing found</string>
+    <string name="home_cmd_failed">Could not set the home screen by command (see the log, tag TVApps). The system window is open: choose “App Menu”; if it did not appear, press “Default launcher settings”.</string>
+    <string name="home_settings_btn">Default launcher settings</string>
+    <string name="home_settings_none">This firmware has no screen for the default launcher. Open Android Settings, Apps, Default apps, Home app.</string>
 </resources>
