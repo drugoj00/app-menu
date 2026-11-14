@@ -34,13 +34,16 @@ object Pending {
      * 3 — открыт системный установщик (ждём возврата и проверяем итог). Очередь хранится и в памяти (возврат из окна или поворот),
      * и в файле настроек: программа могла быть закрыта системой, пока пользователь был в системном окне.
      */
-    class FixJob(val pkg: String, val name: String, val path: String, val code: Long, var stage: Int = 0)
+    class FixJob(val pkg: String, val name: String, val path: String, val code: Long, var stage: Int = 0, var ts: Long = System.currentTimeMillis())
     val fixes = ArrayDeque<FixJob>()
     private var fixLoaded = false
     private const val FIX_PREFS = "tvapps_fix"
+    /** Срок годности задания: старое (например, после перезапуска через час) не должно само открывать системное окно. */
+    private const val FIX_TTL_MS = 10 * 60 * 1000L
+    private var pollBusy = false
 
     private fun fixSave(ctx: Context) {
-        val s = fixes.joinToString("\n") { listOf(it.stage, it.code, it.pkg, it.name.replace('\t', ' ').replace('\n', ' '), it.path).joinToString("\t") }
+        val s = fixes.joinToString("\n") { listOf(it.stage, it.code, it.pkg, it.name.replace('\t', ' ').replace('\n', ' '), it.path, it.ts).joinToString("\t") }
         ctx.getSharedPreferences(FIX_PREFS, Context.MODE_PRIVATE).edit().putString("q", s).apply()
     }
 
@@ -51,9 +54,16 @@ object Pending {
         runCatching {
             ctx.getSharedPreferences(FIX_PREFS, Context.MODE_PRIVATE).getString("q", "").orEmpty().lineSequence().filter { it.isNotBlank() }.forEach { l ->
                 val p = l.split('\t')
-                if (p.size >= 5) fixes.add(FixJob(p[2], p[3], p[4], p[1].toLongOrNull() ?: 0L, p[0].toIntOrNull() ?: 0))
+                if (p.size >= 5) fixes.add(FixJob(p[2], p[3], p[4], p[1].toLongOrNull() ?: 0L, p[0].toIntOrNull() ?: 0, p.getOrNull(5)?.toLongOrNull() ?: 0L))
             }
         }
+        fixExpire(ctx)
+    }
+
+    /** Убирает задания старше срока годности (задание без метки времени из прошлой версии тоже считается старым). */
+    private fun fixExpire(ctx: Context) {
+        val now = System.currentTimeMillis()
+        if (fixes.removeAll { now - it.ts > FIX_TTL_MS }) fixSave(ctx)
     }
 
     fun addFix(ctx: Context, pkg: String, name: String, path: String, code: Long) {
@@ -73,26 +83,48 @@ object Pending {
     /** Один шаг очереди замены. Возвращает true, если открыто системное окно (дальше продолжит возврат в программу). */
     private fun fixNext(ctx: Context): Boolean {
         fixLoad(ctx)
+        fixExpire(ctx)
+        if (pollBusy) return true
         while (true) {
             val j = fixes.firstOrNull() ?: return false
             val installed = InstallLog.installedCode(ctx, j.pkg) != null
             when (j.stage) {
                 0 -> {
                     if (!installed) { j.stage = 2; continue }
-                    j.stage = 1; fixSave(ctx)
+                    j.stage = 1; j.ts = System.currentTimeMillis(); fixSave(ctx)
                     val ok = runCatching { ctx.startActivity(Intent(Intent.ACTION_DELETE, Uri.parse("package:" + j.pkg)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess
                     if (ok) return true
                     fixDone(ctx, j, false, ctx.getString(R.string.install_fix_unfail))
                 }
                 1 -> {
                     // вернулись из системного окна удаления: если приложение всё ещё стоит, пользователь отказался
-                    if (installed) { fixDone(ctx, j, false, ctx.getString(R.string.install_fix_declined)); continue }
+                    // система может не успеть снять пакет к возврату: ждём до ~5 с (шаг 300 мс), и только потом считаем отказом
+                    if (installed) {
+                        pollBusy = true
+                        val app = ctx.applicationContext
+                        Thread {
+                            var gone = false
+                            var i = 0
+                            while (i < 17 && !gone) {
+                                try { Thread.sleep(300) } catch (_: Exception) {}
+                                gone = InstallLog.installedCode(app, j.pkg) == null
+                                i++
+                            }
+                            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                pollBusy = false
+                                if (gone) { j.stage = 2; j.ts = System.currentTimeMillis(); fixSave(app) }
+                                else fixDone(app, j, false, app.getString(R.string.install_fix_declined))
+                                next(app)
+                            }
+                        }.start()
+                        return true
+                    }
                     j.stage = 2
                 }
                 2 -> {
                     val f = File(j.path)
                     if (!f.exists()) { fixDone(ctx, j, false, ctx.getString(R.string.install_fix_nofile)); continue }
-                    j.stage = 3; fixSave(ctx)
+                    j.stage = 3; j.ts = System.currentTimeMillis(); fixSave(ctx)
                     val uri = Batch.shareUri(ctx, ApkFile(j.name, Uri.fromFile(f), f.length(), f))
                     val ok = runCatching {
                         ctx.startActivity(
@@ -295,7 +327,8 @@ object Batch {
         return when {
             raw.contains("VERSION_DOWNGRADE") -> Fix.DOWNGRADE
             raw.contains("UPDATE_INCOMPATIBLE") || raw.contains("INCONSISTENT_CERTIFICATES") || raw.contains("SIGNATURES") -> Fix.SIGNATURE
-            raw.contains("PARSE_FAILED") -> if (now > m.second) Fix.DOWNGRADE else Fix.SIGNATURE
+            // общий отказ разбора: исправление предлагаем только при реальном несовпадении подписей или версии ниже (сравнение самой системой), иначе нейтральное сообщение с кодом
+            raw.contains("PARSE_FAILED") -> predictConflict(ctx, f)
             else -> null
         }
     }

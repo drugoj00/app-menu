@@ -59,6 +59,10 @@ object Cfg {
     var barTitle by androidx.compose.runtime.mutableStateOf(false); private set
     /** Свечение рамки выделения на «Доме»: "none" (по умолчанию), "weak", "strong". */
     var selGlow by androidx.compose.runtime.mutableStateOf("none"); private set
+    /** Панель «Все приложения» на «Доме» (прокручиваемая сетка всех приложений под виджетами); по умолчанию выключена. */
+    var homeAllPanel by androidx.compose.runtime.mutableStateOf(false); private set
+    /** Прозрачность стеклянного фона этой панели: "light", "mid" (по умолчанию), "dense". */
+    var homeAllGlass by androidx.compose.runtime.mutableStateOf("mid"); private set
     /** Новые установленные приложения сами попадают на «Дом» (строка «Новые приложения»). */
     var homeAutoAdd by mutableStateOf(true); private set
     /** Фон плиток значков: true — прозрачный (по умолчанию), false — карточки. */
@@ -183,6 +187,8 @@ object Cfg {
         statusOutline = sp.getString("status_outline", "auto").orEmpty().takeIf { it in listOf("auto", "dark", "white", "none") } ?: "auto"
         barFill = sp.getString("bar_fill", "solid").orEmpty().takeIf { it in listOf("solid", "glass", "none") } ?: "solid"
         barTitle = sp.getBoolean("bar_title", false)
+        homeAllPanel = sp.getBoolean("home_all_panel", false)
+        homeAllGlass = sp.getString("home_all_glass", "mid").orEmpty().takeIf { it in listOf("light", "mid", "dense") } ?: "mid"
         selGlow = sp.getString("sel_glow", "none").orEmpty().takeIf { it in listOf("none", "weak", "strong") } ?: "none"
         barShape = sp.getString("bar_shape", "normal").orEmpty().takeIf { it in listOf("normal", "round", "square") } ?: "normal"
         selRing = sp.getInt("sel_ring", 0).coerceIn(0, RING_COLORS.size - 1)
@@ -280,6 +286,8 @@ object Cfg {
     fun changeStatusOutline(v: String) { statusOutline = v; sp.edit().putString("status_outline", v).apply() }
     fun changeBarFill(v: String) { barFill = v; sp.edit().putString("bar_fill", v).apply() }
     fun changeSelGlow(v: String) { selGlow = v; sp.edit().putString("sel_glow", v).apply() }
+    fun changeHomeAllPanel(v: Boolean) { homeAllPanel = v; sp.edit().putBoolean("home_all_panel", v).apply() }
+    fun changeHomeAllGlass(v: String) { homeAllGlass = v; sp.edit().putString("home_all_glass", v).apply() }
     fun changeBarTitle(v: Boolean) { barTitle = v; sp.edit().putBoolean("bar_title", v).apply() }
     fun changeBarShape(v: String) { barShape = v; sp.edit().putString("bar_shape", v).apply() }
     fun changeHomeRing(v: Int) { homeRing = v.coerceIn(0, RING_COLORS.size - 1); sp.edit().putInt("home_ring", homeRing).apply() }

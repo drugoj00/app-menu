@@ -553,6 +553,14 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                     SectionHint(stringResource(R.string.sel_glow_hint))
                     Options(listOf("none" to stringResource(R.string.glow_none), "weak" to stringResource(R.string.glow_weak), "strong" to stringResource(R.string.glow_strong)), Cfg.selGlow) { Cfg.changeSelGlow(it) }
                 }
+                Section(stringResource(R.string.all_panel)) {
+                    SectionHint(stringResource(R.string.all_panel_hint))
+                    Options(listOf(false to stringResource(R.string.off), true to stringResource(R.string.on)), Cfg.homeAllPanel) { Cfg.changeHomeAllPanel(it) }
+                }
+                if (Cfg.homeAllPanel) Section(stringResource(R.string.all_panel_glass)) {
+                    SectionHint(stringResource(R.string.all_panel_glass_hint))
+                    Options(listOf("light" to stringResource(R.string.glass_light), "mid" to stringResource(R.string.glass_mid), "dense" to stringResource(R.string.glass_dense)), Cfg.homeAllGlass) { Cfg.changeHomeAllGlass(it) }
+                }
                 // выключатель меню виден всегда (раньше исчезал при выключенном «Доме»); оба модуля сразу выключить нельзя
                 Section(stringResource(R.string.menu_module_title)) {
                     SectionHint(stringResource(R.string.menu_module_hint))

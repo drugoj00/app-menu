@@ -414,6 +414,7 @@ private fun HomeScreen(tick: Int, again: Int) {
     // «Назад» на главном экране ничего не делает; в режиме перемещения заканчивает перемещение
     BackHandler {
         if (movingItem != null || movingStatus != null) { movingItem = null; movingStatus = null }
+        else if (AllPanel.query.isNotEmpty()) AllPanel.query = ""      // в панели «Все приложения»: первое «Назад» сбрасывает поиск, следующее возвращает наверх «Дома»
         else bgScope.launch { scroll.animateScrollTo(0); runCatching { menuReq.requestFocus() } }
     }
     val host = remember {
@@ -442,8 +443,11 @@ private fun HomeScreen(tick: Int, again: Int) {
                             layout.top, statusTick + tick, movingStatus, menuReq,
                             onMenu = { openMenu() }, onVoice = { startVoice() },
                             onSearch = { q ->
+                                // панель «Все приложения» включена: поиск ведёт в неё (показывает подходящие, курсор на первой плитке)
+                                if (Cfg.homeAllPanel) AllPanel.search(q) else {
                                 ctx.startActivity(Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("from_home", true).putExtra("q", q).putExtra("open_search", q.isBlank()))
                                 (ctx as? android.app.Activity)?.overridePendingTransition(0, 0)
+                                }
                             },
                             onTopLong = { dlg = Dlg.Top },
                             onStatusLong = { dlg = Dlg.Status(it) },
@@ -473,14 +477,19 @@ private fun HomeScreen(tick: Int, again: Int) {
                                 override suspend fun onPostFling(consumed: androidx.compose.ui.unit.Velocity, available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity { acc = 0f; return androidx.compose.ui.unit.Velocity.Zero }
                             }
                         }
-                        Column(Modifier.weight(1f).nestedScroll(swipeMenu).verticalScroll(scroll)) {
+                        // видимая высота области «Дома» нужна панели «Все приложения»: она занимает её целиком (сетка прокручивается внутри)
+                        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.weight(1f)) {
+                        val viewH = maxHeight
+                        Column(Modifier.fillMaxSize().nestedScroll(swipeMenu).verticalScroll(scroll)) {
                             // поля сверху и снизу: выбранный элемент увеличивается и не должен обрезаться краем прокручиваемой области
                             Column(Modifier.padding(vertical = 10.dp)) {
                                 HomeRowsView(
                                     layout, apps, tick, refreshTick, movingItem, firstReq,
                                     openApp = openApp, openMenu = { openMenu() }, onDlg = { dlg = it }, onMoveEnd = { movingItem = null },
+                                    panelH = (viewH - 40.dp).coerceAtLeast(260.dp),
                                 )
                             }
+                        }
                         }
                     }
                 }

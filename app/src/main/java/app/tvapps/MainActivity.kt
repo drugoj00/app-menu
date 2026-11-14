@@ -399,7 +399,7 @@ internal fun sameApps(a: List<Entry>, b: List<Entry>): Boolean {
 }
 
 /** Скрытые убираются, остальное сортируется по настройке. */
-private fun arrange(all: List<Entry>, query: String): List<Entry> {
+internal fun arrange(all: List<Entry>, query: String): List<Entry> {
     val q = query.trim().lowercase()
     val list = all.filter { (Cfg.showHidden || !Cfg.isHidden(it.pkg)) && (q.isEmpty() || it.label.lowercase().contains(q) || it.pkg.lowercase().contains(q)) }
     val sorted = when (Cfg.sort) {

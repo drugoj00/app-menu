@@ -8,6 +8,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
@@ -154,9 +155,18 @@ internal fun programsFor(row: HRow, channels: List<ChRow>): List<ChProgram> {
 internal fun HomeRowsView(
     layout: HLayout, apps: List<Entry>, tick: Int, refreshTick: Int, movingItem: String?, firstReq: FocusRequester,
     openApp: (Entry) -> Unit, openMenu: () -> Unit, onDlg: (Dlg?) -> Unit, onMoveEnd: () -> Unit,
+    /** Высота панели «Все приложения» (видимая область «Дома»); 0 — панель не показывается. */
+    panelH: androidx.compose.ui.unit.Dp = 0.dp,
 ) {
     val ctx = LocalContext.current
     val byPkg = remember(apps) { apps.associateBy { it.pkg } }
+    // панель «Все приложения» стоит под последней строкой виджетов (нет виджетов — в конце)
+    val panelOn = Cfg.homeAllPanel && panelH > 0.dp
+    // панель занимает остаток видимой области под строками над ней (на первом экране «Дома» помещается целиком), но не ниже 300 dp
+    var panelTopPx by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    val panelDensity = androidx.compose.ui.platform.LocalDensity.current
+    val panelEff = (panelH - with(panelDensity) { panelTopPx.toDp() } - 10.dp).coerceAtLeast(300.dp)
+    val panelAfter = layout.rows.indexOfLast { it.kind == "widgets" }.let { if (it < 0) layout.rows.lastIndex else it }
     val needChannels = layout.rows.any { it.kind == "cards" }
     var granted by androidx.compose.runtime.remember(tick) { androidx.compose.runtime.mutableStateOf(Channels.granted(ctx)) }
     var loaded by remember { androidx.compose.runtime.mutableStateOf(ChannelsMem.rows != null) }
@@ -188,7 +198,9 @@ internal fun HomeRowsView(
                     else -> AppsRow(row, byPkg, inputs, movingItem, movingReq, first, tick, openApp, openMenu, onDlg, onMoveEnd)
                 }
             }
+            if (panelOn && idx == panelAfter) Box(Modifier.onGloballyPositioned { panelTopPx = it.positionInParent().y }) { AllAppsPanel(apps, panelEff, openApp, onDlg) }
         }
+        if (panelOn && layout.rows.isEmpty()) AllAppsPanel(apps, panelEff, openApp, onDlg)
         // кнопка «Добавить строку» всегда в конце: без неё нечем вернуть строки, если стёрли все
         Row(Modifier.padding(start = 6.dp, top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             // кнопка нужна только когда не осталось ни одной строки (иначе нечем вернуть); обычно «Добавить строку» — в долгом меню значка и строки
