@@ -14,13 +14,22 @@ App Menu replaces the stock app list with a big grid made for a remote and for t
 
 ## Download
 
-**Version 7.3.** [AppMenu-7.3.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
+**Version 8.0.** [AppMenu-8.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `2be54d01c3c9fdd6e63575c933fb982e3a366d2b2e891fd6739585a8a60b6b9c`
+SHA-256: `4d22617b855dc69c8cf7a27ddbd4992e3174c3655fefc5f28f7cf20ba3027c92`
 
-## What's new in 7.3
+## What's new in 8.0
 
-- Bug fixes
+- Settings in groups: group menu on the left, clear action rows on the right; settings search; two panes on a TV box and in landscape
+- “Updates and backups” in one place: update check, backup, restore
+- A “Version X is out. Update?” banner and a “What’s new” window
+- Autostart of apps when the TV box turns on
+- Tap the number on a counter to type a value
+- Widget size: Small, Medium, Large; top bar button background with a preview
+- USB and Settings icons on all devices
+- Dock at the bottom of Home: a thin strip of favorite apps, a “Dock panel” button in the top bar, sorting, moving icons with a long press, Down opens all apps
+- Wallpaper folders by screen resolution: 1080p, 720p, 2K, 4K and others
+- Fixed: your own wallpaper is no longer replaced by auto change; installs go to the current profile only, no copies in “Dual Messenger”
 
 ## Features
 
@@ -50,9 +59,13 @@ SHA-256: `2be54d01c3c9fdd6e63575c933fb982e3a366d2b2e891fd6739585a8a60b6b9c`
 
 ![Home screen dialog with “Program settings”.](screenshots/en/04_dialog.png)
 
+![Home with the “Dock panel” button in the top bar and the dock (dark).](screenshots/8.0/dock_dark.png)
+
+![The dock in a light style.](screenshots/8.0/dock_light.png)
+
 ## Quick start
 
-1. Download AppMenu-7.3.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
+1. Download AppMenu-8.0.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
 2. Open it: apps are launched with OK or a tap, a long press (or holding OK, or the Menu key) opens the action card. To use it instead of the stock menu turn on “Launcher mode” in Settings.
 3. To act on other apps connect ADB: Settings → “Connect ADB”. Android 9 and older TV boxes with network ADB connect by themselves. Android 11+: turn on the “App Menu” service in Accessibility once, press “Connect automatically”. Android 10 and older: run adb tcpip 5555 once from a computer (repeat after a reboot). With root none of this is needed: allow root for the app once and it connects by itself.
 
