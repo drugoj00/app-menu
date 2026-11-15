@@ -14,6 +14,10 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         val app = ctx.applicationContext
         Cfg.init(app)
+        // автозапуск приложений (Autostart.kt): по загрузке и быстрой загрузке; список и «Вкл» берутся из настроек, по умолчанию выключено
+        if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == "android.intent.action.QUICKBOOT_POWERON" || intent.action == "com.htc.intent.action.QUICKBOOT_POWERON") {
+            runCatching { Autostart.onBoot(app, "boot") }
+        }
         // после обновления программы и после загрузки: вернуть себе роль главного экрана по умолчанию (Android при обновлении её сбрасывает)
         if (intent.action == Intent.ACTION_MY_PACKAGE_REPLACED || intent.action == Intent.ACTION_BOOT_COMPLETED) {
             Thread {

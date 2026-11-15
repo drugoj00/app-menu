@@ -101,6 +101,15 @@ internal object HIcons {
     val bell = v("bell", "M12,22c1.1,0 2,-0.9 2,-2h-4c0,1.1 0.89,2 2,2zM18,16v-5c0,-3.07 -1.64,-5.64 -4.5,-6.32V4c0,-0.83 -0.67,-1.5 -1.5,-1.5s-1.5,0.67 -1.5,1.5v0.68C7.63,5.36 6,7.92 6,11v5l-2,2v1h16v-1l-2,-2z")
     val recent = v("recent", "M13,3c-4.97,0 -9,4.03 -9,9L1,12l3.89,3.89 0.07,0.14L9,12L6,12c0,-3.87 3.13,-7 7,-7s7,3.13 7,7 -3.13,7 -7,7c-1.93,0 -3.68,-0.79 -4.94,-2.06l-1.42,1.42C8.27,19.99 10.51,21 13,21c4.97,0 9,-4.03 9,-9s-4.03,-9 -9,-9zM12,8v5l4.28,2.54 0.72,-1.21 -3.5,-2.08L13.5,8L12,8z")
     val add = v("add", "M19,13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z")
+    val download = v("download", "M19,9h-4V3H9v6H5l7,7 7,-7zM5,18v2h14v-2H5z")
+    val refresh = v("refresh", "M17.65,6.35C16.2,4.9 14.21,4 12,4c-4.42,0 -7.99,3.58 -7.99,8s3.57,8 7.99,8c3.73,0 6.84,-2.55 7.73,-6h-2.08c-0.82,2.33 -3.04,4 -5.65,4 -3.31,0 -6,-2.69 -6,-6s2.69,-6 6,-6c1.66,0 3.14,0.69 4.22,1.78L13,11h7V4l-2.35,2.35z")
+    val save = v("save", "M17,3H5C3.89,3 3,3.9 3,5v14c0,1.1 0.89,2 2,2h14c1.1,0 2,-0.9 2,-2V7l-4,-4zM12,19c-1.66,0 -3,-1.34 -3,-3s1.34,-3 3,-3 3,1.34 3,3 -1.34,3 -3,3zM15,9H5V5h10v4z")
+    val folder = v("folder", "M10,4H4c-1.1,0 -1.99,0.9 -1.99,2L2,18c0,1.1 0.9,2 2,2h16c1.1,0 2,-0.9 2,-2V8c0,-1.1 -0.9,-2 -2,-2h-8l-2,-2z")
+    val open = v("open", "M19,19H5V5h7V3H5c-1.11,0 -2,0.9 -2,2v14c0,1.1 0.89,2 2,2h14c1.1,0 2,-0.9 2,-2v-7h-2v7zM14,3v2h3.59l-9.83,9.83 1.41,1.41L19,6.41V10h2V3h-7z")
+    val trash = v("trash", "M6,19c0,1.1 0.9,2 2,2h8c1.1,0 2,-0.9 2,-2V7H6v12zM19,4h-3.5l-1,-1h-5l-1,1H5v2h14V4z")
+    val list = v("list", "M3,13h2v-2H3v2zM3,17h2v-2H3v2zM3,9h2V7H3v2zM7,13h14v-2H7v2zM7,17h14v-2H7v2zM7,9h14V7H7v2z")
+    val dock = v("dock", "M3,3h18v18H3zM5,5v10h14V5zM5,17h14v2H5z")
+    val home = v("home", "M10,20v-6h4v6h5v-8h3L12,3 2,12h3v8z")
 }
 
 /** Тема без подстройки под фон: окна настроек всегда в цветах выбранной темы, даже когда сам экран на тёмном фоне. */
@@ -163,6 +172,8 @@ internal fun HomeBox(
     dragEnd: ((androidx.compose.ui.geometry.Offset) -> Unit)? = null,
     /** ключ плитки: курсор пульта запоминается и возвращается на неё после закрытия окон */
     memKey: String? = null,
+    /** тонкая рамка в покое (вид «Стекло» верхней строки); Transparent: без рамки */
+    edge: Color = Color.Transparent,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val selfReq = focusReq ?: remember { FocusRequester() }
@@ -253,8 +264,8 @@ internal fun HomeBox(
             .background(if (focused || hover) t.tileFocus else bg, shape)
             .border(
                 // рамка выделения (наведение мышью и выбор пультом одинаково): по умолчанию толщина 2, цвет белый, только у выделенного элемента
-                if (moving) 3.dp else if (focused || hover) (if (ringColor != null && ringWidth > 0) ringWidth.dp else 2.dp) else 0.dp,
-                if (moving) Color(0xFFF59E0B) else if (focused || hover) (ringColor ?: Cfg.homeRingOr(t.accent)) else Color.Transparent, shape,
+                if (moving) 3.dp else if (focused || hover) (if (ringColor != null && ringWidth > 0) ringWidth.dp else 2.dp) else if (edge != Color.Transparent) 1.5.dp else 0.dp,
+                if (moving) Color(0xFFF59E0B) else if (focused || hover) (ringColor ?: Cfg.homeRingOr(t.accent)) else edge, shape,
             )
             .drawWithContent { drawContent(); if (focusTint && !moving && (focused || hover)) drawRect(Color.White.copy(alpha = 0.16f)) }
             .mouseSecondary { long() }
@@ -300,6 +311,8 @@ class Opt(
     val wide: Boolean = false,
     /** выбор цвета полосой спектра; «Как у темы» справа от названия (стрелки меняют оттенок, ОК: как у темы) */
     val bar: ColorBarSpec? = null,
+    /** допустимые значения числового счётчика «‹ число ›» (правило 19): нужны окну ввода для проверки; null: без проверки */
+    val range: IntRange? = null,
     val onClick: (() -> Unit)? = null,
 )
 
@@ -374,6 +387,9 @@ internal fun OptRow(o: Opt, req: FocusRequester?) {
     var focused by remember { mutableStateOf(false) }
     val (hm, hover) = rememberHover()
     val stepper = o.onDec != null && o.onInc != null
+    // правило 19: у числового счётчика нажатие на число (ОК на ТВ, касание, щелчок) открывает окно ввода цифр; стрелки и кнопки ‹ › остаются
+    val numeric = stepper && Regex("-?\\d+ ?%?").matches(o.value.trim())
+    var numDlg by remember { mutableStateOf(false) }
     val gate = remember { StepGate() }
     val rowReq = remember { FocusRequester() }
     val rmReq = remember { FocusRequester() }
@@ -393,11 +409,20 @@ internal fun OptRow(o: Opt, req: FocusRequester?) {
             .clip(RoundedCornerShape(12.dp))
             .background(if (focused || hover) t.tileFocus else t.tile)
             .border(if (focused) 3.dp else 1.dp, if (focused) t.accent else t.border, RoundedCornerShape(12.dp))
-            .combinedClickable(onClick = { (o.onClick ?: o.onInc)?.invoke() })
+            .combinedClickable(onClick = { if (numeric) numDlg = true else (o.onClick ?: o.onInc)?.invoke() })
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
+        if (numDlg) {
+            val cur = o.value.filter { it.isDigit() || it == '-' }.toIntOrNull() ?: 0
+            NumberDialog(o.label, cur, o.range, o.value.trim().takeIf { it.endsWith("%") }?.let { "%" } ?: "", { n ->
+                // единица шага счётчика равна 1: значение ставится нужным числом нажатий (сам счётчик держит свои границы)
+                val d = n - cur
+                repeat(kotlin.math.abs(d).coerceAtMost(1000)) { if (d > 0) o.onInc?.invoke() else o.onDec?.invoke() }
+                numDlg = false
+            }, { numDlg = false })
+        }
         o.icon?.let { Image(it, null, if (o.wide) Modifier.size(128.dp, 72.dp).clip(RoundedCornerShape(8.dp)) else Modifier.size(30.dp)) }
         Text(o.label, color = if (o.danger) Color(0xFFF87171) else t.text, style = Typo.iconLabel(), modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
         if (stepper) {
@@ -461,6 +486,51 @@ internal fun ListDialog(title: String, opts: List<Opt>, onClose: () -> Unit, hin
 }
 
 /** Окно ввода строки. */
+@Composable
+internal fun NumberDialog(title: String, initial: Int, range: IntRange?, unit: String, onApply: (Int) -> Unit, onClose: () -> Unit) {
+    val t = LocalBaseTh.current ?: LocalTh.current
+    var text by remember { mutableStateOf(initial.toString()) }
+    var err by remember { mutableStateOf<String?>(null) }
+    val fr = remember { FocusRequester() }
+    val bad = androidx.compose.ui.res.stringResource(R.string.num_bad)
+    val outMsg = if (range != null) androidx.compose.ui.res.stringResource(R.string.num_range, range.first, range.last) else ""
+    LaunchedEffect(Unit) { delay(80); runCatching { fr.requestFocus() } }
+    fun apply() {
+        val n = text.trim().toIntOrNull()
+        if (n == null) { err = bad; return }
+        if (range != null && n !in range) { err = outMsg; return }
+        onApply(n)
+    }
+    androidx.compose.ui.window.Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        MouseDragInDialog()
+        FixedFont { androidx.compose.runtime.CompositionLocalProvider(LocalTh provides t) { Column(
+            Modifier.widthIn(min = 300.dp, max = 420.dp).clip(RoundedCornerShape(20.dp)).background(t.bg)
+                .border(1.dp, t.border, RoundedCornerShape(20.dp)).padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(title, color = t.text, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+            OutlinedTextField(
+                text, { text = it.filter { c -> c.isDigit() || c == '-' }.take(6); err = null }, singleLine = true,
+                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 22.sp),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number, imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { apply() }),
+                suffix = { if (unit.isNotEmpty()) Text(unit, color = t.sub) },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = t.text, unfocusedTextColor = t.text,
+                    focusedBorderColor = t.accent, unfocusedBorderColor = t.border, cursorColor = t.accent,
+                ),
+                modifier = Modifier.fillMaxWidth().focusRequester(fr),
+            )
+            Text(err ?: (if (range != null) androidx.compose.ui.res.stringResource(R.string.num_hint_range, range.first, range.last) else androidx.compose.ui.res.stringResource(R.string.num_hint)),
+                color = if (err != null) Color(0xFFF87171) else t.hint, fontSize = 13.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Chip(androidx.compose.ui.res.stringResource(R.string.cancel), false) { onClose() }
+                Chip(androidx.compose.ui.res.stringResource(R.string.home_apply), true) { apply() }
+            }
+        } } }
+    }
+}
+
 @Composable
 internal fun TextDialog(title: String, initial: String, hint: String = "", onDone: (String) -> Unit, onClose: () -> Unit) {
     val t = LocalBaseTh.current ?: LocalTh.current

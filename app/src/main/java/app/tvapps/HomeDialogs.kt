@@ -247,9 +247,9 @@ private fun HdRowD(dlg: Dlg.RowD, e: HdEnv) {
                 add(Opt(stringResource(R.string.row_title_visible), onOff(row.showTitle, on, off), onClick = { upd { it.copy(showTitle = !it.showTitle) } }))
                 when (row.kind) {
                     "apps" -> {
-                        add(Opt(stringResource(R.string.row_size_icons), "${row.size}", { upd { it.copy(size = (it.size - 1).coerceAtLeast(32)) } }, { upd { it.copy(size = (it.size + 1).coerceAtMost(180)) } }))
+                        add(Opt(stringResource(R.string.row_size_icons), "${row.size}", { upd { it.copy(size = (it.size - 1).coerceAtLeast(32)) } }, { upd { it.copy(size = (it.size + 1).coerceAtMost(180)) } }, range = 32..180))
                         add(Opt(stringResource(R.string.row_fit), onOff(row.fit, on, off), onClick = { upd { it.copy(fit = !it.fit) } }))
-                        if (row.fit) add(Opt(stringResource(R.string.row_perline), if (row.perLine == 0) stringResource(R.string.perline_auto) else "${row.perLine}", { upd { it.copy(perLine = (it.perLine - 1).coerceAtLeast(0)) } }, { upd { it.copy(perLine = (it.perLine + 1).coerceAtMost(40)) } }))
+                        if (row.fit) add(Opt(stringResource(R.string.row_perline), if (row.perLine == 0) stringResource(R.string.perline_auto) else "${row.perLine}", { upd { it.copy(perLine = (it.perLine - 1).coerceAtLeast(0)) } }, { upd { it.copy(perLine = (it.perLine + 1).coerceAtMost(40)) } }, range = 0..40))
                         add(Opt(stringResource(R.string.row_wrap), onOff(row.wrap, on, off), onClick = { upd { it.copy(wrap = !it.wrap) } }))
                         add(Opt(stringResource(R.string.row_itemmode), if (row.itemMode == "banner") stringResource(R.string.look_banner) else stringResource(R.string.look_icon), onClick = {
                             val m = if (row.itemMode == "banner") "icon" else "banner"
@@ -261,22 +261,21 @@ private fun HdRowD(dlg: Dlg.RowD, e: HdEnv) {
                             val i = autoNames.indexOfFirst { it.first == row.auto }
                             upd { it.copy(auto = autoNames[(i + 1) % autoNames.size].first) }
                         }))
-                        if (row.auto.isNotEmpty()) add(Opt(stringResource(R.string.row_count), "${row.count}", { upd { it.copy(count = (it.count - 1).coerceAtLeast(1)) } }, { upd { it.copy(count = (it.count + 1).coerceAtMost(40)) } }))
+                        if (row.auto.isNotEmpty()) add(Opt(stringResource(R.string.row_count), "${row.count}", { upd { it.copy(count = (it.count - 1).coerceAtLeast(1)) } }, { upd { it.copy(count = (it.count + 1).coerceAtMost(40)) } }, range = 1..40))
                     }
                     "cards" -> {
-                        add(Opt(stringResource(R.string.row_size_cards), "${row.size}", { upd { it.copy(size = (it.size - 1).coerceAtLeast(50)) } }, { upd { it.copy(size = (it.size + 1).coerceAtMost(260)) } }))
+                        add(Opt(stringResource(R.string.row_size_cards), "${row.size}", { upd { it.copy(size = (it.size - 1).coerceAtLeast(50)) } }, { upd { it.copy(size = (it.size + 1).coerceAtMost(260)) } }, range = 50..260))
                         add(Opt(stringResource(R.string.row_fit), onOff(row.fit, on, off), onClick = { upd { it.copy(fit = !it.fit) } }))
-                        if (row.fit) add(Opt(stringResource(R.string.row_perline), if (row.perLine == 0) stringResource(R.string.perline_auto) else "${row.perLine}", { upd { it.copy(perLine = (it.perLine - 1).coerceAtLeast(0)) } }, { upd { it.copy(perLine = (it.perLine + 1).coerceAtMost(40)) } }))
+                        if (row.fit) add(Opt(stringResource(R.string.row_perline), if (row.perLine == 0) stringResource(R.string.perline_auto) else "${row.perLine}", { upd { it.copy(perLine = (it.perLine - 1).coerceAtLeast(0)) } }, { upd { it.copy(perLine = (it.perLine + 1).coerceAtMost(40)) } }, range = 0..40))
                         add(Opt(stringResource(R.string.row_source), onClick = { setDlg(Dlg.CardSource(row.id)) }, value = sourceName(ctx, row.auto)))
                         if (row.auto.startsWith("cat:")) add(Opt(stringResource(R.string.cq_menu), row.auto.substringAfter('|', ""), onClick = { setDlg(Dlg.CatQuery(row.id, row.auto.removePrefix("cat:").substringBefore('|'))) }))
-                        add(Opt(stringResource(R.string.row_count), "${row.count}", { upd { it.copy(count = (it.count - 1).coerceAtLeast(1)) } }, { upd { it.copy(count = (it.count + 1).coerceAtMost(60)) } }))
+                        add(Opt(stringResource(R.string.row_count), "${row.count}", { upd { it.copy(count = (it.count - 1).coerceAtLeast(1)) } }, { upd { it.copy(count = (it.count + 1).coerceAtMost(60)) } }, range = 1..60))
                         add(Opt(stringResource(R.string.row_aspect), row.aspect, onClick = {
                             val l = listOf("16:9", "1:1", "2:3")
                             upd { it.copy(aspect = l[(l.indexOf(it.aspect) + 1) % l.size]) }
                         }))
                     }
                     else -> {
-                        add(Opt(stringResource(R.string.row_size_widgets), "${row.size}", { upd { it.copy(size = (it.size - 1).coerceAtLeast(60)) } }, { upd { it.copy(size = (it.size + 1).coerceAtMost(320)) } }))
                         add(Opt(stringResource(R.string.row_slots), "${row.slots.size}", { HomeStore.setSlotCount(row.id, row.slots.size - 1) }, { HomeStore.setSlotCount(row.id, row.slots.size + 1) }))
                         // оформление виджетов прямо в настройках строки (всем виджетам строки сразу); по одному: долгое нажатие на виджет
                         val w0 = row.slots.firstOrNull()
@@ -287,8 +286,8 @@ private fun HdRowD(dlg: Dlg.RowD, e: HdEnv) {
                             val rsw = remember(rci, rAccent) {
                                 colorDot(if (rci == 0) rAccent.toArgb() else BORDER_COLORS[rci].toInt())
                             }
-                            add(Opt(stringResource(R.string.look_radius), "${w0.radius}", { val v = (w0.radius - 1).coerceAtLeast(0); allW { it.copy(radius = v) } }, { val v = (w0.radius + 1).coerceAtMost(60); allW { it.copy(radius = v) } }))
-                            add(Opt(stringResource(R.string.bd_width), if (w0.borderW == 0) off else "${w0.borderW}", { val v = (w0.borderW - 1).coerceAtLeast(0); allW { it.copy(borderW = v) } }, { val v = (w0.borderW + 1).coerceAtMost(12); allW { it.copy(borderW = v) } }))
+                            add(Opt(stringResource(R.string.look_radius), "${w0.radius}", { val v = (w0.radius - 1).coerceAtLeast(0); allW { it.copy(radius = v) } }, { val v = (w0.radius + 1).coerceAtMost(60); allW { it.copy(radius = v) } }, range = 0..60))
+                            add(Opt(stringResource(R.string.bd_width), if (w0.borderW == 0) off else "${w0.borderW}", { val v = (w0.borderW - 1).coerceAtLeast(0); allW { it.copy(borderW = v) } }, { val v = (w0.borderW + 1).coerceAtMost(12); allW { it.copy(borderW = v) } }, range = 0..12))
                             add(Opt(stringResource(R.string.bd_when), onOff(w0.borderHover, stringResource(R.string.bd_hover), stringResource(R.string.bd_always)), onClick = { val v = !w0.borderHover; allW { it.copy(borderHover = v) } }))
                             add(Opt(stringResource(R.string.bd_color), stringResource(BORDER_NAMES[rci]),
                                 { val v = BORDER_COLORS[(rci + BORDER_COLORS.size - 1) % BORDER_COLORS.size]; allW { it.copy(borderC = v) } },
@@ -296,8 +295,8 @@ private fun HdRowD(dlg: Dlg.RowD, e: HdEnv) {
                         }
                     }
                 }
-                add(Opt(stringResource(R.string.screen_row_gap), "${HomeStore.layout.rowGap}", { HomeStore.set(HomeStore.layout.copy(rowGap = (HomeStore.layout.rowGap - 1).coerceAtLeast(0))) }, { HomeStore.set(HomeStore.layout.copy(rowGap = (HomeStore.layout.rowGap + 1).coerceAtMost(60))) }))
-                add(Opt(stringResource(R.string.row_gap), "${row.gap}", { upd { it.copy(gap = (it.gap - 1).coerceAtLeast(0)) } }, { upd { it.copy(gap = (it.gap + 1).coerceAtMost(60)) } }))
+                add(Opt(stringResource(R.string.screen_row_gap), "${HomeStore.layout.rowGap}", { HomeStore.set(HomeStore.layout.copy(rowGap = (HomeStore.layout.rowGap - 1).coerceAtLeast(0))) }, { HomeStore.set(HomeStore.layout.copy(rowGap = (HomeStore.layout.rowGap + 1).coerceAtMost(60))) }, range = 0..60))
+                add(Opt(stringResource(R.string.row_gap), "${row.gap}", { upd { it.copy(gap = (it.gap - 1).coerceAtLeast(0)) } }, { upd { it.copy(gap = (it.gap + 1).coerceAtMost(60)) } }, range = 0..60))
                 add(Opt(stringResource(R.string.row_up)) { HomeStore.moveRow(row.id, -1) })
                 add(Opt(stringResource(R.string.row_down)) { HomeStore.moveRow(row.id, 1) })
                 add(Opt(stringResource(R.string.row_add_below)) { setDlg(Dlg.AddRow(row.id)) })
@@ -486,6 +485,7 @@ private fun HdWidgetD(dlg: Dlg.WidgetD, e: HdEnv) {
             val upd = { f: (HWidget) -> HWidget -> HomeStore.updateSlot(row.id, dlg.slot, f) }
             // «Менять: только этот виджет / все виджеты строки»: новое значение считается один раз и ставится всем одинаковое
             var sureWgDel by remember(dlg.rowId, dlg.slot) { mutableStateOf(false) }
+            var sizeFine by remember(dlg.rowId, dlg.slot) { mutableStateOf(false) }
             val updLook = { f: (HWidget) -> HWidget -> if (wgAll) HomeStore.updateRow(row.id) { r -> r.copy(slots = r.slots.map(f)) } else upd(f) }
             LaunchedEffect(dlg.rowId, dlg.slot, wgAll) {
                 if (wgAll) HomeStore.updateRow(row.id) { r -> r.copy(slots = r.slots.map { it.copy(radius = w.radius, borderW = w.borderW, borderC = w.borderC, borderHover = w.borderHover) }) }
@@ -509,7 +509,7 @@ private fun HdWidgetD(dlg: Dlg.WidgetD, e: HdEnv) {
                 when (w.type) {
                     "weather" -> {
                         add(Opt(stringResource(R.string.wg_city), w.city.ifBlank { stringResource(R.string.wg_city_auto) }, onClick = { setDlg(Dlg.WidgetCity(row.id, dlg.slot)) }))
-                        add(Opt(stringResource(R.string.wg_days), "${w.n}", { upd { it.copy(n = (it.n - 1).coerceAtLeast(0)) } }, { upd { it.copy(n = (it.n + 1).coerceAtMost(5)) } }))
+                        add(Opt(stringResource(R.string.wg_days), "${w.n}", { upd { it.copy(n = (it.n - 1).coerceAtLeast(0)) } }, { upd { it.copy(n = (it.n + 1).coerceAtMost(5)) } }, range = 0..5))
                         add(Opt(stringResource(R.string.wg_refresh)) { refreshWeather(); close() })
                     }
                     "clock" -> {
@@ -519,16 +519,27 @@ private fun HdWidgetD(dlg: Dlg.WidgetD, e: HdEnv) {
                     }
                 }
                 if (row.slots.size > 1) add(Opt(stringResource(R.string.wgl_scope), if (wgAll) stringResource(R.string.wgl_all) else stringResource(R.string.wgl_one), onClick = { wgAll = !wgAll }))
-                add(Opt(stringResource(R.string.look_radius), "${w.radius}", { val v = (w.radius - 1).coerceAtLeast(0); updLook { it.copy(radius = v) } }, { val v = (w.radius + 1).coerceAtMost(60); updLook { it.copy(radius = v) } }))
-                add(Opt(stringResource(R.string.bd_width), if (w.borderW == 0) off else "${w.borderW}", { val v = (w.borderW - 1).coerceAtLeast(0); updLook { it.copy(borderW = v) } }, { val v = (w.borderW + 1).coerceAtMost(12); updLook { it.copy(borderW = v) } }))
+                add(Opt(stringResource(R.string.look_radius), "${w.radius}", { val v = (w.radius - 1).coerceAtLeast(0); updLook { it.copy(radius = v) } }, { val v = (w.radius + 1).coerceAtMost(60); updLook { it.copy(radius = v) } }, range = 0..60))
+                add(Opt(stringResource(R.string.bd_width), if (w.borderW == 0) off else "${w.borderW}", { val v = (w.borderW - 1).coerceAtLeast(0); updLook { it.copy(borderW = v) } }, { val v = (w.borderW + 1).coerceAtMost(12); updLook { it.copy(borderW = v) } }, range = 0..12))
                 add(Opt(stringResource(R.string.bd_when), onOff(w.borderHover, stringResource(R.string.bd_hover), stringResource(R.string.bd_always)), onClick = { val v = !w.borderHover; updLook { it.copy(borderHover = v) } }))
                 add(Opt(stringResource(R.string.bd_color), stringResource(BORDER_NAMES[wci]),
                     { val v = BORDER_COLORS[(wci + BORDER_COLORS.size - 1) % BORDER_COLORS.size]; updLook { it.copy(borderC = v) } },
                     { val v = BORDER_COLORS[(wci + 1) % BORDER_COLORS.size]; updLook { it.copy(borderC = v) } }, icon = wsw))
-                add(Opt(stringResource(R.string.wg_font), "${w.fs}%", { upd { it.copy(fs = (it.fs - 1).coerceAtLeast(50)) } }, { upd { it.copy(fs = (it.fs + 1).coerceAtMost(250)) } }))
-                if (row.slots.size > 1) {
-                    val total = row.slots.sumOf { it.wt.coerceIn(30, 300) }.coerceAtLeast(1)
-                    add(Opt(stringResource(R.string.wg_width), "${HomeStore.widgetShare(row, dlg.slot)}%", { HomeStore.setWidgetShare(row.id, dlg.slot, HomeStore.widgetShare(row, dlg.slot) - 1) }, { HomeStore.setWidgetShare(row.id, dlg.slot, HomeStore.widgetShare(row, dlg.slot) + 1) }))
+                // 15.11.2026: один понятный выбор размера (Маленький / Средний / Большой) вместо россыпи «высота строки», «масштаб шрифта», «ширина»: пресет задаёт
+                // высоту строки и масштаб шрифта всех виджетов строки разом; прежние значения не меняются, если не нажимать (если числа не совпали с пресетом, написано «Свой»);
+                // точные числа спрятаны в «Точной настройке размера»
+                val sizeP = listOf(90 to 80, 120 to 100, 170 to 130)
+                val sizeN = listOf(R.string.wg_size_s, R.string.wg_size_m, R.string.wg_size_l)
+                val curSz = sizeP.indexOfFirst { it.first == row.size && row.slots.all { s -> s.fs == it.second } }
+                val nearSz = sizeP.indices.minByOrNull { Math.abs(sizeP[it].first - row.size) } ?: 1
+                val setSz = { i: Int -> val p = sizeP[i.coerceIn(0, 2)]; HomeStore.updateRow(row.id) { r -> r.copy(size = p.first, slots = r.slots.map { s -> s.copy(fs = p.second) }) } }
+                add(Opt(stringResource(R.string.wg_size), if (curSz >= 0) stringResource(sizeN[curSz]) else stringResource(R.string.wg_size_custom),
+                    { setSz(if (curSz >= 0) curSz - 1 else nearSz) }, { setSz(if (curSz >= 0) curSz + 1 else nearSz) }, onClick = { setSz(if (curSz >= 0) (curSz + 1) % 3 else nearSz) }))
+                add(Opt(stringResource(R.string.wg_size_fine), if (sizeFine) "▴" else "▾", onClick = { sizeFine = !sizeFine }))
+                if (sizeFine) {
+                    add(Opt(stringResource(R.string.row_size_widgets), "${row.size}", { HomeStore.updateRow(row.id) { it.copy(size = (it.size - 1).coerceAtLeast(60)) } }, { HomeStore.updateRow(row.id) { it.copy(size = (it.size + 1).coerceAtMost(320)) } }, range = 60..320))
+                    add(Opt(stringResource(R.string.wg_font), "${w.fs}%", { upd { it.copy(fs = (it.fs - 1).coerceAtLeast(50)) } }, { upd { it.copy(fs = (it.fs + 1).coerceAtMost(250)) } }, range = 50..250))
+                    if (row.slots.size > 1) add(Opt(stringResource(R.string.wg_width), "${HomeStore.widgetShare(row, dlg.slot)}%", { HomeStore.setWidgetShare(row.id, dlg.slot, HomeStore.widgetShare(row, dlg.slot) - 1) }, { HomeStore.setWidgetShare(row.id, dlg.slot, HomeStore.widgetShare(row, dlg.slot) + 1) }))
                 }
                 if (w.type != WIDGET_EMPTY) add(Opt(if (sureWgDel) stringResource(R.string.wg_delete_sure) else stringResource(R.string.wg_delete), danger = true) {
                     if (sureWgDel) {
@@ -701,6 +712,9 @@ private fun HdTop(e: HdEnv) {
                 add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома» — второй
                 add(Opt(stringResource(R.string.top_big), onOff(top.big, on, off), onClick = { HomeStore.updateTop { it.copy(big = !it.big) } }))
                 add(Opt(stringResource(R.string.top_recent), onOff(top.recent, on, off), onClick = { HomeStore.updateTop { it.copy(recent = !it.recent) } }))
+                add(Opt(stringResource(R.string.dock_btn), onOff(HomeDock.btn(ctx), on, off), onClick = { HomeDock.setBtn(ctx, !HomeDock.btn(ctx)) }))
+                add(Opt(stringResource(R.string.dock_title), onOff(HomeDock.on(ctx), on, off), onClick = { HomeDock.setOn(ctx, !HomeDock.on(ctx)) }))
+                add(Opt(stringResource(R.string.dock_settings)) { SettingsGroups.last = "dock"; openAppSettings() })
                 add(Opt(stringResource(R.string.top_clean), onOff(top.clean, on, off), onClick = { HomeStore.updateTop { it.copy(clean = !it.clean) } }))
                 add(Opt(stringResource(R.string.top_hdmi), onOff(top.hdmi, on, off), onClick = { HomeStore.updateTop { it.copy(hdmi = !it.hdmi) } }))
                 add(Opt(stringResource(R.string.top_search), onOff(top.search, on, off), onClick = { HomeStore.updateTop { it.copy(search = !it.search) } }))
@@ -716,7 +730,6 @@ private fun HdTop(e: HdEnv) {
                     onClick = { Cfg.changeBarShape(when (Cfg.barShape) { "normal" -> "round"; "round" -> "square"; else -> "normal" }) }))
                 add(Opt(stringResource(R.string.sel_glow), stringResource(when (Cfg.selGlow) { "weak" -> R.string.glow_weak; "strong" -> R.string.glow_strong; else -> R.string.glow_none }),
                     onClick = { Cfg.changeSelGlow(when (Cfg.selGlow) { "none" -> "weak"; "weak" -> "strong"; else -> "none" }) }))
-                add(Opt(stringResource(R.string.top_title_btn), onOff(Cfg.barTitle, on, off), onClick = { Cfg.changeBarTitle(!Cfg.barTitle) }))
                 top.status.forEach { s ->
                     add(Opt(statusName(s.id), onOff(s.visible, stringResource(R.string.top_shown), stringResource(R.string.top_hidden)), onClick = { HomeStore.updateStatus(s.id) { it.copy(visible = !it.visible) } }))
                 }
@@ -868,6 +881,9 @@ internal fun BgDialogHost(menu: Boolean, onClose: () -> Unit) {
             val port = from?.portrait == true
             val ok = withContext(Dispatchers.IO) { if (kind == "image") HomeBgFiles.saveImage(ctx, uri, menu, port) else HomeBgFiles.saveMedia(ctx, uri, menu) }
             if (ok) put(cur().copy(type = kind))
+            // 15.11.2026 (Евгений, Telegram: «поставил картинку из своей папки, а потом на «Доме» картинка с копирайтом»): своя картинка или видео,
+            // выбранные вручную, выключают ежедневную автосмену обоев этой поверхности, иначе на следующий день автосмена молча подменит выбор картинкой из интернета
+            if (ok && from == null) WallNet.put(ctx, "mode_" + (if (menu) "menu" else "home"), "off")
             // подпись автора: только у картинки из интернета; любой другой выбор её снимает
             if (ok && kind == "video") WallNet.setCredit(ctx, (if (menu) "menu" else "home") + "_v", from, from?.let { HomeBgFiles.media(ctx, menu) })
             if (ok && kind == "image") WallNet.setCredit(ctx, (if (menu) "menu" else "home") + (if (port) "_p" else ""), from, from?.let { HomeBgFiles.image(ctx, menu, port) })

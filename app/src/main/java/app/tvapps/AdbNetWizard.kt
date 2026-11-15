@@ -124,15 +124,15 @@ fun AdbNetWizardDialog(onClose: () -> Unit) {
             } else Text(stringResource(R.string.adbn_working), color = t.sub, fontSize = 14.sp)
             if (msg.isNotEmpty()) Text(msg, color = t.accent, fontSize = 14.sp)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Chip(stringResource(R.string.adbn_dev), false) {
+                ActionRow(HIcons.gear, stringResource(R.string.adbn_dev)) {
                     val ok = runCatching { ctx.startActivity(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true }.getOrDefault(false)
                     if (!ok) {
                         msg = ctx.getString(R.string.adbn_dev_fail)
                         runCatching { ctx.startActivity(Intent(Settings.ACTION_DEVICE_INFO_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                     }
                 }
-                Chip(stringResource(R.string.adbn_root_btn), false) {
-                    if (busy) return@Chip
+                ActionRow(HIcons.gear, stringResource(R.string.adbn_root_btn)) {
+                    if (busy) return@ActionRow
                     scope.launch {
                         busy = true; msg = ctx.getString(R.string.adbn_working)
                         val ok = AdbNet.raiseRoot(ctx)
@@ -141,11 +141,11 @@ fun AdbNetWizardDialog(onClose: () -> Unit) {
                         busy = false
                     }
                 }
-                Chip(stringResource(R.string.adbn_check), false) {
-                    if (busy) return@Chip
+                ActionRow(HIcons.refresh, stringResource(R.string.adbn_check)) {
+                    if (busy) return@ActionRow
                     scope.launch { busy = true; snap = AdbNet.probe(ctx); msg = ""; busy = false }
                 }
-                Chip(stringResource(R.string.adbn_copy), false) {
+                ActionRow(HIcons.save, stringResource(R.string.adbn_copy)) {
                     val ip = snap?.ip.orEmpty()
                     if (ip.isNotEmpty()) copyPlain(ctx, "adb connect $ip:5555")
                 }

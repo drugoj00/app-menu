@@ -311,6 +311,9 @@ object Cfg {
     fun changeSelfUpd(v: Boolean) { selfUpd = v; sp.edit().putBoolean("self_upd", v).apply() }
     fun selfUpdDismissed(): String = sp.getString("self_upd_dismissed", "") ?: ""
     fun setSelfUpdDismissed(v: String) { sp.edit().putString("self_upd_dismissed", v).apply() }
+    /** версия, о которой уже сообщали плашкой и ответа «Позже» ещё не было: при следующем запуске плашка вернётся */
+    fun selfUpdPending(): String = sp.getString("self_upd_pending", "") ?: ""
+    fun setSelfUpdPending(v: String) { sp.edit().putString("self_upd_pending", v).apply() }
     fun selfUpdLast(): Long = sp.getLong("self_upd_last", 0L)
     fun setSelfUpdLast(v: Long) { sp.edit().putLong("self_upd_last", v).apply() }
     fun changeAutoUpd(v: Boolean) { autoUpd = v; sp.edit().putBoolean("auto_upd", v).apply() }

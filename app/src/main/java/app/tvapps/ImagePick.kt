@@ -62,7 +62,7 @@ object FilePick {
     }
 
     /** Файлы подходящего вида; папки wallpaper идут первыми. */
-    fun list(kind: String): List<File> {
+    fun list(kind: String, ctx: android.content.Context? = null): List<File> {
         val ext = if (kind == "image") IMG else VID
         val out = LinkedHashMap<String, File>()
         fun walk(d: File, depth: Int) {
@@ -74,7 +74,8 @@ object FilePick {
             }
         }
         roots().filter { it.isDirectory }.forEach { walk(it, 0) }
-        return out.values.toList()
+        val all = out.values.toList()
+        return if (ctx != null && WallRes.on(ctx)) WallRes.sorted(ctx, all) else all
     }
 }
 
@@ -87,7 +88,7 @@ fun FilePickDialog(kind: String, onPick: (Uri) -> Unit, onSystem: () -> Unit, on
     val fr = remember { FocusRequester() }
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) { Storage.grant(ctx) }
-        files = withContext(Dispatchers.IO) { FilePick.list(kind) }
+        files = withContext(Dispatchers.IO) { FilePick.list(kind, ctx) }
     }
     val list = files
     LaunchedEffect(list?.size) { runCatching { fr.requestFocus() } }
@@ -142,5 +143,59 @@ fun FilePickDialog(kind: String, onPick: (Uri) -> Unit, onSystem: () -> Unit, on
             Chip(stringResource(R.string.close), false) { onClose() }
         }
         }
+    }
+}
+
+
+/**
+ * Папки обоев по разрешению экрана (16.11.2026, просьба Евгения): подпапки с именами 4K/2160p/4p, 2K/1440p/2p, 1080/1080p, 720/720p, 480/480p.
+ * Сначала файлы из папки, подходящей экрану; затем из более крупных (ближайшая первой); затем остальные; в конце из более мелких.
+ * Настройка «Папки по разрешению» (по умолчанию включена) в группе «Обои».
+ */
+object WallRes {
+    fun on(c: android.content.Context) = c.applicationContext.getSharedPreferences("tvapps", android.content.Context.MODE_PRIVATE).getBoolean("wall_res_on", true)
+    fun setOn(c: android.content.Context, v: Boolean) { c.applicationContext.getSharedPreferences("tvapps", android.content.Context.MODE_PRIVATE).edit().putBoolean("wall_res_on", v).apply() }
+
+    private val names = listOf(
+        4 to listOf("4k", "2160p", "2160", "uhd", "4p"),
+        3 to listOf("2k", "1440p", "1440", "qhd", "2p"),
+        2 to listOf("1080p", "1080", "fhd", "fullhd"),
+        1 to listOf("720p", "720", "hd"),
+        0 to listOf("480p", "480", "sd"),
+    )
+
+    /** Ступень по имени папки: 0 (480) ... 4 (4K); -1: имя не разрешение. */
+    fun tierOf(name: String): Int {
+        val n = name.trim().lowercase()
+        for ((tier, ns) in names) if (n in ns) return tier
+        return -1
+    }
+
+    /** Ступень экрана по короткой стороне в пикселях. */
+    fun screenTier(c: android.content.Context): Int {
+        val m = c.resources.displayMetrics
+        val s = minOf(m.widthPixels, m.heightPixels)
+        return when { s >= 2000 -> 4; s >= 1400 -> 3; s >= 1000 -> 2; s >= 700 -> 1; else -> 0 }
+    }
+
+    private fun fileTier(f: File): Int {
+        var d = f.parentFile
+        var i = 0
+        while (d != null && i < 4) { val t = tierOf(d.name); if (t >= 0) return t; d = d.parentFile; i++ }
+        return -1
+    }
+
+    fun sorted(c: android.content.Context, files: List<File>): List<File> {
+        val dev = screenTier(c)
+        fun rank(f: File): Int {
+            val t = fileTier(f)
+            return when {
+                t == dev -> 0
+                t > dev -> t - dev            // более крупная: ближайшая первой
+                t < 0 -> 5                    // обычная папка
+                else -> 10 + (dev - t)        // мельче экрана: в самом конце
+            }
+        }
+        return files.sortedBy { rank(it) }    // сортировка устойчива: прежний порядок внутри ступени
     }
 }

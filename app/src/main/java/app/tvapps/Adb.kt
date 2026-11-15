@@ -263,9 +263,17 @@ object Adb {
         res.getOrDefault("")
     }
 
+    /** Номер текущего пользователя (на Samsung рядом может жить «Двойное приложение», пользователь 95). */
+    suspend fun currentUser(): Int = runCatching { shell("am get-current-user").trim().toInt() }.getOrDefault(0)
+
+    /** Удалить пакет только у текущего пользователя (правило 20); keepData: оставить данные (-k). */
+    suspend fun uninstall(pkg: String, keepData: Boolean = false): String = shell("pm uninstall " + (if (keepData) "-k " else "") + "--user ${currentUser()} $pkg")
+
     /** Выполнить команду оболочки и вернуть её вывод. */
     suspend fun shell(cmd: String, timeoutMs: Long = 25_000): String = withContext(Dispatchers.IO) {
         if (!Integrity.safe()) return@withContext ""
+        // правило 20: установка и удаление пакетов только с --user (см. AdbGuard); такие команды не выполняются
+        if (AdbGuard.violates(cmd)) { Log.e("TVApps", "shell отклонён (нет --user): ${cmd.take(200)}"); return@withContext "Failure: no --user" }
         lock.lock()
         Log.i("TVApps", "shell> ${cmd.take(300)}")
         val t0 = System.currentTimeMillis()

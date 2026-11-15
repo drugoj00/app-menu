@@ -171,7 +171,6 @@ internal fun WidgetStyleDialog(dlg: Dlg.WidgetStyle, setDlg: (Dlg?) -> Unit) {
                 { upd { it.copy(hourStep = HOUR_STEPS[(HOUR_STEPS.indexOf(it.hourStep).coerceAtLeast(0) + 1) % HOUR_STEPS.size]) } }) },
             opt { toggle(R.string.ws_h_wind, s.hWind) { a, v -> a.copy(hWind = v) } },
             opt { toggle(R.string.ws_h_pop, s.hPop) { a, v -> a.copy(hPop = v) } },
-            opt { Opt(stringResource(R.string.wg_days), "${w.n}", { updW { it.copy(n = (it.n - 1).coerceAtLeast(0)) } }, { updW { it.copy(n = (it.n + 1).coerceAtMost(5)) } }) },
             opt { choice(R.string.ws_click_wx, listOf(R.string.ws_cw0, R.string.ws_cw1), s.clickW) { a, v -> a.copy(clickW = v) } },
         ))
         group("src", R.string.wsrc_title, listOf(
@@ -284,6 +283,8 @@ internal fun SliderRow(label: String, value: Int, def: Int, lo: Int, hi: Int, st
     val (hm, hover) = rememberHover()
     val gate = remember { StepGate() }
     val set = { v: Int -> onChange(v.coerceIn(lo, hi)) }
+    var numDlg by remember { mutableStateOf(false) }
+    if (numDlg) NumberDialog(label, value, lo..hi, "%", { n -> set(n); numDlg = false }, { numDlg = false })
     Column(
         Modifier.fillMaxWidth()
             .then(hm)
@@ -293,7 +294,7 @@ internal fun SliderRow(label: String, value: Int, def: Int, lo: Int, hi: Int, st
                 when (ev.key) {
                     Key.DirectionLeft -> { if (gate.ok()) set(value - step); true }
                     Key.DirectionRight -> { if (gate.ok()) set(value + step); true }
-                    Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> { set(def); true }
+                    Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> { numDlg = true; true }
                     else -> false
                 }
             }
@@ -307,7 +308,7 @@ internal fun SliderRow(label: String, value: Int, def: Int, lo: Int, hi: Int, st
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(label, color = t.text, style = Typo.iconLabel(), modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text("$value%", color = t.accent, style = Typo.iconLabel())
+            Text("$value%", color = t.accent, style = Typo.iconLabel(), modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { numDlg = true }.padding(horizontal = 8.dp, vertical = 2.dp))
             Text(stringResource(R.string.ws_default), color = if (value == def) t.bg else t.sub, fontSize = 13.sp,
                 modifier = Modifier.clip(RoundedCornerShape(14.dp)).background(if (value == def) t.accent else Color.Transparent)
                     .border(1.dp, if (value == def) t.accent else t.border, RoundedCornerShape(14.dp))

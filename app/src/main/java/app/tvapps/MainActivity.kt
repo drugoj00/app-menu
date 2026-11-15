@@ -272,7 +272,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             UiScaleRoot {
             val tc = currentTC()
-            MaterialTheme(colorScheme = if (tc.dark) darkColorScheme() else lightColorScheme(), typography = AppFont.typography) {
+            MaterialTheme(colorScheme = (if (tc.dark) darkColorScheme() else lightColorScheme()).copy(primary = tc.accent, onPrimary = androidx.compose.ui.graphics.Color.White, secondary = tc.accent, tertiary = tc.accent, primaryContainer = tc.accent.copy(alpha = 0.28f), secondaryContainer = tc.accent.copy(alpha = 0.28f)), typography = AppFont.typography) {
                 val mbg = HomeStore.menuBg
                 CompositionLocalProvider(LocalTh provides adaptTheme(tc, mbg), LocalBaseTh provides tc) {
                     Box(Modifier.fillMaxSize().background(tc.bg)) {
@@ -1399,6 +1399,7 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
             }
         }
     }
+    SelfUpdBannerHost()
 }
 
 @Composable

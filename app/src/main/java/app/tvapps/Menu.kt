@@ -225,7 +225,7 @@ private fun ToggleRow(text: String, checked: Boolean, onChange: (Boolean) -> Uni
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(text, color = Pop.text, fontSize = shortcutFont(), letterSpacing = 0.sp, fontFamily = AppFont.family, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
-        Switch(checked, null)
+        BigCheck(checked, Pop.accent, Pop.sub)
     }
 }
 

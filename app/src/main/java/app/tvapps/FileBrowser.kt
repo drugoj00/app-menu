@@ -196,13 +196,13 @@ fun FileBrowser(onApks: (List<ApkFile>) -> Unit, onClose: () -> Unit) {
                         },
                         modifier = Modifier.weight(1f))
                 }
-                Chip(stringResource(R.string.fb_connect), true) { if (host.isNotBlank()) smb = SmbFs(host, user, pass) }
+                ActionRow(HIcons.wifi, stringResource(R.string.fb_connect)) { if (host.isNotBlank()) smb = SmbFs(host, user, pass) }
             } else {
                 Text(path, color = t.sub, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Chip(stringResource(R.string.fb_pick_folder), true, Modifier.focusRequester(fr)) { if (!busy && path.isNotEmpty()) take(path, null) }
+                    ActionRow(HIcons.folder, stringResource(R.string.fb_pick_folder), "", Modifier.focusRequester(fr)) { if (!busy && path.isNotEmpty()) take(path, null) }
                     roots.forEach { (label, p) -> Chip(label, false) { path = p } }
-                    if (kind == "smb") Chip(stringResource(R.string.fb_other_host), false) { smb = null }
+                    if (kind == "smb") ActionRow(HIcons.wifi, stringResource(R.string.fb_other_host)) { smb = null }
                 }
                 if (busy) Text(stringResource(R.string.working), color = t.accent, fontSize = 13.sp)
                 if (error.isNotEmpty()) Text(error, color = Color(0xFFF87171), fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
@@ -340,8 +340,8 @@ fun UploadDialog(onApks: (List<ApkFile>) -> Unit, onClose: () -> Unit) {
             Text(stringResource(R.string.wifi_received, files.size) + if (files.isNotEmpty()) ": " + files.joinToString(", ") { it.name }.take(160) else "", color = t.text, fontSize = 14.sp)
             if (busy) Text(stringResource(R.string.working), color = t.accent, fontSize = 13.sp)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Chip(stringResource(R.string.wifi_check, files.size), true, Modifier.focusRequester(fr)) {
-                    if (files.isEmpty() || busy) return@Chip
+                ActionRow(HIcons.refresh, stringResource(R.string.wifi_check, files.size), "", Modifier.focusRequester(fr)) {
+                    if (files.isEmpty() || busy) return@ActionRow
                     scope.launch {
                         busy = true
                         val list = files.flatMap { f -> runCatching { LocalFs.apksFromFile(ctx, FsEntry(f.name, f.absolutePath, false, f.length())) }.getOrDefault(emptyList()) }
@@ -349,9 +349,9 @@ fun UploadDialog(onApks: (List<ApkFile>) -> Unit, onClose: () -> Unit) {
                         onApks(list)
                     }
                 }
-                if (direct && (dInfo != null || dErr.isNotEmpty())) Chip(stringResource(R.string.wifi_direct_stop), false) { direct = false; modePrefs.edit().putString("mode", "net").apply() }
+                if (direct && (dInfo != null || dErr.isNotEmpty())) ActionRow(HIcons.eyeOff, stringResource(R.string.wifi_direct_stop)) { direct = false; modePrefs.edit().putString("mode", "net").apply() }
                 Chip(stringResource(R.string.cancel), false) { onClose() }
-                Chip(stringResource(R.string.wifi_clear), false) { UploadServer.dir?.listFiles()?.forEach { it.delete() }; files = emptyList() }
+                ActionRow(HIcons.trash, stringResource(R.string.wifi_clear)) { UploadServer.dir?.listFiles()?.forEach { it.delete() }; files = emptyList() }
             }
         }
     }

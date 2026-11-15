@@ -199,7 +199,7 @@ fun CropDialog(target: String, startPortrait: Boolean, onClose: () -> Unit) {
                 Chip("▼", false) { mv(0f, 0.06f) }
                 Chip("＋", false) { zm(0.1f) }
                 Chip("－", false) { zm(-0.1f) }
-                Chip(stringResource(R.string.crop_reset), false) { ox = 0f; oy = 0f; zoom = 1f }
+                ActionRow(HIcons.refresh, stringResource(R.string.crop_reset)) { ox = 0f; oy = 0f; zoom = 1f }
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Chip(stringResource(if (portrait) R.string.wn_orient_port else R.string.wn_orient_land) + " ⇄", false) { portrait = !portrait }
@@ -399,15 +399,15 @@ fun WallNetDialog(initial: String, onOwn: () -> Unit, onOwnVideo: () -> Unit, on
             }
 
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (pv != null) Chip(stringResource(R.string.wn_apply) + ": " + stringResource(surfaceNames[target]!!), true, Modifier.focusRequester(applyReq).bringIntoViewRequester(applyBiv)) {
+                if (pv != null) ActionRow(HIcons.save, stringResource(R.string.wn_apply) + ": " + stringResource(surfaceNames[target]!!), "", Modifier.focusRequester(applyReq).bringIntoViewRequester(applyBiv)) {
                     if (!busy) {
                         // видео нагружает устройство: при включении спрашиваем
                         if (pv.first.video && !WallNet.videoActive(ctx, target)) warn = { applyNow(pv) } else applyNow(pv)
                     }
                 }
-                Chip(stringResource(R.string.wn_other), pv == null) { load(false) }
-                if (!video) Chip(stringResource(R.string.wn_today), false) { load(true) }
-                if (!video) Chip(stringResource(R.string.crop_btn), false) { cropFor = pv?.first?.portrait ?: wantPortrait }
+                ActionRow(HIcons.refresh, stringResource(R.string.wn_other)) { load(false) }
+                if (!video) ActionRow(HIcons.refresh, stringResource(R.string.wn_today)) { load(true) }
+                if (!video) ActionRow(HIcons.apps, stringResource(R.string.crop_btn)) { cropFor = pv?.first?.portrait ?: wantPortrait }
             }
 
             if (!video) {
@@ -422,11 +422,11 @@ fun WallNetDialog(initial: String, onOwn: () -> Unit, onOwnVideo: () -> Unit, on
                 Chip(stringResource(R.string.wn_credit) + " · " + stringResource(if (creditOn) R.string.on else R.string.off), creditOn) { creditOn = !creditOn; WallNet.put(ctx, "credit_on", creditOn); HomeStore.bumpImg() }
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (target == "saver" && WallNet.saverOn(ctx)) Chip(stringResource(R.string.wn_saver_off), false) { WallNet.put(ctx, "saver_pic", false); Toast.makeText(ctx, ctx.getString(R.string.wn_saver_removed), Toast.LENGTH_SHORT).show(); tick++ }
-                Chip(stringResource(R.string.wn_remove) + ": " + stringResource(surfaceNames[target]!!), false) {
+                if (target == "saver" && WallNet.saverOn(ctx)) ActionRow(HIcons.eyeOff, stringResource(R.string.wn_saver_off)) { WallNet.put(ctx, "saver_pic", false); Toast.makeText(ctx, ctx.getString(R.string.wn_saver_removed), Toast.LENGTH_SHORT).show(); tick++ }
+                ActionRow(HIcons.trash, stringResource(R.string.wn_remove) + ": " + stringResource(surfaceNames[target]!!)) {
                     if (!busy) { WallNet.remove(ctx, target); cur = null; tick++; Toast.makeText(ctx, ctx.getString(R.string.wn_removed), Toast.LENGTH_SHORT).show() }
                 }
-                Chip(stringResource(R.string.wn_clear_cache, cacheN), false) {
+                ActionRow(HIcons.trash, stringResource(R.string.wn_clear_cache, cacheN)) {
                     val n = WallNet.clearCache(ctx) + WallNet.clearVideoCache(ctx); cacheN = WallNet.cacheCount(ctx) + WallNet.videoCacheCount(ctx)
                     Toast.makeText(ctx, ctx.getString(R.string.wn_cache_cleared, n), Toast.LENGTH_SHORT).show()
                 }

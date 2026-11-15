@@ -76,7 +76,7 @@ class HomeActivity : ComponentActivity() {
     // кнопка микрофона на пульте или аэромыши (клавиши «Поиск», «Голосовой ассистент», «Ассистент»)
     override fun dispatchKeyEvent(ev: android.view.KeyEvent): Boolean {
         if (ev.action == android.view.KeyEvent.ACTION_DOWN) AppsMem.lastKeyAt = System.currentTimeMillis()
-        return Voice.onKey(this, ev) || super.dispatchKeyEvent(ev)
+        return HomeDock.moveKey(this, ev) || HomeDock.onKey(this, ev) || Voice.onKey(this, ev) || super.dispatchKeyEvent(ev)
     }
 
     // клавиша «Меню» (или «Инфо») на пульте, когда элемент не выбран и никто её не обработал: меню пустого места («Добавить строку», настройки)
@@ -123,6 +123,8 @@ class HomeActivity : ComponentActivity() {
             return
         }
         HomeStore.init(this)
+        // запасной путь автозапуска: «Дом» стартовал вскоре после включения, а приёмник загрузки запуск не выполнил (одна загрузка = один запуск)
+        if (android.os.SystemClock.elapsedRealtime() < 240_000L) runCatching { Autostart.onBoot(this, "home") }
         WallNet.autoRefresh(this)
         val c = WindowInsetsControllerCompat(window, window.decorView)
         SysBars.apply(this)       // по умолчанию скрыты на ТВ/приставке и видны на телефоне; переключатель в настройках
@@ -130,8 +132,8 @@ class HomeActivity : ComponentActivity() {
         setContent {
             UiScaleRoot {
             val tc = currentTC()
-            MaterialTheme(colorScheme = if (tc.dark) darkColorScheme() else lightColorScheme(), typography = AppFont.typography) {
-                CompositionLocalProvider(LocalTh provides tc) { FixedFont { HomeScreen(resumeTick.intValue, againTick.intValue); SelfUpdHost(); ReceiveHost() } }
+            MaterialTheme(colorScheme = (if (tc.dark) darkColorScheme() else lightColorScheme()).copy(primary = tc.accent, onPrimary = androidx.compose.ui.graphics.Color.White, secondary = tc.accent, tertiary = tc.accent, primaryContainer = tc.accent.copy(alpha = 0.28f), secondaryContainer = tc.accent.copy(alpha = 0.28f)), typography = AppFont.typography) {
+                CompositionLocalProvider(LocalTh provides tc) { FixedFont { HomeScreen(resumeTick.intValue, againTick.intValue); SelfUpdHost(); ReceiveHost(); HomeDockHost(); SelfUpdBannerHost() } }
             }
                     }
         }
@@ -413,7 +415,8 @@ private fun HomeScreen(tick: Int, again: Int) {
     }
     // «Назад» на главном экране ничего не делает; в режиме перемещения заканчивает перемещение
     BackHandler {
-        if (movingItem != null || movingStatus != null) { movingItem = null; movingStatus = null }
+        if (HomeDock.hasFocus) { HomeDock.focusedPkgs.clear(); runCatching { firstReq.requestFocus() } }      // из дока «Назад» возвращает на «Дом»
+        else if (movingItem != null || movingStatus != null) { movingItem = null; movingStatus = null }
         else if (AllPanel.query.isNotEmpty()) AllPanel.query = ""      // в панели «Все приложения»: первое «Назад» сбрасывает поиск, следующее возвращает наверх «Дома»
         else bgScope.launch { scroll.animateScrollTo(0); runCatching { menuReq.requestFocus() } }
     }
@@ -482,7 +485,8 @@ private fun HomeScreen(tick: Int, again: Int) {
                         val viewH = maxHeight
                         Column(Modifier.fillMaxSize().nestedScroll(swipeMenu).verticalScroll(scroll)) {
                             // поля сверху и снизу: выбранный элемент увеличивается и не должен обрезаться краем прокручиваемой области
-                            Column(Modifier.padding(vertical = 10.dp)) {
+                            @Suppress("UNUSED_VARIABLE") val dockRev = HomeDock.rev.intValue
+                            Column(Modifier.padding(top = 10.dp, bottom = 10.dp + (if (HomeDock.on(ctx)) HomeDock.heightDp(ctx).dp else 0.dp))) {
                                 HomeRowsView(
                                     layout, apps, tick, refreshTick, movingItem, firstReq,
                                     openApp = openApp, openMenu = { openMenu() }, onDlg = { dlg = it }, onMoveEnd = { movingItem = null },

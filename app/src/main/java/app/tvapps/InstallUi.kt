@@ -220,7 +220,7 @@ fun InstallDialog(files: List<ApkFile>, onClose: () -> Unit) {
                         ) {
                             Text(f.name, color = t.text, fontSize = 14.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text((f.size / 1024 / 1024).toString() + " MB", color = t.hint, fontSize = 11.sp)
-                            Switch(on, null)
+                            BigCheck(on, t.accent, t.sub)
                         }
                     }
                 }
@@ -238,9 +238,9 @@ fun InstallDialog(files: List<ApkFile>, onClose: () -> Unit) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (res == null) {
                     // порядок по просьбе пользователя: сначала «Установить», потом «Отмена»
-                    Chip(stringResource(R.string.install_go, chosen.size), true, Modifier.focusRequester(fr)) {
+                    ActionRow(HIcons.download, stringResource(R.string.install_go, chosen.size), "", Modifier.focusRequester(fr)) {
                         val picked = files.filter { it.name in chosen }
-                        if (picked.isEmpty() || busy) return@Chip
+                        if (picked.isEmpty() || busy) return@ActionRow
                         if (Adb.isConnected) {
                             busy = true
                             results = emptyList()
@@ -274,11 +274,11 @@ fun InstallDialog(files: List<ApkFile>, onClose: () -> Unit) {
                         }
                     }
                     Chip(stringResource(R.string.cancel), false) { if (!busy) onClose() }
-                    Chip(stringResource(R.string.install_log_btn), false) { logOpen = true }
+                    ActionRow(HIcons.list, stringResource(R.string.install_log_btn)) { logOpen = true }
                 } else {
                     Chip(stringResource(R.string.close), !busy, Modifier.focusRequester(fr)) { if (!busy) onClose() }
-                    if (!busy && fixable.isNotEmpty()) Chip(stringResource(R.string.install_fix_btn, fixable.size), false) { fixAsk = true }
-                    Chip(stringResource(R.string.install_log_btn), false) { logOpen = true }
+                    if (!busy && fixable.isNotEmpty()) ActionRow(HIcons.gear, stringResource(R.string.install_fix_btn, fixable.size)) { fixAsk = true }
+                    ActionRow(HIcons.list, stringResource(R.string.install_log_btn)) { logOpen = true }
                 }
             }
         }
@@ -308,7 +308,7 @@ private fun FixDialog(items: List<Pair<ApkFile, Batch.Fix>>, system: Boolean = f
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Chip(stringResource(R.string.cancel), true, Modifier.focusRequester(fr)) { onNo() }
-                Chip(stringResource(R.string.install_fix_yes), false) { onYes() }
+                ActionRow(HIcons.refresh, stringResource(R.string.install_fix_yes)) { onYes() }
             }
         }
     }
@@ -341,7 +341,7 @@ fun InstallLogDialog(onClose: () -> Unit) {
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Chip(stringResource(R.string.close), true, Modifier.focusRequester(fr)) { onClose() }
-                if (rows.isNotEmpty()) Chip(stringResource(R.string.wifi_clear), false) { InstallLog.clear(ctx); rows = emptyList() }
+                if (rows.isNotEmpty()) ActionRow(HIcons.trash, stringResource(R.string.wifi_clear)) { InstallLog.clear(ctx); rows = emptyList() }
             }
         }
     }

@@ -113,7 +113,7 @@ fun UpdatesDialog(pkg: String, label: String, onClose: () -> Unit) {
             Text(stringResource(R.string.upd_hint), color = t.hint, fontSize = 12.sp)
             if (status.isNotEmpty()) Text(status, color = t.accent, fontSize = 14.sp)
             FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Chip(stringResource(R.string.upd_check_again), false, Modifier.focusRequester(first)) { if (!busy) tick++ }
+                ActionRow(HIcons.refresh, stringResource(R.string.upd_check_again), "", Modifier.focusRequester(first)) { if (!busy) tick++ }
                 Chip(stringResource(R.string.close), true) { onClose() }
             }
             val r = res
@@ -134,7 +134,7 @@ fun UpdatesDialog(pkg: String, label: String, onClose: () -> Unit) {
                                 )
                             }
                             if (Updates.isNewer(c, r.instName, r.instCode) && !c.manual) {
-                                Chip(stringResource(R.string.upd_install), false) {
+                                ActionRow(HIcons.download, stringResource(R.string.upd_install)) {
                                     run { updResultText(ctx, Updates.install(ctx, r, c) { s -> status = s }) }
                                 }
                             }
@@ -309,10 +309,10 @@ fun UpdatesAllDialog(onClose: () -> Unit) {
             if (status.isNotEmpty()) Text(status, color = t.accent, fontSize = 14.sp)
             else if (list != null) Text(if (withUpd.isEmpty()) stringResource(R.string.upd_nothing_new) else stringResource(R.string.upd_found, withUpd.size), color = t.sub, fontSize = 14.sp)
             FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Chip(stringResource(R.string.upd_check), false, Modifier.focusRequester(first)) { check(list != null) }
-                if (updatable.isNotEmpty()) Chip(stringResource(R.string.upd_update_all, updatable.size), true) {
-                    if (busy) return@Chip
-                    if (!Adb.isConnected) { status = ctx.getString(R.string.upd_need_adb_all); return@Chip }
+                ActionRow(HIcons.refresh, stringResource(R.string.upd_check), "", Modifier.focusRequester(first)) { check(list != null) }
+                if (updatable.isNotEmpty()) ActionRow(HIcons.download, stringResource(R.string.upd_update_all, updatable.size)) {
+                    if (busy) return@ActionRow
+                    if (!Adb.isConnected) { status = ctx.getString(R.string.upd_need_adb_all); return@ActionRow }
                     scope.launch {
                         busy = true
                         var ok = 0
@@ -327,9 +327,9 @@ fun UpdatesAllDialog(onClose: () -> Unit) {
                     }
                 }
                 if (skippedN > 0) Chip(stringResource(if (showSkipped) R.string.upd_hide_skipped else R.string.upd_show_skipped, skippedN), false) { showSkipped = !showSkipped }
-                Chip(stringResource(R.string.upd_sources), false) { sources = true }
+                ActionRow(HIcons.list, stringResource(R.string.upd_sources)) { sources = true }
                 Chip(stringResource(R.string.upd_auto) + if (Cfg.autoUpd) " ✓" else "", Cfg.autoUpd) { auto = true }
-                Chip(stringResource(R.string.upd_token), false) { token = true }
+                ActionRow(HIcons.gear, stringResource(R.string.upd_token)) { token = true }
                 Chip(stringResource(R.string.close), true) { onClose() }
             }
             BarLazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -344,8 +344,8 @@ fun UpdatesAllDialog(onClose: () -> Unit) {
                                 color = t.hint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                             )
                         }
-                        Chip(stringResource(R.string.upd_update), false) {
-                            if (busy) return@Chip
+                        ActionRow(HIcons.download, stringResource(R.string.upd_update)) {
+                            if (busy) return@ActionRow
                             scope.launch {
                                 busy = true
                                 status = ctx.getString(R.string.ver_working)
@@ -355,7 +355,8 @@ fun UpdatesAllDialog(onClose: () -> Unit) {
                                 busy = false
                             }
                         }
-                        Chip(stringResource(R.string.upd_details), false) { single = a }
+                        if (c.body.isNotBlank()) ActionRow(HIcons.list, stringResource(R.string.notes_btn)) { SelfUpd.notes = c }
+                        ActionRow(HIcons.list, stringResource(R.string.upd_details)) { single = a }
                         Chip(stringResource(if (skipped) R.string.upd_unskip else R.string.upd_skip), skipped) { Cfg.toggleUpdSkip(a.pkg) }
                     }
                 }

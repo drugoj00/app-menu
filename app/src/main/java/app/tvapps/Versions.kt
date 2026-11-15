@@ -192,7 +192,7 @@ object AppBackups {
         var r = Adb.installFiles(files, "-r -d")
         if (r.contains("Success", true)) return@withContext "ok"
         if (system) return@withContext "fail:" + r.take(140)
-        val u = Adb.shell("pm uninstall -k $pkg")
+        val u = Adb.uninstall(pkg, true)
         if (u.contains("Success", true)) {
             r = Adb.installFiles(files, "-r")
             if (r.contains("Success", true)) return@withContext "ok"
@@ -269,14 +269,14 @@ fun VersionsDialog(pkg: String, label: String, onClose: () -> Unit) {
             Text(stringResource(R.string.ver_hint), color = t.hint, fontSize = 12.sp)
             if (status.isNotEmpty()) Text(status, color = t.accent, fontSize = 14.sp)
             FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Chip(stringResource(R.string.ver_fdroid), false, Modifier.focusRequester(first)) {
+                ActionRow(HIcons.open, stringResource(R.string.ver_fdroid), "", Modifier.focusRequester(first)) {
                     run {
                         fd = null
                         fd = NetSearch.fdroidVersions(pkg)
                         if (fd.isNullOrEmpty()) ctx.getString(R.string.ver_fdroid_none) else ""
                     }
                 }
-                Chip(stringResource(R.string.ver_file), false) { if (!busy) browser = true }
+                ActionRow(HIcons.folder, stringResource(R.string.ver_file)) { if (!busy) browser = true }
                 Chip(stringResource(R.string.close), true) { onClose() }
             }
             BarLazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -291,10 +291,10 @@ fun VersionsDialog(pkg: String, label: String, onClose: () -> Unit) {
                             Text("${c.versionName} (${c.versionCode})", color = t.text, fontSize = 16.sp, fontWeight = FontWeight.Medium)
                             Text("${when_(c.savedAt)} · ${mb(c.size)} " + stringResource(R.string.mb), color = t.hint, fontSize = 12.sp)
                         }
-                        Chip(stringResource(R.string.ver_install), installed?.second == c.versionCode) {
+                        ActionRow(HIcons.download, stringResource(R.string.ver_install)) {
                             run { resultText(ctx, AppBackups.installFiles(ctx, pkg, c.files, c.versionCode)) }
                         }
-                        Chip(stringResource(R.string.ver_delete_copy), false) { AppBackups.delete(c); tick++ }
+                        ActionRow(HIcons.trash, stringResource(R.string.ver_delete_copy)) { AppBackups.delete(c); tick++ }
                     }
                 }
                 val list = fd
@@ -306,7 +306,7 @@ fun VersionsDialog(pkg: String, label: String, onClose: () -> Unit) {
                             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             Text("${v.name} (${v.code})", color = t.text, fontSize = 16.sp, modifier = Modifier.weight(1f))
-                            Chip(stringResource(R.string.ver_download_install), installed?.second == v.code) {
+                            ActionRow(HIcons.download, stringResource(R.string.ver_download_install)) {
                                 run {
                                     val apk = NetSearch.download(ctx, v.url) { mbDone -> status = ctx.getString(R.string.net_downloading, v.name, mbDone.toInt()) }?.file
                                         ?: return@run ctx.getString(R.string.net_failed)
@@ -352,7 +352,7 @@ fun BackupsDialog(onClose: () -> Unit) {
                             Text(list.first().label, color = t.text, fontSize = 16.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(pkg + " · " + stringResource(R.string.backups_n, list.size) + if (AppBackups.installedVersion(ctx, pkg) == null) " · " + stringResource(R.string.ver_not_installed) else "", color = t.hint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
-                        Chip(stringResource(R.string.backups_open_versions), false) { open = pkg to list.first().label }
+                        ActionRow(HIcons.save, stringResource(R.string.backups_open_versions)) { open = pkg to list.first().label }
                     }
                 }
             }

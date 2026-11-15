@@ -403,7 +403,7 @@ object Batch {
                 if (good(text)) return@withContext InstallRes(f0.name, pkg, true, ctx.getString(R.string.install_fix_ok_over))
             }
             val backup = backupInstalled(ctx, pkg)
-            val un = runCatching { Adb.shell("pm uninstall " + (if (fix == Fix.DOWNGRADE) "-k " else "") + pkg) }.getOrDefault("")
+            val un = runCatching { Adb.uninstall(pkg, fix == Fix.DOWNGRADE) }.getOrDefault("")
             if (!un.contains("Success", true)) {
                 val why = friendlyReason(ctx, un).ifBlank { un.take(80) }
                 return@withContext InstallRes(f0.name, pkg, false, ctx.getString(R.string.install_fix_unfail) + ": " + why, raw = un)
@@ -425,7 +425,7 @@ object Batch {
         var ok = 0
         var bad = 0
         for (p in pkgs) {
-            val res = runCatching { Adb.shell("pm uninstall $p") }.getOrDefault("")
+            val res = runCatching { Adb.uninstall(p) }.getOrDefault("")
             if (res.contains("Success", true)) ok++ else bad++
         }
         return ok to bad

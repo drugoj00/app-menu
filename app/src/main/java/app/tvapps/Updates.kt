@@ -25,6 +25,8 @@ data class UpdCand(
     val size: Long = 0, val md5: String = "", val note: String = "", val manual: Boolean = false,
     /** SHA-256 файла из описания выпуска (строка «SHA-256 …»): если есть, скачанный файл без совпадения не ставится. */
     val sha256: String = "",
+    /** полное описание выпуска (GitHub): из него берётся текст «Что нового» (см. ReleaseNotes) */
+    val body: String = "",
 )
 
 /** Результат проверки одного приложения по всем источникам. */
@@ -253,7 +255,7 @@ object Updates {
             val sorted = sortByAbi(apks) { it.optString("name") }
             // сумма из описания выпуска: строка «SHA-256 <64 hex>»; берётся, только если в выпуске один APK
             val sum = if (sorted.size == 1) Regex("(?i)sha-?256[^0-9a-f]{0,8}([0-9a-f]{64})").find(j.optString("body"))?.groupValues?.get(1).orEmpty() else ""
-            val cand = UpdCand("github", name, 0, sorted.take(4).map { it.getString("browser_download_url") }, sorted.first().optLong("size"), note = "$user/$repo", sha256 = sum)
+            val cand = UpdCand("github", name, 0, sorted.take(4).map { it.getString("browser_download_url") }, sorted.first().optLong("size"), note = "$user/$repo", sha256 = sum, body = j.optString("body"))
             if (best == null || compareVersions(cand.versionName, best.versionName) > 0) best = cand
         }
         return best
