@@ -28,6 +28,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.foundation.focusable
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -184,21 +186,31 @@ private fun NotesDialog(c: UpdCand) {
     val scope = rememberCoroutineScope()
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
+    var textFocused by remember { mutableStateOf(false) }
+    val maxH = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.9f).dp
     HDialog(onDismissRequest = { SelfUpd.notes = null }) {
         Column(
-            Modifier.clip(RoundedCornerShape(20.dp)).background(t.tile).border(1.dp, t.border, RoundedCornerShape(20.dp)).padding(20.dp).fillMaxWidth(),
+            Modifier.heightIn(max = maxH).clip(RoundedCornerShape(20.dp)).background(t.tile).border(1.dp, t.border, RoundedCornerShape(20.dp)).padding(20.dp).fillMaxWidth()
+                .onPreviewKeyEvent { e ->
+                    // стрелки и «страница» листают текст при любом фокусе (на тексте или на кнопке «Закрыть»); когда дальше листать нечего, фокус идёт как обычно
+                    if (e.type != androidx.compose.ui.input.key.KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    val step = when (e.key) {
+                        androidx.compose.ui.input.key.Key.DirectionDown -> 1f
+                        androidx.compose.ui.input.key.Key.DirectionUp -> -1f
+                        androidx.compose.ui.input.key.Key.PageDown -> 4f
+                        androidx.compose.ui.input.key.Key.PageUp -> -4f
+                        else -> return@onPreviewKeyEvent false
+                    }
+                    if (if (step > 0) sc.canScrollForward else sc.canScrollBackward) { scope.launch { sc.animateScrollBy(step * 160f) }; true } else false
+                },
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(stringResource(R.string.notes_title, c.versionName), color = t.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             androidx.compose.foundation.layout.Box(
-                Modifier.heightIn(max = 340.dp).verticalScrollbar(sc)
-                    .onPreviewKeyEvent { e ->
-                        // стрелки вверх и вниз листают текст, когда фокус на кнопке «Закрыть» или на самом тексте
-                        if (e.type == androidx.compose.ui.input.key.KeyEventType.KeyDown && (e.key == androidx.compose.ui.input.key.Key.DirectionDown || e.key == androidx.compose.ui.input.key.Key.DirectionUp)) {
-                            val down = e.key == androidx.compose.ui.input.key.Key.DirectionDown
-                            if (if (down) sc.canScrollForward else sc.canScrollBackward) { scope.launch { sc.animateScrollBy(if (down) 160f else -160f) }; true } else false
-                        } else false
-                    }
+                Modifier.weight(1f, fill = false).verticalScrollbar(sc)
+                    .onFocusChanged { textFocused = it.isFocused }
+                    .then(if (textFocused) Modifier.border(2.dp, t.accent, RoundedCornerShape(8.dp)) else Modifier)
+                    .focusable()
                     .verticalScroll(sc).padding(end = ScrollbarMath.RESERVE_DP.dp),
             ) {
                 Text(text.ifBlank { stringResource(R.string.notes_none) }, color = t.text, fontSize = 15.sp)
