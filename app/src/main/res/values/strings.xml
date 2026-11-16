@@ -1088,7 +1088,7 @@
     <string name="install_noaccess">The program may not read files on this device, so no APK could be looked for. Allow “All files access” (Settings, Apps, App Menu, Permissions), connect ADB or root, or pick files in the system picker.</string>
     <string name="dock_m_hide">Hide the dock</string>
     <string name="dock_m_add">Add an app…</string>
-    <string name="dock_hide_pick">Hide apps in the dock</string>
+    <string name="dock_hide_pick">Do not show in the dock</string>
     <string name="dock_hide_h">Checked apps never show in the dock (chosen, auto-added or recent). Uncheck to bring them back.</string>
     <string name="dock_hide_title">Hidden in the dock</string>
     <string name="dock_add_h">Opens the list of all apps with checkboxes: checked ones go to the dock.</string>
@@ -1098,4 +1098,6 @@
     <string name="dock_behave">Behavior</string>
     <string name="dock_close_after">Close the dock after launching an app</string>
     <string name="dock_close_after_h">On: the dock hides after an app starts (from the dock or from the All apps panel) and returns with the Dock button or the key. Off: the dock stays (default).</string>
+    <string name="dock_m_hide_app">Hide the app from the menu</string>
+    <string name="dock_m_close_menu">Close this menu</string>
 </resources>
