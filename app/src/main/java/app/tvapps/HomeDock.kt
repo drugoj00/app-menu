@@ -93,9 +93,17 @@ object HomeDock {
 
     /** Вызывается из dispatchKeyEvent «Дома»: клавиша фокуса на док (если док включён). true: клавишу взяли. */
     fun onKey(ctx: Context, ev: android.view.KeyEvent): Boolean {
-        if (ev.action != android.view.KeyEvent.ACTION_DOWN || ev.repeatCount != 0 || !on(ctx)) return false
+        if (ev.action != android.view.KeyEvent.ACTION_DOWN || ev.repeatCount != 0) return false
         val want = when (keyMode(ctx)) { 1 -> android.view.KeyEvent.KEYCODE_MENU; 2 -> android.view.KeyEvent.KEYCODE_INFO; 3 -> keyCode(ctx); else -> -1 }
         if (want < 0 || ev.keyCode != want) return false
+        if (!on(ctx)) {
+            // режим «Закрывать после запуска»: скрытый док возвращается этой же клавишей
+            if (!closeAfter(ctx)) return false
+            setOn(ctx, true); focusTick.intValue++
+            return true
+        }
+        // повторное нажатие клавиши, пока фокус в доке, закрывает док
+        if (hasFocus) { focusedPkgs.clear(); setOn(ctx, false); return true }
         focusTick.intValue++
         return true
     }
@@ -135,7 +143,9 @@ object HomeDock {
     /** После запуска приложения из дока (и из панели «Все приложения») док закрыть (true) или оставить (false, по умолчанию). */
     fun closeAfter(c: Context) = sp(c).getBoolean("dock_close_after", false)
     fun setCloseAfter(c: Context, v: Boolean) { sp(c).edit().putBoolean("dock_close_after", v).apply(); rev.intValue++ }
-    fun afterLaunch(c: Context) { if (closeAfter(c) && on(c)) setOn(c, false) }
+    fun afterLaunch(c: Context) { if (closeAfter(c) && on(c)) { focusedPkgs.clear(); setOn(c, false) } }
+    /** Когда из дока открывали панель «Все приложения»: запуск из неё в течение двух минут тоже закрывает док (режим «Закрывать»). */
+    @Volatile var allOpenedAt = 0L
     fun labelSp(c: Context) = sp(c).getInt("dock_label_sp", 10)
     fun setLabelSp(c: Context, v: Int) { sp(c).edit().putInt("dock_label_sp", v.coerceIn(8, 16)).apply(); rev.intValue++ }
     fun scrollbar(c: Context) = sp(c).getBoolean("dock_scrollbar", false)
@@ -194,6 +204,8 @@ fun HomeDockHost() {
     val alpha = (100 - HomeDock.transp(ctx)).coerceIn(0, 100) / 100f
     val barBg = (if (light) Color(0xFFF5F5F5) else Color(0xFF101418)).copy(alpha = alpha)
     val txt = if (light) Color(0xFF111111) else Color.White
+    // тёмные подписи только на светлой панели, которая достаточно непрозрачна; иначе светлые с тёмной тенью (на прозрачной панели под ней картинка, обычно тёмная внизу)
+    val darkLabels = light && HomeDock.transp(ctx) < 60
     val iconDp = HomeDock.icon(ctx)
     val showLabels = HomeDock.labels(ctx)
     val align = when (HomeDock.align(ctx)) { 0 -> Alignment.CenterStart; 2 -> Alignment.CenterEnd; else -> Alignment.Center }
@@ -207,6 +219,7 @@ fun HomeDockHost() {
     // порядок хранится явно, как только его меняют (пустой список означает «Избранное»)
     fun materialize(): MutableList<String> = items.map { it.pkg }.toMutableList()
     val openAll = {
+        HomeDock.allOpenedAt = System.currentTimeMillis()
         if (Cfg.homeAllPanel) AllPanel.search("")
         else runCatching { ctx.startActivity(Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
         Unit
@@ -274,9 +287,9 @@ fun HomeDockHost() {
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Image(bmp, null, Modifier.size(iconDp.dp))
-                        if (showLabels) Text(e.label, color = if (focused) Color.White else txt, fontSize = HomeDock.labelSp(ctx).sp,
+                        if (showLabels) Text(e.label, color = if (focused || !darkLabels) Color.White else txt, fontSize = HomeDock.labelSp(ctx).sp,
                             // мягкая тень контрастного цвета: подпись читается на любой картинке и при прозрачной панели
-                            style = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(if (focused || !light) Color.Black.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.9f), androidx.compose.ui.geometry.Offset(0f, 1f), 5f)), maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+                            style = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(if (focused || !darkLabels) Color.Black.copy(alpha = 0.9f) else Color.White.copy(alpha = 0.9f), androidx.compose.ui.geometry.Offset(0f, 1f), 5f)), maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
                     }
                 }
                 items.forEachIndexed { idx, e -> androidx.compose.runtime.key("d" + e.pkg) { Cell(e, idx, true) } }
@@ -304,7 +317,7 @@ fun HomeDockHost() {
                 Opt(androidx.compose.ui.res.stringResource(R.string.dock_settings)) { closeBar(); HomeDock.openSettings(ctx) },
                 Opt(androidx.compose.ui.res.stringResource(R.string.dock_m_hide)) { closeBar(); HomeDock.setOn(ctx, false) },
                 Opt(androidx.compose.ui.res.stringResource(R.string.dock_m_add)) { closeBar(); HomeDock.openSettings(ctx, "dockapps") },
-                Opt(androidx.compose.ui.res.stringResource(R.string.close)) { closeBar() },
+                Opt(androidx.compose.ui.res.stringResource(R.string.dock_m_close_menu)) { closeBar() },
             ),
             closeBar,
         )
@@ -318,6 +331,7 @@ fun HomeDockHost() {
                 Opt(androidx.compose.ui.res.stringResource(R.string.dock_m_move)) { HomeDock.setSort(ctx, 0); HomeDock.setList(ctx, materialize()); HomeDock.moving.value = e.pkg; close() },
                 Opt(androidx.compose.ui.res.stringResource(R.string.dock_m_remove)) { val l = materialize(); l.remove(e.pkg); HomeDock.setList(ctx, l.ifEmpty { listOf() }); close() },
                 Opt(androidx.compose.ui.res.stringResource(R.string.dock_settings)) { close(); HomeDock.openSettings(ctx) },
+                Opt(androidx.compose.ui.res.stringResource(R.string.dock_m_hide_app)) { Cfg.toggleHidden(e.pkg); close() },
                 Opt(androidx.compose.ui.res.stringResource(if (fav) R.string.dock_m_unfav else R.string.dock_m_fav)) { Cfg.toggleFavorite(e.pkg); close() },
                 Opt(androidx.compose.ui.res.stringResource(R.string.close)) { close() },
             ),

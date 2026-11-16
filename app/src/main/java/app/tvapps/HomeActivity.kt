@@ -384,7 +384,7 @@ private fun HomeScreen(tick: Int, again: Int) {
     val openApp: (Entry) -> Unit = { e ->
         Cfg.countLaunch(e.pkg)
         runCatching { ctx.startActivity(e.launch) }.onFailure { Toast.makeText(ctx, ctx.getString(R.string.cant_open), Toast.LENGTH_SHORT).show() }
-        if (AllPanel.focusInside) HomeDock.afterLaunch(ctx)   // запуск из панели «Все приложения»: док по настройке закрывается
+        if (AllPanel.focusInside || System.currentTimeMillis() - HomeDock.allOpenedAt < 120_000) HomeDock.afterLaunch(ctx)   // запуск из панели «Все приложения»: док по настройке закрывается
     }
     val openMenu = {
         if (!Cfg.menuOff) {
@@ -416,7 +416,7 @@ private fun HomeScreen(tick: Int, again: Int) {
     }
     // «Назад» на главном экране ничего не делает; в режиме перемещения заканчивает перемещение
     BackHandler {
-        if (HomeDock.hasFocus) { HomeDock.focusedPkgs.clear(); runCatching { firstReq.requestFocus() } }      // из дока «Назад» возвращает на «Дом»
+        if (HomeDock.hasFocus) { HomeDock.focusedPkgs.clear(); runCatching { firstReq.requestFocus() }; if (HomeDock.closeAfter(ctx)) HomeDock.setOn(ctx, false) }      // из дока «Назад» возвращает на «Дом»
         else if (movingItem != null || movingStatus != null) { movingItem = null; movingStatus = null }
         else if (AllPanel.query.isNotEmpty()) AllPanel.query = ""      // в панели «Все приложения»: первое «Назад» сбрасывает поиск, следующее возвращает наверх «Дома»
         else bgScope.launch { scroll.animateScrollTo(0); runCatching { menuReq.requestFocus() } }

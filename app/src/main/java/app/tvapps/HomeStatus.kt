@@ -349,7 +349,7 @@ internal fun HomeTopBar(
         // кнопка «Док-панель» (по умолчанию включена, отключается в «Верхней полоске»): нажатие показывает док или переводит фокус в него, повторное скрывает; долгое: меню верхней полоски
         if (HomeDock.btn(ctx)) HomeBox(
             shape = androidx.compose.foundation.shape.RoundedCornerShape(barR(14.dp)), bg = barBg(t.tile), edge = barEdge(t.accent),
-            onClick = { if (!HomeDock.on(ctx)) { HomeDock.setOn(ctx, true); HomeDock.focusTick.intValue++ } else if (HomeDock.hasFocus) HomeDock.setOn(ctx, false) else HomeDock.focusTick.intValue++ },
+            onClick = { if (!HomeDock.on(ctx)) { HomeDock.setOn(ctx, true); HomeDock.focusTick.intValue++ } else { HomeDock.focusedPkgs.clear(); HomeDock.setOn(ctx, false) } },
             onLong = { HomeDock.openSettings(ctx) },
         ) { BarIcon(HIcons.dock, ctx.getString(R.string.dock_btn), t.accent, (if (big) 34f else 26f).times(sc).dp, (if (big) 9f else 7f).times(sc).dp) }
         // «Очистка памяти»: после «Недавних»; на телефоне и планшете тоже (кнопка небольшая)
