@@ -39,6 +39,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -379,10 +380,26 @@ private fun HomeAppTile(
     val sizeDp = row.size * scale
     val wDp = if (banner) sizeDp * 16f / 9f else sizeDp
     val radius = item.radius.dp
-    val custom = if (item.img) remember(item.id, HomeStore.imgTick) { HomeImg.load(ctx, item.id)?.asImageBitmap() } else null
+    // своя картинка плитки: первая попытка сразу (как раньше); если файл есть, а прочитать не вышло (нехватка памяти сразу после установки или запуска),
+    // чтение повторяется, чтобы баннер не оставался значком до перезапуска
+    val custom0 = if (item.img) remember(item.id, HomeStore.imgTick) { HomeImg.load(ctx, item.id)?.asImageBitmap() } else null
+    val customRetry by produceState<ImageBitmap?>(null, item.id, HomeStore.imgTick, custom0 == null && item.img) {
+        if (custom0 != null || !item.img) return@produceState
+        var tries = 0
+        while (tries++ < 10 && value == null) {
+            kotlinx.coroutines.delay(1500)
+            value = withContext(Dispatchers.IO) { HomeImg.load(ctx, item.id)?.asImageBitmap() }
+        }
+    }
+    val custom = custom0 ?: customRetry
     val bannerBmp by produceState<Bitmap?>(el.entry?.let { Banners.peek(it.pkg) }, el.entry?.pkg, banner) {
         val e = el.entry
-        if (banner && e != null && value == null) value = withContext(Dispatchers.IO) { Banners.load(ctx, e) }
+        if (banner && e != null && value == null) {
+            value = withContext(Dispatchers.IO) { Banners.load(ctx, e) }
+            // сбой чтения (не «баннера нет») повторяется: после установки или запуска памяти бывает мало
+            var tries = 0
+            while (value == null && !Banners.isNone(e.pkg) && tries++ < 6) { kotlinx.coroutines.delay(1500); value = withContext(Dispatchers.IO) { Banners.load(ctx, e) } }
+        }
     }
     val iconBmp = el.entry?.let { e -> remember(e.pkg, e.icon, e.bmp) { e.bmp ?: e.icon.toBitmap(128, 128).asImageBitmap() } }
     val card = when (item.bg) { 1 -> false; 2 -> true; else -> banner }

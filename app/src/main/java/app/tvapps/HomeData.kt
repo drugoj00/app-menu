@@ -134,6 +134,7 @@ object Banners {
     private val none = HashSet<String>()
 
     fun peek(pkg: String): Bitmap? = cache.get(pkg)
+    fun isNone(pkg: String): Boolean = pkg in none
 
     /** Баннер приложения для телевизора (если у него есть); вызывать не из главного потока. */
     fun load(ctx: Context, e: Entry): Bitmap? {
@@ -144,8 +145,10 @@ object Banners {
             ?: runCatching { pm.getApplicationBanner(e.pkg) }.getOrNull()
         // «баннер» почти квадратный (по сути значок приложения) растянулся бы и выглядел плохо: считаем, что баннера нет
         val ratio = if (d != null && d.intrinsicWidth > 0 && d.intrinsicHeight > 0) d.intrinsicWidth.toFloat() / d.intrinsicHeight else 1.78f
-        val bmp = d?.takeIf { ratio >= 1.5f }?.let { runCatching { it.toBitmap(320, 180) }.getOrNull() }
-        if (bmp != null) cache.put(e.pkg, bmp) else none += e.pkg
+        val ok = d != null && ratio >= 1.5f
+        val bmp = if (ok) runCatching { d!!.toBitmap(320, 180) }.getOrNull() else null
+        // «нет баннера» запоминается только если его правда нет; сбой чтения (память) не запоминается, следующая попытка повторит
+        if (bmp != null) cache.put(e.pkg, bmp) else if (!ok) none += e.pkg
         return bmp
     }
 }

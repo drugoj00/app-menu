@@ -11,6 +11,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.horizontalScroll
@@ -128,14 +129,27 @@ object HomeDock {
     fun setRecentN(c: Context, v: Int) { sp(c).edit().putInt("dock_recent_n", v.coerceIn(1, 8)).apply(); rev.intValue++ }
     /** Недавно запущенные приложения (не из основной секции дока): отдельная секция после разделителя. */
     fun recentApps(c: Context, all: List<Entry>, exclude: Set<String>): List<Entry> =
-        all.filter { !it.system && !Cfg.isHidden(it.pkg) && it.pkg !in exclude && Cfg.lastLaunch(it.pkg) > 0 }.sortedByDescending { Cfg.lastLaunch(it.pkg) }.take(recentN(c))
-    fun align(c: Context) = sp(c).getInt("dock_align", 1)
+        all.filter { !it.system && !Cfg.isHidden(it.pkg) && it.pkg !in hiddenList(c) && it.pkg !in exclude && Cfg.lastLaunch(it.pkg) > 0 }.sortedByDescending { Cfg.lastLaunch(it.pkg) }.take(recentN(c))
+    fun align(c: Context) = sp(c).getInt("dock_align", 0)   // по умолчанию слева (как в Pulsar); уже выбранное значение не меняется
+    fun labelSp(c: Context) = sp(c).getInt("dock_label_sp", 10)
+    fun setLabelSp(c: Context, v: Int) { sp(c).edit().putInt("dock_label_sp", v.coerceIn(8, 16)).apply(); rev.intValue++ }
+    fun scrollbar(c: Context) = sp(c).getBoolean("dock_scrollbar", false)
+    fun setScrollbar(c: Context, v: Boolean) { sp(c).edit().putBoolean("dock_scrollbar", v).apply(); rev.intValue++ }
+    /** Приложения, которые не показываются в доке (ни выбранные, ни автодобавление, ни недавние); отдельно от общего «Скрытые приложения». */
+    fun hiddenList(c: Context): List<String> = (sp(c).getString("dock_hidden", "") ?: "").split(',').filter { it.isNotBlank() }
+    fun setHiddenList(c: Context, l: List<String>) { sp(c).edit().putString("dock_hidden", l.joinToString(",")).apply(); rev.intValue++ }
+    /** Открыть настройки программы сразу на группе «Док». */
+    fun openSettings(c: Context, sub: String? = null) {
+        SettingsGroups.last = "dock"; SettingsGroups.openSub = sub; SettingsGroups.reqTick++
+        c.startActivity(Intent(c, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("from_home", true).putExtra("screen", "settings"))
+    }
     fun setAlign(c: Context, v: Int) { sp(c).edit().putInt("dock_align", v).apply(); rev.intValue++ }
 
     /** Приложения дока по порядку: выбор пользователя, а если он пуст, то «Избранное»; не больше заданного числа. */
     fun shown(c: Context, all0: List<Entry>): List<Entry> {
         // скрытые владельцем приложения в доке не показываются нигде (ни при выборе, ни при пустом списке, ни при автодобавлении)
-        val all = all0.filter { !Cfg.isHidden(it.pkg) }
+        val dh = hiddenList(c).toSet()
+        val all = all0.filter { !Cfg.isHidden(it.pkg) && it.pkg !in dh }
         val byPkg = all.associateBy { it.pkg }
         val src = list(c).ifEmpty { Cfg.favorites }.ifEmpty { all.filter { !it.system }.sortedByDescending { Cfg.launches(it.pkg) }.map { it.pkg } }
         var res = src.mapNotNull { byPkg[it] }
@@ -181,6 +195,7 @@ fun HomeDockHost() {
     val sel = androidx.compose.runtime.rememberCoroutineScope()
     val cellPx = with(LocalDensity.current) { (iconDp + 26).dp.toPx() }
     var menuFor by remember { mutableStateOf<Entry?>(null) }
+    var barMenu by remember { mutableStateOf(false) }
     val firstReq = remember { androidx.compose.ui.focus.FocusRequester() }
     val cellReqs = remember { mutableMapOf<String, androidx.compose.ui.focus.FocusRequester>() }
     androidx.compose.runtime.LaunchedEffect(HomeDock.focusTick.intValue) { if (HomeDock.focusTick.intValue > 0) { runCatching { firstReq.requestFocus() } } }
@@ -192,8 +207,11 @@ fun HomeDockHost() {
         Unit
     }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
-        Box(Modifier.fillMaxWidth().padding(bottom = HomeDock.bottom(ctx).dp).clip(RoundedCornerShape(HomeDock.radius(ctx).dp)).background(barBg), contentAlignment = align) {
-            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.fillMaxWidth().padding(bottom = HomeDock.bottom(ctx).dp).clip(RoundedCornerShape(HomeDock.radius(ctx).dp)).background(barBg)
+            // долгое нажатие на пустом месте дока: меню дока (значки обрабатывают своё долгое нажатие сами)
+            .pointerInput(Unit) { detectTapGestures(onLongPress = { barMenu = true }) }, contentAlignment = align) {
+            val dockScroll = rememberScrollState()
+            Row(Modifier.horizontalScroll(dockScroll).padding(horizontal = 8.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                 @Composable
                 fun Cell(e: Entry, idx: Int, movable: Boolean) {
                     var focused by remember { mutableStateOf(false) }
@@ -251,7 +269,7 @@ fun HomeDockHost() {
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Image(bmp, null, Modifier.size(iconDp.dp))
-                        if (showLabels) Text(e.label, color = if (focused) Color.White else txt, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+                        if (showLabels) Text(e.label, color = if (focused) Color.White else txt, fontSize = HomeDock.labelSp(ctx).sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
                     }
                 }
                 items.forEachIndexed { idx, e -> androidx.compose.runtime.key("d" + e.pkg) { Cell(e, idx, true) } }
@@ -263,6 +281,19 @@ fun HomeDockHost() {
             }
         }
     }
+    if (barMenu) {
+        val closeBar = { barMenu = false }
+        ListDialog(
+            androidx.compose.ui.res.stringResource(R.string.dock_title),
+            listOf(
+                Opt(androidx.compose.ui.res.stringResource(R.string.dock_settings)) { closeBar(); HomeDock.openSettings(ctx) },
+                Opt(androidx.compose.ui.res.stringResource(R.string.dock_m_hide)) { closeBar(); HomeDock.setOn(ctx, false) },
+                Opt(androidx.compose.ui.res.stringResource(R.string.dock_m_add)) { closeBar(); HomeDock.openSettings(ctx, "dockapps") },
+                Opt(androidx.compose.ui.res.stringResource(R.string.close)) { closeBar() },
+            ),
+            closeBar,
+        )
+    }
     menuFor?.let { e ->
         val close = { menuFor = null }
         val fav = Cfg.isFavorite(e.pkg)
@@ -271,6 +302,7 @@ fun HomeDockHost() {
             listOf(
                 Opt(androidx.compose.ui.res.stringResource(R.string.dock_m_move)) { HomeDock.setSort(ctx, 0); HomeDock.setList(ctx, materialize()); HomeDock.moving.value = e.pkg; close() },
                 Opt(androidx.compose.ui.res.stringResource(R.string.dock_m_remove)) { val l = materialize(); l.remove(e.pkg); HomeDock.setList(ctx, l.ifEmpty { listOf() }); close() },
+                Opt(androidx.compose.ui.res.stringResource(R.string.dock_settings)) { close(); HomeDock.openSettings(ctx) },
                 Opt(androidx.compose.ui.res.stringResource(if (fav) R.string.dock_m_unfav else R.string.dock_m_fav)) { Cfg.toggleFavorite(e.pkg); close() },
                 Opt(androidx.compose.ui.res.stringResource(R.string.close)) { close() },
             ),

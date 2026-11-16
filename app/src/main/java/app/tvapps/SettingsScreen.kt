@@ -553,6 +553,8 @@ private fun SwitchRow(title: String, checked: Boolean, hints: List<String> = emp
 /** Какая группа настроек открыта (помнится, пока жив процесс). */
 internal object SettingsGroups {
     var last: String = "updates"
+    /** Запрос открыть группу из другого места (кнопка «Док-панель», меню дока): уже открытые настройки переключаются на нужную группу. */
+    var reqTick by androidx.compose.runtime.mutableStateOf(0)
     val ids = listOf("updates", "ui", "menu", "home", "dock", "wall", "widgets", "dl", "auto", "files", "system")
     fun icon(id: String) = when (id) {
         "updates" -> HIcons.refresh; "ui" -> HIcons.eye; "menu" -> HIcons.apps; "home" -> HIcons.home; "dock" -> HIcons.recent; "wall" -> HIcons.eye; "widgets" -> HIcons.list; "dl" -> HIcons.download; "auto" -> HIcons.recent; "files" -> HIcons.folder; else -> HIcons.gear
@@ -644,6 +646,8 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
     val wide = tvMode || androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     var grp by remember { mutableStateOf(SettingsGroups.last.takeIf { it in SettingsGroups.ids } ?: "updates") }
     var query by remember { mutableStateOf("") }
+    val groupReq = SettingsGroups.reqTick
+    LaunchedEffect(groupReq) { if (groupReq > 0) SettingsGroups.last.takeIf { it in SettingsGroups.ids }?.let { grp = it; query = "" } }
     var homeBgDlg by remember { mutableStateOf(false) }
     var dockKeyDlg by remember { mutableStateOf(false) }
     val openBlk = remember { androidx.compose.runtime.mutableStateListOf("ui_a", "ui_b", "hm_a", "sy_b") }

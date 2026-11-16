@@ -350,7 +350,7 @@ internal fun HomeTopBar(
         if (HomeDock.btn(ctx)) HomeBox(
             shape = androidx.compose.foundation.shape.RoundedCornerShape(barR(14.dp)), bg = barBg(t.tile), edge = barEdge(t.accent),
             onClick = { if (!HomeDock.on(ctx)) { HomeDock.setOn(ctx, true); HomeDock.focusTick.intValue++ } else if (HomeDock.hasFocus) HomeDock.setOn(ctx, false) else HomeDock.focusTick.intValue++ },
-            onLong = onTopLong,
+            onLong = { HomeDock.openSettings(ctx) },
         ) { BarIcon(HIcons.dock, ctx.getString(R.string.dock_btn), t.accent, (if (big) 34f else 26f).times(sc).dp, (if (big) 9f else 7f).times(sc).dp) }
         // «Очистка памяти»: после «Недавних»; на телефоне и планшете тоже (кнопка небольшая)
         if (top.clean) {

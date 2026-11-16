@@ -708,12 +708,15 @@ private fun HdTop(e: HdEnv) {
     var lookAll by e.lookAllS
     var wgAll by e.wgAllS
             val top = HomeStore.layout.top
+            // подпись «Вкл/Выкл» кнопки «Док-панель» читается из настроек: окно подписано на счётчик изменений, иначе после нажатия оставалось прежнее значение
+            @Suppress("UNUSED_VARIABLE") val dockRev = HomeDock.rev.intValue
             val opts = buildList {
                 add(Opt(stringResource(R.string.d_program_settings)) { openAppSettings() })      // настройки программы — первой строкой
                 add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома» — второй
                 add(Opt(stringResource(R.string.top_big), onOff(top.big, on, off), onClick = { HomeStore.updateTop { it.copy(big = !it.big) } }))
                 add(Opt(stringResource(R.string.top_recent), onOff(top.recent, on, off), onClick = { HomeStore.updateTop { it.copy(recent = !it.recent) } }))
                 add(Opt(stringResource(R.string.dock_btn), onOff(HomeDock.btn(ctx), on, off), onClick = { HomeDock.setBtn(ctx, !HomeDock.btn(ctx)) }))
+                add(Opt(stringResource(R.string.dock_settings)) { close(); HomeDock.openSettings(ctx) })
                 add(Opt(stringResource(R.string.top_clean), onOff(top.clean, on, off), onClick = { HomeStore.updateTop { it.copy(clean = !it.clean) } }))
                 add(Opt(stringResource(R.string.top_hdmi), onOff(top.hdmi, on, off), onClick = { HomeStore.updateTop { it.copy(hdmi = !it.hdmi) } }))
                 add(Opt(stringResource(R.string.top_search), onOff(top.search, on, off), onClick = { HomeStore.updateTop { it.copy(search = !it.search) } }))
