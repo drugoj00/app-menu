@@ -277,6 +277,7 @@ private fun HdRowD(dlg: Dlg.RowD, e: HdEnv) {
                     }
                     else -> {
                         add(Opt(stringResource(R.string.row_slots), "${row.slots.size}", { HomeStore.setSlotCount(row.id, row.slots.size - 1) }, { HomeStore.setSlotCount(row.id, row.slots.size + 1) }))
+                        add(Opt(stringResource(R.string.row_size_widgets), "${row.size}", { HomeStore.updateRow(row.id) { it.copy(size = (it.size - 1).coerceAtLeast(60)) } }, { HomeStore.updateRow(row.id) { it.copy(size = (it.size + 1).coerceAtMost(320)) } }, range = 60..320))
                         // оформление виджетов прямо в настройках строки (всем виджетам строки сразу); по одному: долгое нажатие на виджет
                         val w0 = row.slots.firstOrNull()
                         if (w0 != null) {
@@ -509,9 +510,9 @@ private fun HdWidgetD(dlg: Dlg.WidgetD, e: HdEnv) {
                 val setSz = { i: Int -> val p = sizeP[i.coerceIn(0, 2)]; HomeStore.updateRow(row.id) { r -> r.copy(size = p.first, slots = r.slots.map { s -> s.copy(fs = p.second) }) } }
                 add(Opt(stringResource(R.string.wg_size), if (curSz >= 0) stringResource(sizeN[curSz]) else stringResource(R.string.wg_size_custom),
                     { setSz(if (curSz >= 0) curSz - 1 else nearSz) }, { setSz(if (curSz >= 0) curSz + 1 else nearSz) }, onClick = { setSz(if (curSz >= 0) (curSz + 1) % 3 else nearSz) }))
+                add(Opt(stringResource(R.string.row_size_widgets), "${row.size}", { HomeStore.updateRow(row.id) { it.copy(size = (it.size - 1).coerceAtLeast(60)) } }, { HomeStore.updateRow(row.id) { it.copy(size = (it.size + 1).coerceAtMost(320)) } }, range = 60..320))
                 add(Opt(stringResource(R.string.wg_size_fine), if (sizeFine) "▴" else "▾", onClick = { sizeFine = !sizeFine }))
                 if (sizeFine) {
-                    add(Opt(stringResource(R.string.row_size_widgets), "${row.size}", { HomeStore.updateRow(row.id) { it.copy(size = (it.size - 1).coerceAtLeast(60)) } }, { HomeStore.updateRow(row.id) { it.copy(size = (it.size + 1).coerceAtMost(320)) } }, range = 60..320))
                     add(Opt(stringResource(R.string.wg_font), "${w.fs}%", { upd { it.copy(fs = (it.fs - 1).coerceAtLeast(50)) } }, { upd { it.copy(fs = (it.fs + 1).coerceAtMost(250)) } }, range = 50..250))
                     if (row.slots.size > 1) add(Opt(stringResource(R.string.wg_width), "${HomeStore.widgetShare(row, dlg.slot)}%", { HomeStore.setWidgetShare(row.id, dlg.slot, HomeStore.widgetShare(row, dlg.slot) - 1) }, { HomeStore.setWidgetShare(row.id, dlg.slot, HomeStore.widgetShare(row, dlg.slot) + 1) }))
                 }
