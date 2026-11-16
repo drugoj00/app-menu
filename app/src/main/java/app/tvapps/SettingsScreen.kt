@@ -461,7 +461,7 @@ private fun DockAppsPane(ctx: android.content.Context, apps: List<Entry>) {
         Text(stringResource(R.string.dock_order), color = t.sub, fontSize = btnSp(13), modifier = Modifier.padding(bottom = 6.dp))
         sel.forEachIndexed { i, pkg -> androidx.compose.runtime.key("s" + pkg) { row(pkg, byPkg[pkg], true, i) } }
         Text(stringResource(R.string.dock_all), color = t.sub, fontSize = btnSp(13), modifier = Modifier.padding(top = 12.dp, bottom = 6.dp))
-        apps.filter { it.pkg !in sel && !it.system }.forEach { e -> androidx.compose.runtime.key("a" + e.pkg) { row(e.pkg, e, false, -1) } }
+        apps.filter { it.pkg !in sel && !it.system && !Cfg.isHidden(it.pkg) }.forEach { e -> androidx.compose.runtime.key("a" + e.pkg) { row(e.pkg, e, false, -1) } }
     }
 }
 

@@ -128,12 +128,14 @@ object HomeDock {
     fun setRecentN(c: Context, v: Int) { sp(c).edit().putInt("dock_recent_n", v.coerceIn(1, 8)).apply(); rev.intValue++ }
     /** Недавно запущенные приложения (не из основной секции дока): отдельная секция после разделителя. */
     fun recentApps(c: Context, all: List<Entry>, exclude: Set<String>): List<Entry> =
-        all.filter { !it.system && it.pkg !in exclude && Cfg.lastLaunch(it.pkg) > 0 }.sortedByDescending { Cfg.lastLaunch(it.pkg) }.take(recentN(c))
+        all.filter { !it.system && !Cfg.isHidden(it.pkg) && it.pkg !in exclude && Cfg.lastLaunch(it.pkg) > 0 }.sortedByDescending { Cfg.lastLaunch(it.pkg) }.take(recentN(c))
     fun align(c: Context) = sp(c).getInt("dock_align", 1)
     fun setAlign(c: Context, v: Int) { sp(c).edit().putInt("dock_align", v).apply(); rev.intValue++ }
 
     /** Приложения дока по порядку: выбор пользователя, а если он пуст, то «Избранное»; не больше заданного числа. */
-    fun shown(c: Context, all: List<Entry>): List<Entry> {
+    fun shown(c: Context, all0: List<Entry>): List<Entry> {
+        // скрытые владельцем приложения в доке не показываются нигде (ни при выборе, ни при пустом списке, ни при автодобавлении)
+        val all = all0.filter { !Cfg.isHidden(it.pkg) }
         val byPkg = all.associateBy { it.pkg }
         val src = list(c).ifEmpty { Cfg.favorites }.ifEmpty { all.filter { !it.system }.sortedByDescending { Cfg.launches(it.pkg) }.map { it.pkg } }
         var res = src.mapNotNull { byPkg[it] }

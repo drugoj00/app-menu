@@ -81,10 +81,41 @@ object Adb {
     val isRoot: Boolean get() = rootOn
 
     /** Подключено ли управление (ADB или root). У копии с чужой подписью всегда нет: см. Integrity. */
-    val isConnected: Boolean get() = Integrity.ok() && (rootOn || (mgrInst?.isConnected == true))
+    val isConnected: Boolean get() = Integrity.ok() && (rootOn || adbUp())
 
     /** Есть ли подключение root или ADB само по себе, без учёта проверки целостности (только для выдачи разрешения на привязку виджета, см. shellWidgetGrant). */
-    val controlAvailable: Boolean get() = rootOn || (mgrInst?.isConnected == true)
+    val controlAvailable: Boolean get() = rootOn || adbUp()
+
+    /**
+     * Состояние ADB-соединения. Библиотечный isConnected берёт общую блокировку, которую на время ожидания подтверждения ключа («Разрешить отладку?»)
+     * держит рабочий поток (openStream), поэтому на главном потоке (компоновка, нажатия) он давал ANR. На главном потоке отдаётся запомненное значение,
+     * а настоящая проверка идёт на фоне (не чаще раза в секунду); на рабочих потоках проверка настоящая.
+     */
+    @Volatile private var connCache = false
+    @Volatile private var connAt = 0L
+    @Volatile private var probing = false
+    private fun adbUp(): Boolean {
+        val m = mgrInst ?: run { connCache = false; return false }
+        if (android.os.Looper.getMainLooper().thread !== Thread.currentThread()) {
+            val v = m.isConnected; connCache = v; connAt = System.currentTimeMillis(); return v
+        }
+        if (!probing && System.currentTimeMillis() - connAt > 1000) {
+            probing = true
+            Thread {
+                try { connCache = m.isConnected } catch (_: Throwable) { } finally { connAt = System.currentTimeMillis(); probing = false }
+            }.also { it.isDaemon = true; it.name = "adb-probe" }.start()
+        }
+        return connCache
+    }
+
+    /** Открыть поток ADB с ограничением ожидания: пока ключ не подтверждён, библиотека ждёт бесконечно и держит свою блокировку. */
+    private val openPool = java.util.concurrent.Executors.newCachedThreadPool { r -> Thread(r, "adb-open").also { it.isDaemon = true } }
+    private fun openStreamTimed(spec: String, ms: Long = 15_000): io.github.muntashirakon.adb.AdbStream {
+        val f = openPool.submit(java.util.concurrent.Callable { mgr.openStream(spec) })
+        try { return f.get(ms, java.util.concurrent.TimeUnit.MILLISECONDS) }
+        catch (e: java.util.concurrent.TimeoutException) { f.cancel(true); connCache = false; throw IllegalStateException("adb: нет ответа, ключ не подтверждён", e) }
+        catch (e: java.util.concurrent.ExecutionException) { throw e.cause ?: e }
+    }
 
     /**
      * Проверяет, дал ли менеджер root (или другой su) права root этому приложению. При первом запуске на экране появится запрос менеджере root:
@@ -215,6 +246,7 @@ object Adb {
                 last = r.exceptionOrNull() ?: IllegalStateException("connect failed")
             }
             if (!done) throw last ?: IllegalStateException("connect failed")
+            connCache = true; connAt = System.currentTimeMillis()
         }.onFailure { Log.e("TVApps", "connect error", it); AdbWhy.local = AdbWhy.ofLocal(it); AdbWhy.last = AdbWhy.local }
             .onSuccess { AdbWhy.local = AdbWhy.NONE; AdbWhy.wireless = AdbWhy.NONE; AdbWhy.last = AdbWhy.NONE }
     }
@@ -237,11 +269,12 @@ object Adb {
             if (!ok && manualPort != null) ok = mgr.connect(host, manualPort)
             // причина автоподключения (нужно сопряжение, отладка выключена) сохраняется в исключении: по ней окно показывает понятный текст
             if (!ok) throw IllegalStateException("connect failed", autoErr)
+            connCache = true; connAt = System.currentTimeMillis()
         }.onFailure { Log.e("TVApps", "wireless connect error", it); AdbWhy.wireless = AdbWhy.ofWireless(context, it); AdbWhy.last = AdbWhy.wireless }
             .onSuccess { AdbWhy.local = AdbWhy.NONE; AdbWhy.wireless = AdbWhy.NONE; AdbWhy.last = AdbWhy.NONE }
     }
 
-    suspend fun disconnect() = withContext(Dispatchers.IO) { rootOn = false; runCatching { mgr.disconnect() } }
+    suspend fun disconnect() = withContext(Dispatchers.IO) { rootOn = false; connCache = false; runCatching { mgr.disconnect() } }
 
     /**
      * Узкое исключение из проверки целостности: ТОЛЬКО выдача этому же приложению права на привязку виджета
@@ -257,7 +290,7 @@ object Adb {
         lock.lock()
         Log.i("TVApps", "shell(widget)> ${cmd.take(200)}")
         val res = try {
-            runCatching { if (rootOn) rootRun(cmd, null, timeoutMs) else readAll(mgr.openStream(AdbText.safe("shell:$cmd")), timeoutMs, cmd) }
+            runCatching { if (rootOn) rootRun(cmd, null, timeoutMs) else readAll(openStreamTimed(AdbText.safe("shell:$cmd")), timeoutMs, cmd) }
         } finally { lock.unlock() }
         Log.i("TVApps", "shell(widget)< ${(res.getOrNull() ?: res.exceptionOrNull()?.message).orEmpty().take(200).replace("\n", " ⏎ ")}")
         res.getOrDefault("")
@@ -278,7 +311,7 @@ object Adb {
         Log.i("TVApps", "shell> ${cmd.take(300)}")
         val t0 = System.currentTimeMillis()
         val res = try {
-            runCatching { if (rootOn) rootRun(cmd, null, timeoutMs) else readAll(mgr.openStream(AdbText.safe("shell:$cmd")), timeoutMs, cmd) }
+            runCatching { if (rootOn) rootRun(cmd, null, timeoutMs) else readAll(openStreamTimed(AdbText.safe("shell:$cmd")), timeoutMs, cmd) }
         } finally { lock.unlock() }
         Log.i("TVApps", "shell< ${System.currentTimeMillis() - t0} мс, ${res.getOrNull()?.length ?: -1} симв: ${(res.getOrNull() ?: res.exceptionOrNull()?.message).orEmpty().take(300).replace("\n", " ⏎ ")}")
         res.getOrThrow()
@@ -339,7 +372,7 @@ object Adb {
                 p.waitFor()
                 return@withContext
             }
-            val s = mgr.openStream(AdbText.safe("exec:cat '" + path.replace("'", "'\\''") + "'"))
+            val s = openStreamTimed(AdbText.safe("exec:cat '" + path.replace("'", "'\\''") + "'"))
             try {
                 s.openInputStream().use { i -> dest.outputStream().use { o -> i.copyTo(o) } }
             } finally { runCatching { s.close() } }
@@ -366,7 +399,7 @@ object Adb {
                 return@withContext rootRun("cmd package install ${withUser(flags)} -S ${tmp.length()} < " + q(tmp.absolutePath), null, 600_000)
             } finally { tmp.delete() }
         }
-        val s = mgr.openStream(AdbText.safe("exec:cmd package install ${withUser(flags)} -S $size"))
+        val s = openStreamTimed(AdbText.safe("exec:cmd package install ${withUser(flags)} -S $size"))
         val out = s.openOutputStream()
         input.copyTo(out)
         out.flush()
@@ -382,7 +415,7 @@ object Adb {
             if (m != null) runCatching { rootRun("chown -R \$(stat -c %u:%g " + q(m.groupValues[1]) + ") " + q(m.groupValues[1] + "/" + m.groupValues[2]), null, 60_000) }
             return@withContext Unit
         }
-        val s = mgr.openStream(AdbText.safe("exec:head -c $size > " + q(dest)))
+        val s = openStreamTimed(AdbText.safe("exec:head -c $size > " + q(dest)))
         val out = s.openOutputStream()
         input.copyTo(out)
         out.flush()
@@ -401,7 +434,7 @@ object Adb {
             val partName = idx.toString() + "_" + f.name.replace(Regex("[^A-Za-z0-9._-]"), "_").takeLast(60)
             val res = withContext(Dispatchers.IO) {
                 if (rootOn) return@withContext f.inputStream().use { rootRun("cmd package install-write -S ${f.length()} $id ${q(partName)} - < " + q(f.absolutePath), null, 600_000) }
-                val s = mgr.openStream(AdbText.safe("exec:cmd package install-write -S ${f.length()} $id $partName -"))
+                val s = openStreamTimed(AdbText.safe("exec:cmd package install-write -S ${f.length()} $id $partName -"))
                 val out = s.openOutputStream()
                 f.inputStream().use { it.copyTo(out) }
                 out.flush()

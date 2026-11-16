@@ -1,3 +1,4 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 package app.tvapps
 
 import android.content.Intent
@@ -1054,9 +1055,10 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
             }
         } else if (selectMode) {
             // панель выбора: пакетные действия над отмеченными значками
-            Row(
-                Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 10.dp).horizontalScroll(rememberScrollState()),
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+            // кнопки переносятся на следующую строку: в портрете телефона «Скрыть» и остальные не уходят за край экрана
+            androidx.compose.foundation.layout.FlowRow(
+                Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(stringResource(R.string.selected_n, selected.size), color = t.text, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 6.dp))
                 Chip(stringResource(R.string.sel_all), false) { selected = shown.map { it.pkg }.toSet() }

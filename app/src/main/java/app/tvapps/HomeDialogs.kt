@@ -499,6 +499,22 @@ private fun HdWidgetD(dlg: Dlg.WidgetD, e: HdEnv) {
                 add(Opt(stringResource(R.string.d_program_settings)) { openAppSettings() })      // настройки программы — первой строкой
                 add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома» — второй
                 add(Opt(stringResource(R.string.wg_type), widgetName(w.type), onClick = { setDlg(Dlg.WidgetType(row.id, dlg.slot)) }))
+                // 16.11.2026: размер сразу под «Видом виджета» (был в конце списка и не виден без прокрутки). 15.11.2026: один понятный выбор размера (Маленький / Средний / Большой) вместо россыпи «высота строки», «масштаб шрифта», «ширина»: пресет задаёт
+                // высоту строки и масштаб шрифта всех виджетов строки разом; прежние значения не меняются, если не нажимать (если числа не совпали с пресетом, написано «Свой»);
+                // точные числа спрятаны в «Точной настройке размера»
+                val sizeP = listOf(90 to 80, 120 to 100, 170 to 130)
+                val sizeN = listOf(R.string.wg_size_s, R.string.wg_size_m, R.string.wg_size_l)
+                val curSz = sizeP.indexOfFirst { it.first == row.size && row.slots.all { s -> s.fs == it.second } }
+                val nearSz = sizeP.indices.minByOrNull { Math.abs(sizeP[it].first - row.size) } ?: 1
+                val setSz = { i: Int -> val p = sizeP[i.coerceIn(0, 2)]; HomeStore.updateRow(row.id) { r -> r.copy(size = p.first, slots = r.slots.map { s -> s.copy(fs = p.second) }) } }
+                add(Opt(stringResource(R.string.wg_size), if (curSz >= 0) stringResource(sizeN[curSz]) else stringResource(R.string.wg_size_custom),
+                    { setSz(if (curSz >= 0) curSz - 1 else nearSz) }, { setSz(if (curSz >= 0) curSz + 1 else nearSz) }, onClick = { setSz(if (curSz >= 0) (curSz + 1) % 3 else nearSz) }))
+                add(Opt(stringResource(R.string.wg_size_fine), if (sizeFine) "▴" else "▾", onClick = { sizeFine = !sizeFine }))
+                if (sizeFine) {
+                    add(Opt(stringResource(R.string.row_size_widgets), "${row.size}", { HomeStore.updateRow(row.id) { it.copy(size = (it.size - 1).coerceAtLeast(60)) } }, { HomeStore.updateRow(row.id) { it.copy(size = (it.size + 1).coerceAtMost(320)) } }, range = 60..320))
+                    add(Opt(stringResource(R.string.wg_font), "${w.fs}%", { upd { it.copy(fs = (it.fs - 1).coerceAtLeast(50)) } }, { upd { it.copy(fs = (it.fs + 1).coerceAtMost(250)) } }, range = 50..250))
+                    if (row.slots.size > 1) add(Opt(stringResource(R.string.wg_width), "${HomeStore.widgetShare(row, dlg.slot)}%", { HomeStore.setWidgetShare(row.id, dlg.slot, HomeStore.widgetShare(row, dlg.slot) - 1) }, { HomeStore.setWidgetShare(row.id, dlg.slot, HomeStore.widgetShare(row, dlg.slot) + 1) }))
+                }
                 // настройка самого Android-виджета (его собственный экран настроек), сразу после вида виджета
                 if (w.type == "appwidget") add(Opt(stringResource(R.string.wg_configure)) {
                     if (configureWidget(w.ref)) close()
@@ -525,22 +541,6 @@ private fun HdWidgetD(dlg: Dlg.WidgetD, e: HdEnv) {
                 add(Opt(stringResource(R.string.bd_color), stringResource(BORDER_NAMES[wci]),
                     { val v = BORDER_COLORS[(wci + BORDER_COLORS.size - 1) % BORDER_COLORS.size]; updLook { it.copy(borderC = v) } },
                     { val v = BORDER_COLORS[(wci + 1) % BORDER_COLORS.size]; updLook { it.copy(borderC = v) } }, icon = wsw))
-                // 15.11.2026: один понятный выбор размера (Маленький / Средний / Большой) вместо россыпи «высота строки», «масштаб шрифта», «ширина»: пресет задаёт
-                // высоту строки и масштаб шрифта всех виджетов строки разом; прежние значения не меняются, если не нажимать (если числа не совпали с пресетом, написано «Свой»);
-                // точные числа спрятаны в «Точной настройке размера»
-                val sizeP = listOf(90 to 80, 120 to 100, 170 to 130)
-                val sizeN = listOf(R.string.wg_size_s, R.string.wg_size_m, R.string.wg_size_l)
-                val curSz = sizeP.indexOfFirst { it.first == row.size && row.slots.all { s -> s.fs == it.second } }
-                val nearSz = sizeP.indices.minByOrNull { Math.abs(sizeP[it].first - row.size) } ?: 1
-                val setSz = { i: Int -> val p = sizeP[i.coerceIn(0, 2)]; HomeStore.updateRow(row.id) { r -> r.copy(size = p.first, slots = r.slots.map { s -> s.copy(fs = p.second) }) } }
-                add(Opt(stringResource(R.string.wg_size), if (curSz >= 0) stringResource(sizeN[curSz]) else stringResource(R.string.wg_size_custom),
-                    { setSz(if (curSz >= 0) curSz - 1 else nearSz) }, { setSz(if (curSz >= 0) curSz + 1 else nearSz) }, onClick = { setSz(if (curSz >= 0) (curSz + 1) % 3 else nearSz) }))
-                add(Opt(stringResource(R.string.wg_size_fine), if (sizeFine) "▴" else "▾", onClick = { sizeFine = !sizeFine }))
-                if (sizeFine) {
-                    add(Opt(stringResource(R.string.row_size_widgets), "${row.size}", { HomeStore.updateRow(row.id) { it.copy(size = (it.size - 1).coerceAtLeast(60)) } }, { HomeStore.updateRow(row.id) { it.copy(size = (it.size + 1).coerceAtMost(320)) } }, range = 60..320))
-                    add(Opt(stringResource(R.string.wg_font), "${w.fs}%", { upd { it.copy(fs = (it.fs - 1).coerceAtLeast(50)) } }, { upd { it.copy(fs = (it.fs + 1).coerceAtMost(250)) } }, range = 50..250))
-                    if (row.slots.size > 1) add(Opt(stringResource(R.string.wg_width), "${HomeStore.widgetShare(row, dlg.slot)}%", { HomeStore.setWidgetShare(row.id, dlg.slot, HomeStore.widgetShare(row, dlg.slot) - 1) }, { HomeStore.setWidgetShare(row.id, dlg.slot, HomeStore.widgetShare(row, dlg.slot) + 1) }))
-                }
                 if (w.type != WIDGET_EMPTY) add(Opt(if (sureWgDel) stringResource(R.string.wg_delete_sure) else stringResource(R.string.wg_delete), danger = true) {
                     if (sureWgDel) {
                         if (w.type == "appwidget") AppWidgets.release(ctx, w.ref)

@@ -482,11 +482,14 @@ private fun HomeScreen(tick: Int, again: Int) {
                         }
                         // видимая высота области «Дома» нужна панели «Все приложения»: она занимает её целиком (сетка прокручивается внутри)
                         androidx.compose.foundation.layout.BoxWithConstraints(Modifier.weight(1f)) {
-                        val viewH = maxHeight
-                        Column(Modifier.fillMaxSize().nestedScroll(swipeMenu).verticalScroll(scroll)) {
+                        // док занимает нижнюю полосу: область прокрутки заканчивается над ним, плитки нижней строки не прячутся под док
+                        @Suppress("UNUSED_VARIABLE") val dockRev0 = HomeDock.rev.intValue
+                        val dockPad = if (HomeDock.on(ctx)) HomeDock.heightDp(ctx).dp else 0.dp
+                        val viewH = maxHeight - dockPad
+                        Column(Modifier.fillMaxSize().padding(bottom = dockPad).nestedScroll(swipeMenu).verticalScroll(scroll)) {
                             // поля сверху и снизу: выбранный элемент увеличивается и не должен обрезаться краем прокручиваемой области
                             @Suppress("UNUSED_VARIABLE") val dockRev = HomeDock.rev.intValue
-                            Column(Modifier.padding(top = 10.dp, bottom = 10.dp + (if (HomeDock.on(ctx)) HomeDock.heightDp(ctx).dp else 0.dp))) {
+                            Column(Modifier.padding(top = 10.dp, bottom = 10.dp)) {
                                 HomeRowsView(
                                     layout, apps, tick, refreshTick, movingItem, firstReq,
                                     openApp = openApp, openMenu = { openMenu() }, onDlg = { dlg = it }, onMoveEnd = { movingItem = null },
