@@ -1088,7 +1088,7 @@
     <string name="install_noaccess">У програми немає права читати файли на цьому пристрої, тому APK не шукалися. Дозволь «Доступ до всіх файлів» (Налаштування, Застосунки, Меню застосунків, Дозволи), підключи ADB або root чи вибери файли в системному вікні вибору.</string>
     <string name="dock_m_hide">Сховати док</string>
     <string name="dock_m_add">Додати застосунок…</string>
-    <string name="dock_hide_pick">Сховати застосунки в доку</string>
+    <string name="dock_hide_pick">Не показувати в доку</string>
     <string name="dock_hide_h">Позначені застосунки не показуються в доку (ні вибрані, ні автододані, ні нещодавні). Зняти позначку: повернути.</string>
     <string name="dock_hide_title">Приховані в доку</string>
     <string name="dock_add_h">Відкриває список усіх застосунків із галочками: позначені потрапляють у док.</string>
@@ -1098,4 +1098,6 @@
     <string name="dock_behave">Поведінка</string>
     <string name="dock_close_after">Після запуску застосунку закривати панель</string>
     <string name="dock_close_after_h">Увімк.: док ховається після запуску застосунку (з дока або з панелі «Усі застосунки») і повертається кнопкою «Док-панель» або клавішею. Вимк.: док залишається (типово).</string>
+    <string name="dock_m_hide_app">Сховати застосунок із меню</string>
+    <string name="dock_m_close_menu">Закрити меню</string>
 </resources>
