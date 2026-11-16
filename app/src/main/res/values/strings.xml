@@ -1096,4 +1096,6 @@
     <string name="dock_scroll">Dock scroll bar</string>
     <string name="dock_scroll_h">A thin bar under the icons when they do not fit; scroll with a finger, mouse or arrows.</string>
     <string name="dock_behave">Behavior</string>
+    <string name="dock_close_after">Close the dock after launching an app</string>
+    <string name="dock_close_after_h">On: the dock hides after an app starts (from the dock or from the All apps panel) and returns with the Dock button or the key. Off: the dock stays (default).</string>
 </resources>
