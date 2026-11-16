@@ -901,11 +901,11 @@
     <string name="top_fill_hint">Look of the buttons and the search field in the top bar of Home. Solid: opaque tile. Glass: see-through tile with a thin accent frame, the picture shows through. None: no tile, only the icon with an outline. The strip below shows the result at once on a dark and a light picture.</string>
     <string name="top_shape_hint">Corner rounding of the buttons and the search field in the top bar of Home: normal, round (capsules) or small.</string>
     <string name="top_title_hint">Shows the program name next to the menu button in the top bar of Home. Off by default.</string>
-    <string name="sel_glow">Selection ring glow</string>
+    <string name="sel_glow">Neon glow around selection</string>
     <string name="glow_none">None</string>
     <string name="glow_weak">Weak</string>
     <string name="glow_strong">Strong</string>
-    <string name="sel_glow_hint">A soft glow of the selection ring color around the selected tile or button on Home. Off by default.</string>
+    <string name="sel_glow_hint">A glow of the ring color spreads beyond the selected tile or button on Home. Off by default.</string>
     <string name="all_panel">“All apps” panel on Home</string>
     <string name="all_panel_hint">A scrollable grid of all installed apps on Home, below the widgets, on a glass background (the order and hidden apps are the same as in the menu). Remote: Up, Down, Left, Right move between the Home rows and the panel, OK opens an app, long OK opens its actions, Back returns to the top of Home. The search field of the top bar searches in this panel. Tile size follows the program settings (icon size, scale, columns). Off by default.</string>
     <string name="all_panel_glass">Glass of the “All apps” panel</string>
@@ -1083,4 +1083,7 @@
     <string name="dock_recents">Recent apps in the dock</string>
     <string name="dock_recents_h">Recently started apps are shown after a divider, in a separate section after the chosen ones. Off by default.</string>
     <string name="dock_recent_n">Number of recent apps</string>
+    <string name="wifi_recv_hint">Open this address in a browser on a phone or computer in the same Wi-Fi network (or scan the QR code) and choose the APK files to send.</string>
+    <string name="install_noaccess_title">No access to files</string>
+    <string name="install_noaccess">The program may not read files on this device, so no APK could be looked for. Allow “All files access” (Settings, Apps, App Menu, Permissions), connect ADB or root, or pick files in the system picker.</string>
 </resources>
