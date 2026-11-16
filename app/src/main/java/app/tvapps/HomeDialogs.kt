@@ -713,8 +713,6 @@ private fun HdTop(e: HdEnv) {
                 add(Opt(stringResource(R.string.top_big), onOff(top.big, on, off), onClick = { HomeStore.updateTop { it.copy(big = !it.big) } }))
                 add(Opt(stringResource(R.string.top_recent), onOff(top.recent, on, off), onClick = { HomeStore.updateTop { it.copy(recent = !it.recent) } }))
                 add(Opt(stringResource(R.string.dock_btn), onOff(HomeDock.btn(ctx), on, off), onClick = { HomeDock.setBtn(ctx, !HomeDock.btn(ctx)) }))
-                add(Opt(stringResource(R.string.dock_title), onOff(HomeDock.on(ctx), on, off), onClick = { HomeDock.setOn(ctx, !HomeDock.on(ctx)) }))
-                add(Opt(stringResource(R.string.dock_settings)) { SettingsGroups.last = "dock"; openAppSettings() })
                 add(Opt(stringResource(R.string.top_clean), onOff(top.clean, on, off), onClick = { HomeStore.updateTop { it.copy(clean = !it.clean) } }))
                 add(Opt(stringResource(R.string.top_hdmi), onOff(top.hdmi, on, off), onClick = { HomeStore.updateTop { it.copy(hdmi = !it.hdmi) } }))
                 add(Opt(stringResource(R.string.top_search), onOff(top.search, on, off), onClick = { HomeStore.updateTop { it.copy(search = !it.search) } }))
