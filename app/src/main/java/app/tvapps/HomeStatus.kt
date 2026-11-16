@@ -450,7 +450,7 @@ private fun outlineOf(c: androidx.compose.ui.graphics.Color): androidx.compose.u
 /** Фон кнопок и поля поиска верхней строки по выбору пользователя: непрозрачный (по умолчанию), полупрозрачный цвет плиток темы, без фона. */
 internal fun barBg(c: androidx.compose.ui.graphics.Color): androidx.compose.ui.graphics.Color = when (Cfg.barFill) {
     // 15.11.2026: три вида стали заметно разными: «Сплошной» (непрозрачная плитка), «Стекло» (прозрачная плитка с тонкой рамкой цвета акцента, картинка просвечивает), «Без фона» (только значок с контуром)
-    "glass" -> c.copy(alpha = 0.28f)
+    "glass" -> c.copy(alpha = 0.78f)
     "none" -> androidx.compose.ui.graphics.Color.Transparent
     else -> c.copy(alpha = 1f)
 }
@@ -463,8 +463,8 @@ internal fun barEdge(accent: androidx.compose.ui.graphics.Color): androidx.compo
 @Composable
 internal fun BarIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, desc: String?, tint: androidx.compose.ui.graphics.Color, size: androidx.compose.ui.unit.Dp, pad: androidx.compose.ui.unit.Dp) {
     if (Cfg.barFill == "none") {
-        // контур обратный фону: на светлой картинке тёмный, на тёмной белый
-        val o = if ((BgLum.top ?: 0.3f) >= 0.6f) androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.7f) else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f)
+        // только тёмная тень (белого контура вокруг значков нет ни на какой картинке)
+        val o = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.75f)
         OutlinedIcon(icon, tint, size, pad, o)
     } else Icon(icon, desc, tint = tint, modifier = Modifier.padding(pad).size(size))
 }

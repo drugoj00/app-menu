@@ -186,6 +186,8 @@ object Cfg {
         homeRing = sp.getInt("home_ring", 0).coerceIn(0, RING_COLORS.size - 1)
         statusOutline = sp.getString("status_outline", "auto").orEmpty().takeIf { it in listOf("auto", "dark", "white", "none") } ?: "auto"
         barFill = sp.getString("bar_fill", "solid").orEmpty().takeIf { it in listOf("solid", "glass", "none") } ?: "solid"
+        // 16.11.2026: «Без фона» у части устройств оказался выставленным сам (кнопки слева без плитки, значки с контуром); один раз возвращаем «Сплошной», дальше выбор остаётся как есть
+        if (!sp.getBoolean("bar_fill_mig16", false)) { sp.edit().putBoolean("bar_fill_mig16", true).apply(); if (barFill == "none") { barFill = "solid"; sp.edit().putString("bar_fill", "solid").apply() } }
         barTitle = sp.getBoolean("bar_title", false)
         homeAllPanel = sp.getBoolean("home_all_panel", false)
         homeAllGlass = sp.getString("home_all_glass", "mid").orEmpty().takeIf { it in listOf("light", "mid", "dense") } ?: "mid"
