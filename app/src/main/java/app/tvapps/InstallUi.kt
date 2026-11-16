@@ -200,8 +200,10 @@ fun InstallDialog(files: List<ApkFile>, onClose: () -> Unit) {
         ) {
             val res = results
             if (res == null) {
-                Text(stringResource(R.string.install_title, files.size), color = t.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                if (files.isEmpty()) Text(stringResource(R.string.install_none), color = t.sub, fontSize = 14.sp)
+                // нет права читать файлы: понятный отказ вместо «найдено 0 / APK-файлов там нет»
+                val noAccess = files.isEmpty() && !Storage.hasAccess(ctx) && !Adb.isConnected
+                Text(stringResource(if (noAccess) R.string.install_noaccess_title else R.string.install_title, *(if (noAccess) emptyArray() else arrayOf<Any>(files.size))), color = t.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                if (files.isEmpty()) Text(stringResource(if (noAccess) R.string.install_noaccess else R.string.install_none), color = t.sub, fontSize = 14.sp)
                 val instScroll = rememberScrollState()
                 Column(Modifier.heightIn(max = 340.dp).verticalScrollbar(instScroll).verticalScroll(instScroll).padding(end = ScrollbarMath.RESERVE_DP.dp)) {
                     files.forEach { f ->

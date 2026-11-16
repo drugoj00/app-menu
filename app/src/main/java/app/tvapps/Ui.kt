@@ -133,12 +133,36 @@ fun screenDp(): Pair<Float, Float> {
     return m.widthPixels / d to m.heightPixels / d
 }
 
+/** Правило 21 (16.11.2026): на ТВ-приставке информационные окна и диалоги чуть крупнее (+13% к шрифту); телефон, ландшафт телефона и магнитола без изменений. */
+const val TV_TEXT_BOOST = 1.13f
+internal val LocalTvBoost = androidx.compose.runtime.compositionLocalOf { false }
+
+/** Приставка (ТВ) с широким экраном: признак для надбавки к шрифту. */
+@Composable
+fun isTvWide(): Boolean = !isNarrow() && TopMode.isTv(LocalContext.current)
+
+/** Окно получает крупнее шрифт только на ТВ (по признаку TopMode.isTv); плотность в dp не меняется, поэтому размеры элементов прежние. */
+@Composable
+fun TvBoost(content: @Composable () -> Unit) {
+    if (!isTvWide() || LocalTvBoost.current) { content(); return }
+    val d = LocalDensity.current
+    val dd = remember(d.density, d.fontScale) { androidx.compose.ui.unit.Density(d.density, d.fontScale * TV_TEXT_BOOST) }
+    CompositionLocalProvider(LocalDensity provides dd, LocalTvBoost provides true) { content() }
+}
+
+/** Размер подсказки в sp: на ТВ вне окон (там уже есть надбавка шрифта) на 2 sp крупнее. */
+@Composable
+fun hintSp(v: Int): androidx.compose.ui.unit.TextUnit {
+    val add = if (isTvWide() && !LocalTvBoost.current) 2 else 0
+    return btnSp(v + add)
+}
+
 /**
  * Окно, содержимое которого тоже уменьшается на телефоне: окна Compose берут плотность экрана заново, поэтому HalfUi снаружи до них не доходит.
  */
 @Composable
 fun HDialog(onDismissRequest: () -> Unit, properties: androidx.compose.ui.window.DialogProperties = androidx.compose.ui.window.DialogProperties(), content: @Composable () -> Unit) {
-    androidx.compose.ui.window.Dialog(onDismissRequest = onDismissRequest, properties = properties) { MouseDragInDialog(); CompositionLocalProvider(LocalChipReg provides null) { HalfUi { content() } } }
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismissRequest, properties = properties) { MouseDragInDialog(); CompositionLocalProvider(LocalChipReg provides null) { HalfUi { TvBoost { content() } } } }
 }
 
 /**

@@ -162,6 +162,7 @@ object Backup {
         HomeStore.bumpImg()
         Cfg.bumpIcons()
         rebindWidgets(ctx)
+        SelfUpd.clearStale()
         true
     }.getOrElse {
         lastFail = if (it is java.util.zip.ZipException || it is org.json.JSONException || it is java.io.EOFException) "broken" else "other"
@@ -181,7 +182,16 @@ object Backup {
             val layout = HomeStore.layout
             var changed = false
             // без системного разрешения привязку разрешает ADB или root: «appwidget grantbind» (Android 9 и старше) и appops BIND_APPWIDGET (новее)
-            if (layout.rows.any { r -> r.slots.any { it.type == "appwidget" && it.prov.isNotBlank() } } && Adb.isConnected) {
+            // уже привязанный к этому же поставщику номер оставляем как есть: у виджета сохраняется его собственная настройка (Beautiful Widgets и др.)
+            fun stillBound(w: HWidget, cn: android.content.ComponentName): Boolean {
+                val id = w.ref.toIntOrNull() ?: return false
+                return runCatching { mgr.getAppWidgetInfo(id)?.provider == cn }.getOrDefault(false)
+            }
+            fun needsRebind(w: HWidget): Boolean {
+                val cn = if (w.type == "appwidget" && w.prov.isNotBlank()) android.content.ComponentName.unflattenFromString(w.prov) else null
+                return cn != null && !stillBound(w, cn)
+            }
+            if (layout.rows.any { r -> r.slots.any { needsRebind(it) } } && Adb.isConnected) {
                 val pkg = ctx.packageName
                 runCatching { kotlinx.coroutines.runBlocking { kotlinx.coroutines.withTimeout(8_000) { Adb.shell("appwidget grantbind --package $pkg --user 0 >/dev/null 2>&1; appops set $pkg BIND_APPWIDGET allow >/dev/null 2>&1", 7_000) } } }
             }
@@ -189,7 +199,7 @@ object Backup {
                 if (row.slots.none { it.type == "appwidget" && it.prov.isNotBlank() }) row
                 else row.copy(slots = row.slots.map { w ->
                     val cn = if (w.type == "appwidget" && w.prov.isNotBlank()) android.content.ComponentName.unflattenFromString(w.prov) else null
-                    if (cn == null) w
+                    if (cn == null || stillBound(w, cn)) w
                     else {
                         val id = host.allocateAppWidgetId()
                         val ok = runCatching { mgr.bindAppWidgetIdIfAllowed(id, cn) }.getOrDefault(false)

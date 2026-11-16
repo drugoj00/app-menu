@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -111,7 +112,7 @@ internal val LocalSectionHints = androidx.compose.runtime.compositionLocalOf<and
 internal fun SectionHint(text: String) {
     val list = LocalSectionHints.current
     if (list == null) {
-        Text(text, color = LocalTh.current.hint, fontSize = 12.sp)
+        Text(text, color = LocalTh.current.hint, fontSize = hintSp(12))
         return
     }
     androidx.compose.runtime.DisposableEffect(text) { list.add(text); onDispose { list.remove(text) } }
@@ -144,7 +145,7 @@ private fun Section(title: String, content: @Composable () -> Unit) {
             Text(title, color = t.sub, fontSize = 13.sp)
             Text(if (open) "▴" else "ⓘ", color = t.accent, fontSize = 14.sp)
         }
-        if (open && hints.isNotEmpty()) Text(hints.joinToString("\n\n"), color = t.hint, fontSize = 12.sp)
+        if (open && hints.isNotEmpty()) Text(hints.joinToString("\n\n"), color = t.hint, fontSize = hintSp(12))
         androidx.compose.runtime.CompositionLocalProvider(LocalSectionHints provides hints) { content() }
     }
 }
@@ -274,6 +275,30 @@ private fun BarFillPreview() {
     }
 }
 
+/** Предпросмотр «Неонового ореола»: три плитки (Нет, Слабое, Сильное) на тёмной и светлой половинах картинки, ореол рисует та же функция, что и «Дом». */
+@Composable
+private fun GlowPreview() {
+    val t = LocalTh.current
+    val ring = Cfg.homeRingOr(t.accent)
+    val shape = RoundedCornerShape(10.dp)
+    Box(Modifier.widthIn(max = 560.dp).fillMaxWidth().height(150.dp).clip(RoundedCornerShape(12.dp))) {
+        Row(Modifier.fillMaxSize()) {
+            Box(Modifier.weight(1f).fillMaxHeight().background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Color(0xFF0E1B2B), Color(0xFF2F5C8A)))))
+            Box(Modifier.weight(1f).fillMaxHeight().background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Color(0xFFA9C9E8), Color(0xFFF3EAD0)))))
+        }
+        Row(Modifier.align(Alignment.Center), horizontalArrangement = Arrangement.spacedBy(44.dp), verticalAlignment = Alignment.CenterVertically) {
+            listOf("none" to R.string.glow_none, "weak" to R.string.glow_weak, "strong" to R.string.glow_strong).forEach { (mode, label) ->
+                Box(
+                    Modifier.width(84.dp).height(56.dp)
+                        .drawBehind { drawSelGlow(mode, ring, 10.dp.toPx()) }
+                        .clip(shape).background(t.tileFocus).border(2.dp, ring, shape),
+                    contentAlignment = Alignment.Center,
+                ) { Text(stringResource(label), color = t.text, fontSize = 13.sp, fontWeight = if (Cfg.selGlow == mode) FontWeight.Bold else FontWeight.Normal) }
+            }
+        }
+    }
+}
+
 internal val LocalSettingsQuery = androidx.compose.runtime.compositionLocalOf { "" }
 
 /** Поиск по настройкам: запрос расширяется синонимами (бекап, копия, резервная; обновить, версия; шрифт, размер; обои, фон; adb, отладка; значки, иконки; usb, флешка и др.). */
@@ -336,7 +361,7 @@ internal fun ActionRow(icon: androidx.compose.ui.graphics.vector.ImageVector, ti
         Column(Modifier.weight(1f, fill = false)) {
             // межстрочный зазор мал: название и пояснение стоят почти вплотную (просьба владелицы)
             Text(title, color = t.text, fontSize = btnSp(15), lineHeight = btnSp(15) * 1.1f, fontWeight = FontWeight.Medium)
-            if (hint.isNotEmpty()) Text(hint, color = t.hint, fontSize = btnSp(12), lineHeight = btnSp(12) * 1.1f, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (hint.isNotEmpty()) Text(hint, color = t.hint, fontSize = hintSp(12), lineHeight = hintSp(12) * 1.1f, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -358,7 +383,7 @@ private fun DockKeyCapture(onDone: (Int?) -> Unit) {
     val t = LocalTh.current
     val req = remember { FocusRequester() }
     LaunchedEffect(Unit) { kotlinx.coroutines.delay(100); runCatching { req.requestFocus() } }
-    androidx.compose.ui.window.Dialog(onDismissRequest = { onDone(null) }) {
+    HDialog(onDismissRequest = { onDone(null) }) {
         Box(
             Modifier.clip(RoundedCornerShape(20.dp)).background(t.bg).border(1.dp, t.border, RoundedCornerShape(20.dp)).padding(24.dp)
                 .focusRequester(req).focusable()
@@ -521,7 +546,7 @@ private fun SwitchRow(title: String, checked: Boolean, hints: List<String> = emp
             if (hints.isNotEmpty()) Text(if (open) "▴" else "ⓘ", color = t.accent, fontSize = 16.sp, modifier = Modifier.clickable { open = !open }.padding(6.dp))
             BigCheck(checked, t.accent, t.sub)
         }
-        if (open && hints.isNotEmpty()) Text(hints.joinToString("\n\n"), color = t.hint, fontSize = btnSp(12), modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp))
+        if (open && hints.isNotEmpty()) Text(hints.joinToString("\n\n"), color = t.hint, fontSize = hintSp(12), modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp))
     }
 }
 
@@ -540,18 +565,21 @@ internal object SettingsGroups {
 
 /** Кнопка группы: компактная, выбранная подсвечена; на пульте группа выбирается при наведении фокуса, мышью и касанием по нажатию. */
 @Composable
-private fun GroupBtn(id: String, selected: Boolean, modifier: Modifier = Modifier, onPick: (String) -> Unit) {
+private fun GroupBtn(id: String, selected: Boolean, modifier: Modifier = Modifier, onTap: (String) -> Unit = {}, onPick: (String) -> Unit) {
     val t = LocalTh.current
     var focused by remember { mutableStateOf(false) }
+    val req = remember { FocusRequester() }
     val (hm, hover) = rememberHover()
     Row(
         modifier
             .then(hm)
+            .focusRequester(req)
             .onFocusChanged { focused = it.isFocused; if (it.isFocused) onPick(id) }
             .clip(RoundedCornerShape(10.dp))
             .background(if (selected) t.chipSel else if (hover) t.tileFocus else t.tile)
             .border(if (focused) 3.dp else 1.dp, if (focused) t.accent else t.border, RoundedCornerShape(10.dp))
-            .clickable(role = androidx.compose.ui.semantics.Role.Tab) { onPick(id) }
+            // касание и мышь: фокус встаёт на кнопку группы (иначе первая стрелка пульта уходила на самую верхнюю группу), результаты поиска сбрасываются
+            .clickable(role = androidx.compose.ui.semantics.Role.Tab) { runCatching { req.requestFocus() }; onTap(id); onPick(id) }
             .padding(horizontal = 24.dp, vertical = if (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 500) 1.dp else if (isNarrow()) 10.dp else 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -569,12 +597,12 @@ private fun SettingsFrame(pane: @Composable () -> Unit, content: @Composable () 
 
 /** Левая панель широкого экрана: список групп настроек. */
 @Composable
-private fun GroupsPane(current: String, onPick: (String) -> Unit) {
+private fun GroupsPane(current: String, onTap: (String) -> Unit = {}, onPick: (String) -> Unit) {
     Column(
         Modifier.width(androidx.compose.foundation.layout.IntrinsicSize.Max).fillMaxHeight().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(top = 8.dp, end = 4.dp),
         verticalArrangement = Arrangement.spacedBy(if (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 500) 2.dp else 6.dp),
     ) {
-        SettingsGroups.ids.forEach { id -> GroupBtn(id, id == current, Modifier.fillMaxWidth(), onPick) }
+        SettingsGroups.ids.forEach { id -> GroupBtn(id, id == current, Modifier.fillMaxWidth(), onTap, onPick) }
     }
 }
 
@@ -708,7 +736,7 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
             Text(stringResource(when (sub) { "main" -> R.string.settings; "about" -> R.string.about_title; "autoapps" -> R.string.auto_pick; "dockapps" -> R.string.dock_pick; "excl" -> R.string.mem_excl_title; else -> R.string.hidden_list }), fontSize = 24.sp, color = t.text)
         }
         // ТВ, ландшафт телефона и магнитолы: слева узкий список групп в одну строку, справа содержимое; портрет: одна колонка
-        SettingsFrame({ if (wide && sub == "main") GroupsPane(grp) { grp = it } }) {
+        SettingsFrame({ if (wide && sub == "main") GroupsPane(grp, onTap = { query = "" }) { grp = it } }) {
         androidx.compose.runtime.CompositionLocalProvider(LocalChipReg provides chipReg, LocalSettingsScroll provides scroll, LocalSettingsQuery provides query) {
         Column(Modifier.fillMaxSize().verticalScrollbar(scroll).verticalScroll(scroll).padding(top = 8.dp, end = ScrollbarMath.RESERVE_DP.dp, start = if (wide && sub == "main") 20.dp else 0.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             if (sub == "main") Column(Modifier.widthIn(max = 900.dp).fillMaxWidth()) {
@@ -917,6 +945,7 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                     }
                     Section(stringResource(R.string.sel_glow)) {
                         SectionHint(stringResource(R.string.sel_glow_hint))
+                        GlowPreview()
                         Options(listOf("none" to stringResource(R.string.glow_none), "weak" to stringResource(R.string.glow_weak), "strong" to stringResource(R.string.glow_strong)), Cfg.selGlow) { Cfg.changeSelGlow(it) }
                     }
                     }
@@ -1153,14 +1182,14 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                 Spacer(Modifier.size(24.dp))
             } else if (sub == "about") {
                 Column(Modifier.widthIn(max = 900.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(stringResource(R.string.about_version, BuildConfig.VERSION_NAME), color = t.sub, fontSize = 14.sp)
+                    Text(stringResource(R.string.about_version, BuildConfig.VERSION_NAME), color = t.sub, fontSize = hintSp(14))
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     ActionRow(HIcons.open, stringResource(R.string.about_site), stringResource(R.string.about_site_h)) { openUrl(ctx, "https://drugoj00.github.io/phone-in-window-with-sound/app-menu.html") }
                     ActionRow(HIcons.open, stringResource(R.string.about_tg), stringResource(R.string.about_tg_h)) { openUrl(ctx, "https://t.me/PhoneInWindowSound") }
                     ActionRow(HIcons.open, stringResource(R.string.about_gh), stringResource(R.string.about_gh_h)) { openUrl(ctx, "https://github.com/drugoj00/app-menu") }
                     ActionRow(HIcons.open, stringResource(R.string.about_all), stringResource(R.string.about_all_h)) { openUrl(ctx, "https://drugoj00.github.io/") }
                 }
-                Text(stringResource(R.string.about_support), color = t.sub, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
+                Text(stringResource(R.string.about_support), color = t.sub, fontSize = hintSp(13), modifier = Modifier.padding(top = 6.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     ActionRow(HIcons.open, stringResource(R.string.about_card), stringResource(R.string.about_card_h)) { openUrl(ctx, "https://secure.wayforpay.com/button/bba92579a4647") }
                     ActionRow(HIcons.open, stringResource(R.string.about_usdt), stringResource(R.string.about_usdt_h)) { copyText(ctx, "TXk32CLkwJryTqhmkw6urcM5CacJgPsSpJ") }
@@ -1236,7 +1265,7 @@ private fun FoldItem(title: String, hint: String?, content: @Composable () -> Un
             Text(title, color = t.text, fontSize = 15.sp)
             if (hint != null) Text(if (open) "▴" else "▾", color = t.accent, fontSize = 15.sp)
         }
-        if (open && hint != null) Text(hint, color = t.hint, fontSize = 12.sp)
+        if (open && hint != null) Text(hint, color = t.hint, fontSize = hintSp(12))
         content()
     }
 }

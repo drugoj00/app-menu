@@ -350,7 +350,7 @@ private fun loadAppsImpl(ctx: android.content.Context, prev: List<Entry> = empty
     val out = ArrayList<Entry>()
     // готовые значки прежнего списка: у приложения с тем же временем обновления картинка не готовится заново
     // (раньше при каждом возврате в меню для всех приложений заново загружался значок и рисовался в картинку: нагрузка и мусор для сборщика на слабом железе)
-    val old = if (reuse) prev.filter { it.bmp != null }.associateBy { it.pkg } else emptyMap()
+    val old = if (reuse && !IconPacks.ownChanged(ctx)) prev.filter { it.bmp != null }.associateBy { it.pkg } else emptyMap()
     // приложения для телевизора и обычные: берём всё, что можно запустить
     for (cat in listOf(Intent.CATEGORY_LEANBACK_LAUNCHER, Intent.CATEGORY_LAUNCHER)) {
         val q = Intent(Intent.ACTION_MAIN).addCategory(cat)
@@ -442,6 +442,8 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
     var menuFor by remember { mutableStateOf<Entry?>(null) }
     var screen by remember { mutableStateOf((ctx as? android.app.Activity)?.intent?.getStringExtra("screen") ?: "main") }
     var searching by remember { mutableStateOf(!(ctx as? android.app.Activity)?.intent?.getStringExtra("q").isNullOrBlank()) }
+    // ушли с главного экрана (настройки и др.): при возврате поле поиска получает фокус, но экранная клавиатура сама не открывается (только по ОК или касанию)
+    LaunchedEffect(screen) { if (screen != "main") SearchKb.suppressNext = true }
     var query by remember { mutableStateOf((ctx as? android.app.Activity)?.intent?.getStringExtra("q").orEmpty()) }
     var selectMode by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -1404,11 +1406,19 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
     SelfUpdBannerHost()
 }
 
+/** Признак «вернулись с другого экрана»: поле поиска меню берёт фокус без показа клавиатуры. */
+object SearchKb { @Volatile var suppressNext = false }
+
 @Composable
 private fun SearchBox(value: String, wide: Boolean = true, onChange: (String) -> Unit) {
     val t = LocalTh.current
     val fr = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { fr.requestFocus() } }
+    val kb = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    LaunchedEffect(Unit) {
+        val quiet = SearchKb.suppressNext; SearchKb.suppressNext = false
+        runCatching { fr.requestFocus() }
+        if (quiet) { kotlinx.coroutines.delay(120); kb?.hide(); kotlinx.coroutines.delay(300); kb?.hide() }
+    }
     OutlinedTextField(
         value, onChange,
         placeholder = { Text(stringResource(R.string.search_hint), fontSize = 13.sp) },

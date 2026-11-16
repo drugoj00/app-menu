@@ -117,6 +117,9 @@ object SelfUpd {
         } catch (e: CancellationException) { throw e } catch (_: Throwable) { } finally { busy = false }
     }
 
+    /** Старый результат ручной проверки («Установлена последняя версия», ошибка) не должен всплывать позже, например после восстановления из копии. */
+    fun clearStale() { if (state is St.Latest || state is St.Failed) state = null }
+
     /** Закрытие окна любым способом: найденная версия больше сама не предлагается. */
     fun dismiss() {
         (state as? St.Found)?.let { Cfg.setSelfUpdDismissed(it.cand.versionName) }
@@ -139,7 +142,7 @@ object SelfUpd {
 @Composable
 fun SelfUpdHost() {
     val ctx = LocalContext.current
-    LaunchedEffect(Unit) { SelfUpd.autoCheck(ctx.applicationContext) }
+    LaunchedEffect(Unit) { SelfUpd.clearStale(); SelfUpd.autoCheck(ctx.applicationContext) }
     val st = SelfUpd.state
     SelfUpd.notes?.let { NotesDialog(it) }
     if (st != null) SelfUpdDialog(st)

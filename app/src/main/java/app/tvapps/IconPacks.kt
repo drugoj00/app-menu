@@ -39,6 +39,22 @@ object IconPacks {
     /** Папка, куда можно положить файлы вида имя.пакета.png (подходит и для ручной загрузки по ADB или с флешки). */
     fun manualDir(ctx: Context): File? = ctx.getExternalFilesDir("icons")
 
+    /** Подпись набора своих картинок (имена, размеры, время): если она изменилась, готовые значки в списке пересобираются (файл, положенный по ADB или с флешки, подхватывается без «Сброса значков»). */
+    fun ownSig(ctx: Context): String {
+        val sb = StringBuilder()
+        for (d in ownDirs(ctx)) d.listFiles()?.filter { it.name.endsWith(".png", true) }?.sortedBy { it.name }?.forEach { sb.append(it.name).append(':').append(it.length()).append(':').append(it.lastModified()).append(';') }
+        return sb.toString().hashCode().toString() + ":" + sb.length
+    }
+
+    /** true, если набор своих картинок изменился с прошлой загрузки списка (запоминается в настройках, поэтому холодный старт без изменений не пересобирает всё). */
+    fun ownChanged(ctx: Context): Boolean {
+        val sp = ctx.applicationContext.getSharedPreferences("tvapps_icons", Context.MODE_PRIVATE)
+        val now = ownSig(ctx)
+        if (sp.getString("sig", null) == now) return false
+        sp.edit().putString("sig", now).apply()
+        return true
+    }
+
     fun hasOwn(ctx: Context, pkg: String) = ownDirs(ctx).any { File(it, "$pkg.png").exists() }
 
     fun removeOwn(ctx: Context, pkg: String) { ownDirs(ctx).forEach { File(it, "$pkg.png").delete() } }

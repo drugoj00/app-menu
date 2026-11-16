@@ -122,7 +122,8 @@ internal fun FixedFont(content: @Composable () -> Unit) {
     val narrow = LocalConfiguration.current.smallestScreenWidthDp < 600
     // на телефоне элементы мельче (0,6), надписи чуть меньше обычных: на экране помещается больше строк
     androidx.compose.runtime.CompositionLocalProvider(
-        androidx.compose.ui.platform.LocalDensity provides (if (narrow) androidx.compose.ui.unit.Density(d.density * 0.6f, 1.4f) else androidx.compose.ui.unit.Density(d.density, 1f)),
+        androidx.compose.ui.platform.LocalDensity provides (if (narrow) androidx.compose.ui.unit.Density(d.density * 0.6f, 1.4f) else androidx.compose.ui.unit.Density(d.density, if (TopMode.isTv(androidx.compose.ui.platform.LocalContext.current)) TV_TEXT_BOOST else 1f)),
+        LocalTvBoost provides (!narrow && TopMode.isTv(androidx.compose.ui.platform.LocalContext.current)),
     ) { content() }
 }
 
@@ -236,28 +237,13 @@ internal fun HomeBox(
                 }
             }
             .onFocusChanged { focused = it.isFocused; if (it.isFocused && memKey != null) TileFocus.last = memKey }
-            // свечение рамки выделения (настройка «Свечение рамки выделения»: Нет, Слабое, Сильное): несколько расходящихся наружу полупрозрачных колец цвета рамки
+            // неоновый ореол вокруг выбранного (настройка «Неоновый ореол вокруг выбранного»: Нет, Слабое, Сильное): цвет рамки, расходится наружу за край плитки
             .drawBehind {
                 val g = Cfg.selGlow
                 if (g != "none" && (focused || hover) && !moving) {
-                    val col = ringColor ?: Cfg.homeRingOr(t.accent)
-                    val strong = g == "strong"
-                    val rings = if (strong) 8 else 5
-                    val step = (if (strong) 3.2f else 2.4f) * density
-                    val maxA = if (strong) 0.5f else 0.3f
                     val outline = shape.createOutline(size, layoutDirection, this)
                     val cr = (outline as? androidx.compose.ui.graphics.Outline.Rounded)?.roundRect?.topLeftCornerRadius?.x ?: 0f
-                    for (i in 1..rings) {
-                        val d = i * step
-                        val k = (rings - i + 1f) / rings
-                        drawRoundRect(
-                            color = col.copy(alpha = maxA * k * k),
-                            topLeft = androidx.compose.ui.geometry.Offset(-d, -d),
-                            size = androidx.compose.ui.geometry.Size(size.width + 2 * d, size.height + 2 * d),
-                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(cr + d, cr + d),
-                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = step * 1.3f),
-                        )
-                    }
+                    drawSelGlow(g, ringColor ?: Cfg.homeRingOr(t.accent), cr)
                 }
             }
             .clip(shape)
@@ -293,6 +279,29 @@ internal fun HomeBox(
         contentAlignment = Alignment.Center,
         content = content,
     )
+}
+
+/**
+ * Ореол выбранного элемента: плотные расходящиеся кольца цвета рамки с плавным затуханием. «Слабое» около 14 dp и заметно на светлом фоне,
+ * «Сильное» около 30 dp и яркое. Рисуется за плиткой, за её краем (clip плитки стоит после), поэтому не обрезается; общая функция для «Дома» и предпросмотра.
+ */
+internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSelGlow(mode: String, col: Color, cornerRadius: Float) {
+    if (mode == "none") return
+    val strong = mode == "strong"
+    val rings = if (strong) 28 else 16
+    val step = (if (strong) 1.4f else 1.1f) * density
+    val maxA = if (strong) 1.0f else 0.85f
+    for (i in 1..rings) {
+        val d = i * step
+        val k = 1f - (i - 1f) / rings
+        drawRoundRect(
+            color = col.copy(alpha = (maxA * k * k).coerceIn(0f, 1f)),
+            topLeft = androidx.compose.ui.geometry.Offset(-d, -d),
+            size = androidx.compose.ui.geometry.Size(size.width + 2 * d, size.height + 2 * d),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerRadius + d, cornerRadius + d),
+            style = androidx.compose.ui.graphics.drawscope.Stroke(width = step * 1.35f),
+        )
+    }
 }
 
 // ------------------------------------------------------------------ списки и окна
