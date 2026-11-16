@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -294,18 +296,22 @@ fun UploadDialog(onApks: (List<ApkFile>) -> Unit, onClose: () -> Unit) {
         runCatching { fr.requestFocus() }
         while (true) { files = UploadServer.received(); kotlinx.coroutines.delay(1000) }
     }
+    val upSc = androidx.compose.foundation.rememberScrollState()
+    val maxH = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.92f).dp
     HDialog(onDismissRequest = onClose) {
         Column(
-            Modifier.clip(RoundedCornerShape(20.dp)).background(t.tile).border(1.dp, t.border, RoundedCornerShape(20.dp)).padding(20.dp).fillMaxWidth(),
+            Modifier.heightIn(max = maxH).clip(RoundedCornerShape(20.dp)).background(t.tile).border(1.dp, t.border, RoundedCornerShape(20.dp)).padding(20.dp).fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(stringResource(R.string.wifi_title), color = t.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            // содержимое прокручивается, а кнопки внизу («Проверить принятое», «Отмена») всегда видны (в портрете телефона окно иначе не помещалось)
+            Column(Modifier.weight(1f, fill = false).verticalScrollbar(upSc).verticalScroll(upSc).padding(end = ScrollbarMath.RESERVE_DP.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (canDirect) FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Chip(stringResource(R.string.wifi_mode_net), !direct) { direct = false; modePrefs.edit().putString("mode", "net").apply() }
                 Chip(stringResource(R.string.wifi_mode_direct), direct) { direct = true; modePrefs.edit().putString("mode", "direct").apply() }
             }
             if (!direct) {
-                Text(stringResource(R.string.wifi_hint), color = t.sub, fontSize = 13.sp)
+                Text(stringResource(R.string.wifi_recv_hint), color = t.sub, fontSize = 13.sp)
                 if (addr != null) Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     QrView("http://$addr:${UploadServer.PORT}", 130.dp)
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -339,6 +345,7 @@ fun UploadDialog(onApks: (List<ApkFile>) -> Unit, onClose: () -> Unit) {
             if (error.isNotEmpty()) Text(error, color = Color(0xFFF87171), fontSize = 12.sp)
             Text(stringResource(R.string.wifi_received, files.size) + if (files.isNotEmpty()) ": " + files.joinToString(", ") { it.name }.take(160) else "", color = t.text, fontSize = 14.sp)
             if (busy) Text(stringResource(R.string.working), color = t.accent, fontSize = 13.sp)
+            }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 ActionRow(HIcons.refresh, stringResource(R.string.wifi_check, files.size), "", Modifier.focusRequester(fr)) {
                     if (files.isEmpty() || busy) return@ActionRow
