@@ -1088,7 +1088,7 @@
     <string name="install_noaccess">У программы нет права читать файлы на этом устройстве, поэтому APK не искались. Разреши «Доступ ко всем файлам» (Настройки, Приложения, Меню приложений, Разрешения), подключи ADB или root либо выбери файлы в системном окне выбора.</string>
     <string name="dock_m_hide">Скрыть док</string>
     <string name="dock_m_add">Добавить приложение…</string>
-    <string name="dock_hide_pick">Скрыть приложения в доке</string>
+    <string name="dock_hide_pick">Не показывать в доке</string>
     <string name="dock_hide_h">Отмеченные приложения не показываются в доке (ни выбранные, ни автодобавленные, ни недавние). Снять отметку: вернуть.</string>
     <string name="dock_hide_title">Скрытые в доке</string>
     <string name="dock_add_h">Открывает список всех приложений с галочками: отмеченные попадают в док.</string>
@@ -1098,4 +1098,6 @@
     <string name="dock_behave">Поведение</string>
     <string name="dock_close_after">После запуска приложения закрывать панель</string>
     <string name="dock_close_after_h">Вкл: док скрывается после запуска приложения (из дока или из панели «Все приложения») и возвращается кнопкой «Док-панель» или клавишей. Выкл: док остаётся (по умолчанию).</string>
+    <string name="dock_m_hide_app">Скрыть приложение из меню</string>
+    <string name="dock_m_close_menu">Закрыть меню</string>
 </resources>
