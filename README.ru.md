@@ -16,7 +16,7 @@
 
 **Версия 8.0.** [AppMenu-8.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `b77ec0dad77f7c126edd96d96f58189cb5134a226cefa2d8d111dddc2ad2e989`
+SHA-256: `767ae1d3c373453025d7a40238eb629a2907d6de49cf9db24405f4cb209b41f8`
 
 ## Что нового в 8.0
 
