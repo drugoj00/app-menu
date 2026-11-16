@@ -490,6 +490,39 @@ private fun DockAppsPane(ctx: android.content.Context, apps: List<Entry>) {
     }
 }
 
+/** «Скрыть приложения» в доке: отмеченные не показываются в доке (ни выбранные, ни автодобавление, ни недавние); отметку можно снять. */
+@Composable
+private fun DockHidePane(ctx: android.content.Context, apps: List<Entry>) {
+    val t = LocalTh.current
+    @Suppress("UNUSED_VARIABLE") val rev = HomeDock.rev.intValue
+    val sel = HomeDock.hiddenList(ctx)
+    val byPkg = remember(apps) { apps.associateBy { it.pkg } }
+    @Composable
+    fun row(pkg: String, e: Entry?, on: Boolean) {
+        var focused by remember { mutableStateOf(false) }
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 3.dp).onFocusChanged { focused = it.isFocused }.clip(RoundedCornerShape(12.dp))
+                .background(if (focused) t.tileFocus else t.tile).border(if (focused) 3.dp else 0.dp, if (focused) t.accent else Color.Transparent, RoundedCornerShape(12.dp))
+                .toggleable(on, onValueChange = { v -> HomeDock.setHiddenList(ctx, if (v) sel + pkg else sel - pkg) })
+                .heightIn(min = 56.dp).padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (e != null) { val bmp = remember(pkg) { e.icon.toBitmap(96, 96).asImageBitmap() }; androidx.compose.foundation.Image(bmp, null, Modifier.size(36.dp)) }
+            Column(Modifier.weight(1f)) {
+                Text(e?.label ?: pkg, color = t.text, fontSize = btnSp(16), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(pkg, color = t.hint, fontSize = hintSp(11), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            BigCheck(on, t.accent, t.sub)
+        }
+    }
+    Column(Modifier.widthIn(max = 900.dp).fillMaxWidth()) {
+        Text(stringResource(R.string.dock_hide_h), color = t.sub, fontSize = hintSp(13), modifier = Modifier.padding(bottom = 6.dp))
+        sel.forEach { pkg -> androidx.compose.runtime.key("h" + pkg) { row(pkg, byPkg[pkg], true) } }
+        Spacer(Modifier.height(10.dp))
+        apps.filter { it.pkg !in sel && !it.system && !Cfg.isHidden(it.pkg) }.forEach { e -> androidx.compose.runtime.key("n" + e.pkg) { row(e.pkg, e, false) } }
+    }
+}
+
 /** Заголовок блока внутри группы: сворачивается и раскрывается; при поиске всё раскрыто. */
 @Composable
 private fun BlockHead(id: String, title: String, open: androidx.compose.runtime.snapshots.SnapshotStateList<String>, searching: Boolean) {
@@ -555,6 +588,9 @@ internal object SettingsGroups {
     var last: String = "updates"
     /** Запрос открыть группу из другого места (кнопка «Док-панель», меню дока): уже открытые настройки переключаются на нужную группу. */
     var reqTick by androidx.compose.runtime.mutableStateOf(0)
+    /** подэкран, который нужно открыть вместе с группой (например «dockapps»); null: сама группа */
+    var openSub: String? = null
+    var handledTick = 0
     val ids = listOf("updates", "ui", "menu", "home", "dock", "wall", "widgets", "dl", "auto", "files", "system")
     fun icon(id: String) = when (id) {
         "updates" -> HIcons.refresh; "ui" -> HIcons.eye; "menu" -> HIcons.apps; "home" -> HIcons.home; "dock" -> HIcons.recent; "wall" -> HIcons.eye; "widgets" -> HIcons.list; "dl" -> HIcons.download; "auto" -> HIcons.recent; "files" -> HIcons.folder; else -> HIcons.gear
@@ -647,7 +683,13 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
     var grp by remember { mutableStateOf(SettingsGroups.last.takeIf { it in SettingsGroups.ids } ?: "updates") }
     var query by remember { mutableStateOf("") }
     val groupReq = SettingsGroups.reqTick
-    LaunchedEffect(groupReq) { if (groupReq > 0) SettingsGroups.last.takeIf { it in SettingsGroups.ids }?.let { grp = it; query = "" } }
+    LaunchedEffect(groupReq) {
+        if (groupReq != SettingsGroups.handledTick) {
+            SettingsGroups.handledTick = groupReq
+            SettingsGroups.last.takeIf { it in SettingsGroups.ids }?.let { grp = it; query = "" }
+            SettingsGroups.openSub?.let { sub = it }; SettingsGroups.openSub = null
+        }
+    }
     var homeBgDlg by remember { mutableStateOf(false) }
     var dockKeyDlg by remember { mutableStateOf(false) }
     val openBlk = remember { androidx.compose.runtime.mutableStateListOf("ui_a", "ui_b", "hm_a", "sy_b") }
@@ -737,7 +779,7 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
     Column(Modifier.fillMaxSize().background(t.bg).padding(horizontal = 32.dp, vertical = 20.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Chip("← " + stringResource(R.string.back_plain), false, Modifier.focusRequester(first)) { if (sub == "main") onBack() else sub = "main" }
-            Text(stringResource(when (sub) { "main" -> R.string.settings; "about" -> R.string.about_title; "autoapps" -> R.string.auto_pick; "dockapps" -> R.string.dock_pick; "excl" -> R.string.mem_excl_title; else -> R.string.hidden_list }), fontSize = 24.sp, color = t.text)
+            Text(stringResource(when (sub) { "main" -> R.string.settings; "about" -> R.string.about_title; "autoapps" -> R.string.auto_pick; "dockapps" -> R.string.dock_pick; "dockhide" -> R.string.dock_hide_title; "excl" -> R.string.mem_excl_title; else -> R.string.hidden_list }), fontSize = 24.sp, color = t.text)
         }
         // ТВ, ландшафт телефона и магнитолы: слева узкий список групп в одну строку, справа содержимое; портрет: одна колонка
         SettingsFrame({ if (wide && sub == "main") GroupsPane(grp, onTap = { query = "" }) { grp = it } }) {
@@ -1033,35 +1075,44 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                 if (grp == "dock" || query.isNotBlank()) {
                     @Suppress("UNUSED_VARIABLE") val dockRev = HomeDock.rev.intValue
                     SwitchRow(stringResource(R.string.dock_title), HomeDock.on(ctx), listOf(stringResource(R.string.dock_hint))) { HomeDock.setOn(ctx, it) }
+                    // блок «Приложения»: что в доке, добавить, скрыть
                     Section(stringResource(R.string.dock_apps_title)) {
-                        ActionRow(HIcons.list, stringResource(R.string.dock_pick) + " (" + HomeDock.list(ctx).size + ")", stringResource(R.string.dock_pick_h)) { sub = "dockapps" }
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            ActionRow(HIcons.list, stringResource(R.string.dock_pick) + " (" + HomeDock.list(ctx).size + ")", stringResource(R.string.dock_pick_h)) { sub = "dockapps" }
+                            ActionRow(HIcons.list, stringResource(R.string.dock_m_add), stringResource(R.string.dock_add_h)) { sub = "dockapps" }
+                            ActionRow(HIcons.eyeOff, stringResource(R.string.dock_hide_pick) + " (" + HomeDock.hiddenList(ctx).size + ")", stringResource(R.string.dock_hide_h)) { sub = "dockhide" }
+                        }
                         CounterRow(stringResource(R.string.dock_count), HomeDock.count(ctx), 6..12, "") { HomeDock.setCount(ctx, it) }
                     }
+                    // блок «Вид»: расположение, размеры, подписи, фон и прозрачность рядом
                     Section(stringResource(R.string.dock_look)) {
+                        Text(stringResource(R.string.dock_align), color = t.sub, fontSize = hintSp(13), modifier = Modifier.padding(top = 2.dp))
+                        Options(listOf(0 to stringResource(R.string.dock_al_l), 1 to stringResource(R.string.dock_al_c), 2 to stringResource(R.string.dock_al_r)), HomeDock.align(ctx)) { HomeDock.setAlign(ctx, it) }
                         CounterRow(stringResource(R.string.dock_icon), HomeDock.icon(ctx), 24..72, "dp") { HomeDock.setIcon(ctx, it) }
+                        SwitchRow(stringResource(R.string.dock_labels), HomeDock.labels(ctx), emptyList()) { HomeDock.setLabels(ctx, it) }
+                        if (HomeDock.labels(ctx)) CounterRow(stringResource(R.string.dock_label_sp), HomeDock.labelSp(ctx), 8..16, "sp") { HomeDock.setLabelSp(ctx, it) }
+                        Text(stringResource(R.string.dock_bg), color = t.sub, fontSize = hintSp(13), modifier = Modifier.padding(top = 6.dp))
+                        Options(listOf(1 to stringResource(R.string.dock_bg_light), 0 to stringResource(R.string.dock_bg_dark), 2 to stringResource(R.string.dock_bg_auto)), HomeDock.bg(ctx)) { HomeDock.setBg(ctx, it) }
                         CounterRow(stringResource(R.string.dock_transp), HomeDock.transp(ctx), 0..100, "%") { HomeDock.setTransp(ctx, it) }
-                        Options(listOf(0 to "0 %", 10 to "10 %", 40 to "40 %", 70 to "70 %"), HomeDock.transp(ctx)) { HomeDock.setTransp(ctx, it) }
+                        Options(listOf(0 to "0 %", 25 to "25 %", 50 to "50 %", 75 to "75 %", 100 to "100 %"), HomeDock.transp(ctx)) { HomeDock.setTransp(ctx, it) }
                         CounterRow(stringResource(R.string.dock_bottom), HomeDock.bottom(ctx), 0..60, "dp") { HomeDock.setBottom(ctx, it) }
-                    }
-                    Section(stringResource(R.string.dock_bg)) {
-                        Options(listOf(0 to stringResource(R.string.dock_bg_dark), 1 to stringResource(R.string.dock_bg_light), 2 to stringResource(R.string.dock_bg_auto)), HomeDock.bg(ctx)) { HomeDock.setBg(ctx, it) }
                         CounterRow(stringResource(R.string.dock_radius), HomeDock.radius(ctx), 0..30, "dp") { HomeDock.setRadius(ctx, it) }
                     }
-                    Section(stringResource(R.string.dock_sort)) {
+                    // блок «Поведение»: порядок, недавние, автодобавление, прокрутка, кнопка
+                    Section(stringResource(R.string.dock_behave)) {
+                        Text(stringResource(R.string.dock_sort), color = t.sub, fontSize = hintSp(13))
                         Options(listOf(0 to stringResource(R.string.dock_s0), 1 to stringResource(R.string.dock_s1), 2 to stringResource(R.string.dock_s2), 3 to stringResource(R.string.dock_s3)), HomeDock.sort(ctx)) { HomeDock.setSort(ctx, it) }
+                        SwitchRow(stringResource(R.string.dock_recents), HomeDock.recents(ctx), listOf(stringResource(R.string.dock_recents_h))) { HomeDock.setRecents(ctx, it) }
+                        if (HomeDock.recents(ctx)) CounterRow(stringResource(R.string.dock_recent_n), HomeDock.recentN(ctx), 1..8, "") { HomeDock.setRecentN(ctx, it) }
+                        SwitchRow(stringResource(R.string.dock_auto), HomeDock.auto(ctx), listOf(stringResource(R.string.dock_auto_h))) { HomeDock.setAuto(ctx, it) }
+                        SwitchRow(stringResource(R.string.dock_close_after), HomeDock.closeAfter(ctx), listOf(stringResource(R.string.dock_close_after_h))) { HomeDock.setCloseAfter(ctx, it) }
+                        SwitchRow(stringResource(R.string.dock_scroll), HomeDock.scrollbar(ctx), listOf(stringResource(R.string.dock_scroll_h))) { HomeDock.setScrollbar(ctx, it) }
+                        SwitchRow(stringResource(R.string.dock_btn), HomeDock.btn(ctx), listOf(stringResource(R.string.dock_btn_h))) { HomeDock.setBtn(ctx, it) }
                     }
-                    SwitchRow(stringResource(R.string.dock_recents), HomeDock.recents(ctx), listOf(stringResource(R.string.dock_recents_h))) { HomeDock.setRecents(ctx, it) }
-                    if (HomeDock.recents(ctx)) CounterRow(stringResource(R.string.dock_recent_n), HomeDock.recentN(ctx), 1..8, "") { HomeDock.setRecentN(ctx, it) }
-                    SwitchRow(stringResource(R.string.dock_auto), HomeDock.auto(ctx), listOf(stringResource(R.string.dock_auto_h))) { HomeDock.setAuto(ctx, it) }
-                    SwitchRow(stringResource(R.string.dock_btn), HomeDock.btn(ctx), listOf(stringResource(R.string.dock_btn_h))) { HomeDock.setBtn(ctx, it) }
-                    Section(stringResource(R.string.dock_align)) {
-                        Options(listOf(0 to stringResource(R.string.dock_al_l), 1 to stringResource(R.string.dock_al_c), 2 to stringResource(R.string.dock_al_r)), HomeDock.align(ctx)) { HomeDock.setAlign(ctx, it) }
-                    }
-                    SwitchRow(stringResource(R.string.dock_labels), HomeDock.labels(ctx), emptyList()) { HomeDock.setLabels(ctx, it) }
                     Section(stringResource(R.string.dock_key)) {
                         Options(listOf(0 to stringResource(R.string.dock_key_0), 1 to stringResource(R.string.dock_key_1), 2 to stringResource(R.string.dock_key_2), 3 to stringResource(R.string.dock_key_3)), HomeDock.keyMode(ctx)) { HomeDock.setKeyMode(ctx, it) }
                         if (HomeDock.keyMode(ctx) == 3) ActionRow(HIcons.gear, stringResource(R.string.dock_key_press) + (if (HomeDock.keyCode(ctx) >= 0) ": " + Voice.keyName(HomeDock.keyCode(ctx)) else ""), stringResource(R.string.dock_key_press_h)) { dockKeyDlg = true }
-                        Text(stringResource(R.string.dock_keys_help), color = t.sub, fontSize = btnSp(12), modifier = Modifier.padding(top = 4.dp))
+                        Text(stringResource(R.string.dock_keys_help), color = t.sub, fontSize = hintSp(12), modifier = Modifier.padding(top = 4.dp))
                     }
                 }
                 GroupHead("wall", wide || query.isNotBlank(), grp) { grp = it }
@@ -1201,6 +1252,8 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                 }
             } else if (sub == "dockapps") {
                 DockAppsPane(ctx, apps)
+            } else if (sub == "dockhide") {
+                DockHidePane(ctx, apps)
             } else if (sub == "autoapps") {
                 AutoAppsPane(ctx, apps)
             } else if (sub == "excl") {

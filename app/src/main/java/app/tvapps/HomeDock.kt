@@ -12,6 +12,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.horizontalScroll
@@ -131,6 +132,10 @@ object HomeDock {
     fun recentApps(c: Context, all: List<Entry>, exclude: Set<String>): List<Entry> =
         all.filter { !it.system && !Cfg.isHidden(it.pkg) && it.pkg !in hiddenList(c) && it.pkg !in exclude && Cfg.lastLaunch(it.pkg) > 0 }.sortedByDescending { Cfg.lastLaunch(it.pkg) }.take(recentN(c))
     fun align(c: Context) = sp(c).getInt("dock_align", 0)   // по умолчанию слева (как в Pulsar); уже выбранное значение не меняется
+    /** После запуска приложения из дока (и из панели «Все приложения») док закрыть (true) или оставить (false, по умолчанию). */
+    fun closeAfter(c: Context) = sp(c).getBoolean("dock_close_after", false)
+    fun setCloseAfter(c: Context, v: Boolean) { sp(c).edit().putBoolean("dock_close_after", v).apply(); rev.intValue++ }
+    fun afterLaunch(c: Context) { if (closeAfter(c) && on(c)) setOn(c, false) }
     fun labelSp(c: Context) = sp(c).getInt("dock_label_sp", 10)
     fun setLabelSp(c: Context, v: Int) { sp(c).edit().putInt("dock_label_sp", v.coerceIn(8, 16)).apply(); rev.intValue++ }
     fun scrollbar(c: Context) = sp(c).getBoolean("dock_scrollbar", false)
@@ -168,7 +173,7 @@ object HomeDock {
     }
 
     /** Высота дока в dp (чтобы строки «Дома» не уезжали под него). */
-    fun heightDp(c: Context): Int = icon(c) + (if (labels(c)) 20 else 0) + 12 + bottom(c)
+    fun heightDp(c: Context): Int = icon(c) + (if (labels(c)) (labelSp(c) * 13 / 10 + 7) else 0) + 12 + bottom(c)
 }
 
 /** Док поверх «Дома» у нижнего края. Ставится после содержимого экрана. */
@@ -262,14 +267,16 @@ fun HomeDockHost() {
                                 onClick = {
                                     if (HomeDock.moving.value == e.pkg) HomeDock.moving.value = null
                                     else if (System.currentTimeMillis() - lpAt > 900)
-                                        ctx.packageManager.getLaunchIntentForPackage(e.pkg)?.let { Cfg.countLaunch(e.pkg); runCatching { ctx.startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
+                                        ctx.packageManager.getLaunchIntentForPackage(e.pkg)?.let { Cfg.countLaunch(e.pkg); runCatching { ctx.startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }; HomeDock.afterLaunch(ctx) }
                                 },
                             )
                             .padding(horizontal = 4.dp, vertical = 3.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Image(bmp, null, Modifier.size(iconDp.dp))
-                        if (showLabels) Text(e.label, color = if (focused) Color.White else txt, fontSize = HomeDock.labelSp(ctx).sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+                        if (showLabels) Text(e.label, color = if (focused) Color.White else txt, fontSize = HomeDock.labelSp(ctx).sp,
+                            // мягкая тень контрастного цвета: подпись читается на любой картинке и при прозрачной панели
+                            style = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(if (focused || !light) Color.Black.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.9f), androidx.compose.ui.geometry.Offset(0f, 1f), 5f)), maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
                     }
                 }
                 items.forEachIndexed { idx, e -> androidx.compose.runtime.key("d" + e.pkg) { Cell(e, idx, true) } }
@@ -279,6 +286,14 @@ fun HomeDockHost() {
                     rec.forEach { e -> androidx.compose.runtime.key("r" + e.pkg) { Cell(e, -1, false) } }
                 }
             }
+            // полоса прокрутки дока (настройка «Полоса прокрутки дока»): видна, когда значки не помещаются
+            if (HomeDock.scrollbar(ctx) && dockScroll.maxValue > 0) Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).drawBehind {
+                val total = size.width + dockScroll.maxValue
+                val w = size.width * size.width / total
+                val x = (size.width - w) * dockScroll.value / dockScroll.maxValue
+                drawRect(txt.copy(alpha = 0.25f))
+                drawRect(t.accent, androidx.compose.ui.geometry.Offset(x, 0f), androidx.compose.ui.geometry.Size(w, size.height))
+            })
         }
     }
     if (barMenu) {

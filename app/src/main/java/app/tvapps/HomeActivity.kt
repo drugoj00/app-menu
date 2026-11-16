@@ -384,6 +384,7 @@ private fun HomeScreen(tick: Int, again: Int) {
     val openApp: (Entry) -> Unit = { e ->
         Cfg.countLaunch(e.pkg)
         runCatching { ctx.startActivity(e.launch) }.onFailure { Toast.makeText(ctx, ctx.getString(R.string.cant_open), Toast.LENGTH_SHORT).show() }
+        if (AllPanel.focusInside) HomeDock.afterLaunch(ctx)   // запуск из панели «Все приложения»: док по настройке закрывается
     }
     val openMenu = {
         if (!Cfg.menuOff) {
@@ -484,14 +485,18 @@ private fun HomeScreen(tick: Int, again: Int) {
                         androidx.compose.foundation.layout.BoxWithConstraints(Modifier.weight(1f)) {
                         // док занимает нижнюю полосу: область прокрутки заканчивается над ним, плитки нижней строки не прячутся под док
                         @Suppress("UNUSED_VARIABLE") val dockRev0 = HomeDock.rev.intValue
-                        val dockPad = if (HomeDock.on(ctx)) HomeDock.heightDp(ctx).dp else 0.dp
+                        // «Оставлять» (по умолчанию): под док зарезервировано место, ряды сдвинуты (зазоры между рядами уменьшены на высоту дока) и док их не перекрывает;
+                        // «Закрывать после запуска»: док появляется поверх рядов, места под него нет
+                        val dockKeep = HomeDock.on(ctx) && !HomeDock.closeAfter(ctx)
+                        val dockPad = if (dockKeep) HomeDock.heightDp(ctx).dp else 0.dp
+                        val layoutShown = if (dockKeep && layout.rows.size > 1) layout.copy(rowGap = (layout.rowGap - HomeDock.heightDp(ctx) / (layout.rows.size - 1)).coerceAtLeast(6)) else layout
                         val viewH = maxHeight - dockPad
                         Column(Modifier.fillMaxSize().padding(bottom = dockPad).nestedScroll(swipeMenu).verticalScroll(scroll)) {
                             // поля сверху и снизу: выбранный элемент увеличивается и не должен обрезаться краем прокручиваемой области
                             @Suppress("UNUSED_VARIABLE") val dockRev = HomeDock.rev.intValue
                             Column(Modifier.padding(top = 10.dp, bottom = 10.dp)) {
                                 HomeRowsView(
-                                    layout, apps, tick, refreshTick, movingItem, firstReq,
+                                    layoutShown, apps, tick, refreshTick, movingItem, firstReq,
                                     openApp = openApp, openMenu = { openMenu() }, onDlg = { dlg = it }, onMoveEnd = { movingItem = null },
                                     panelH = (viewH - 40.dp).coerceAtLeast(260.dp),
                                 )
