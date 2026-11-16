@@ -1086,4 +1086,14 @@
     <string name="wifi_recv_hint">Open this address in a browser on a phone or computer in the same Wi-Fi network (or scan the QR code) and choose the APK files to send.</string>
     <string name="install_noaccess_title">No access to files</string>
     <string name="install_noaccess">The program may not read files on this device, so no APK could be looked for. Allow “All files access” (Settings, Apps, App Menu, Permissions), connect ADB or root, or pick files in the system picker.</string>
+    <string name="dock_m_hide">Hide the dock</string>
+    <string name="dock_m_add">Add an app…</string>
+    <string name="dock_hide_pick">Hide apps in the dock</string>
+    <string name="dock_hide_h">Checked apps never show in the dock (chosen, auto-added or recent). Uncheck to bring them back.</string>
+    <string name="dock_hide_title">Hidden in the dock</string>
+    <string name="dock_add_h">Opens the list of all apps with checkboxes: checked ones go to the dock.</string>
+    <string name="dock_label_sp">Label size</string>
+    <string name="dock_scroll">Dock scroll bar</string>
+    <string name="dock_scroll_h">A thin bar under the icons when they do not fit; scroll with a finger, mouse or arrows.</string>
+    <string name="dock_behave">Behavior</string>
 </resources>
