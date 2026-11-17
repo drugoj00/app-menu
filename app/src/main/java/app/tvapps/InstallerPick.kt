@@ -153,8 +153,10 @@ object InstallerPick {
     }
 
     /** Установка выбранным способом. Итог: "ok", "system" (передано, итог по версии) или "fail:…". */
-    suspend fun dispatch(ctx: Context, id: String, pkg: String, files: List<File>, name: String): String {
+    suspend fun dispatch(ctx: Context, id: String, pkg: String, files: List<File>, name: String, confirm: Boolean = true): String {
         val app = ctx.applicationContext
+        // 8.1: у собственных способов (ADB, системная сессия) окно сведений о пакете показывается ВСЕГДА, и при запомненном выборе; ADB-phon и другие установщики показывают своё окно сами
+        if (confirm && (id == ADB || id == SYSTEM) && !InstallInfo.confirm(app, files, name.ifBlank { pkg })) return "fail:" + app.getString(R.string.inst_cancelled)
         return when {
             id == ADB -> {
                 if (!Adb.isConnected) return "need_adb"
