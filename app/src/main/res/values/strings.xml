@@ -1109,7 +1109,7 @@
     <string name="inst_for">Installing: %1$s</string>
     <string name="inst_adbphon">ADB-phon</string>
     <string name="inst_system">System installer</string>
-    <string name="inst_adb">Through ADB of this device</string>
+    <string name="inst_adb">Through ADB of this device (not ADB-phon)</string>
     <string name="inst_others">Other installers</string>
     <string name="inst_remember">Remember the choice</string>
     <string name="inst_no_adbphon">ADB-phon 10.2 or newer is not installed</string>
@@ -1131,4 +1131,26 @@
     <string name="inst_sig_unknown">Signature could not be compared</string>
     <string name="inst_downgrade">Version is lower than installed: a downgrade works only through ADB or with removal</string>
     <string name="inst_go">Install</string>
+    <string name="ui_size_title">Interface size</string>
+    <string name="ui_size_hint">On large screens with low density (car radios, tablets) the program scales itself up automatically; this multiplier is applied on top. The final factor is shown below.</string>
+    <string name="ui_size_total">Final factor: ×%1$s (auto ×%2$s)</string>
+    <string name="ui_sz_small">Small 0.75</string>
+    <string name="ui_sz_auto">Auto 1.0</string>
+    <string name="ui_sz_big">Large 1.25</string>
+    <string name="ui_sz_huge">Very large 1.5</string>
+    <string name="ui_sz_reset">Default</string>
+    <string name="click_sound_title">Click sound</string>
+    <string name="click_sound_hint">The system touch sound on tiles, buttons and rows. The system setting “Touch sounds” is respected.</string>
+    <string name="auto_mode_bg">In background</string>
+    <string name="auto_mode_screen">On screen</string>
+    <string name="auto_mode_off">Do not start</string>
+    <string name="silent_no_service">the quiet-install service is not found</string>
+    <string name="silent_bad_sig">the signing key differs from ADB-phon</string>
+    <string name="inst_timeout_silent">ADB-phon did not answer in time</string>
+    <string name="inst_note_fallback">Quiet install through ADB-phon is unavailable (%1$s; needs ADB-phon 11.0): the ADB-phon window will open.</string>
+    <string name="bk_del_switch">Keep an app copy when removing and updating</string>
+    <string name="bk_del_hint">One setting for both actions. The APK copy is saved to: %1$s. To bring a version back: the app card, “Versions”, or “Copies and versions” below.</string>
+    <string name="bk_del_row">Save a copy (APK) before removing</string>
+    <string name="bk_del_toast_on">An APK copy is saved before removing (setting “Keep an app copy”)</string>
+    <string name="bk_del_toast_off">The APK copy is not saved (turned off in settings)</string>
 </resources>
