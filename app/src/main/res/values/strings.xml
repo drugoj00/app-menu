@@ -1103,4 +1103,6 @@
     <string name="req_upd_title">Update required to keep the app working</string>
     <string name="req_upd_text">Version %1$s is out. This version of the app must be updated.</string>
     <string name="req_upd_exit">Exit</string>
+    <string name="self_upd_cancelled">Installation was not completed. Try again?</string>
+    <string name="self_upd_timeout">Installation did not finish in time. Try again?</string>
 </resources>
