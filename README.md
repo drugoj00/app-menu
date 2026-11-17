@@ -14,14 +14,15 @@ App Menu replaces the stock app list with a big grid made for a remote and for t
 
 ## Download
 
-**Version 8.1.** [AppMenu-8.1.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
+**Version 8.5.** [AppMenu-8.5.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `afa502253b349d35e5a2abe2cd57d8aa92fdc0165cc57a62f69229f611190eb7`
+SHA-256: `c7c77af6c99041e369e6c368c9659b0ee4afddb5dc5415f3e9127d48711c4dd8`
 
-## What's new in 8.1
+## What's new in 8.5
 
-- “Update required to keep the app working” window at launch for releases marked as mandatory
-- Fixed: Home screen crash after an app is removed and after memory cleanup
+- Installer choice for updates and installs (ADB-phon, system, others)
+- Package info window before installing
+- Bug fixes
 
 ## Features
 
@@ -57,7 +58,7 @@ SHA-256: `afa502253b349d35e5a2abe2cd57d8aa92fdc0165cc57a62f69229f611190eb7`
 
 ## Quick start
 
-1. Download AppMenu-8.1.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
+1. Download AppMenu-8.5.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
 2. Open it: apps are launched with OK or a tap, a long press (or holding OK, or the Menu key) opens the action card. To use it instead of the stock menu turn on “Launcher mode” in Settings.
 3. To act on other apps connect ADB: Settings → “Connect ADB”. Android 9 and older TV boxes with network ADB connect by themselves. Android 11+: turn on the “App Menu” service in Accessibility once, press “Connect automatically”. Android 10 and older: run adb tcpip 5555 once from a computer (repeat after a reboot). With root none of this is needed: allow root for the app once and it connects by itself.
 
