@@ -403,8 +403,12 @@ fun AppMenu(e: Entry, hidden: Boolean, onToggleHide: () -> Unit, onSelect: () ->
                             ActionCell(IconRemove, stringResource(R.string.uninstall), Modifier.weight(1f), tint = Pop.danger) {
                                 onClose()
                                 if (e.system) toast(ctx, ctx.getString(R.string.system_no_delete))
-                                else AppBackups.saveThen(ctx, listOf(e.pkg)) {
-                                    runCatching { ctx.startActivity(Intent(Intent.ACTION_DELETE, Uri.parse("package:" + e.pkg)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                                else {
+                                    // 9.0: видно, сохраняется ли копия APK (настройка «Сохранять копию приложения» в «Обновления и копии»)
+                                    toast(ctx, ctx.getString(if (Cfg.backupOnDelete) R.string.bk_del_toast_on else R.string.bk_del_toast_off))
+                                    AppBackups.saveThen(ctx, listOf(e.pkg)) {
+                                        runCatching { ctx.startActivity(Intent(Intent.ACTION_DELETE, Uri.parse("package:" + e.pkg)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                                    }
                                 }
                             }
                         }

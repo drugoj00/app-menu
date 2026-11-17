@@ -27,6 +27,10 @@ object Autostart {
     fun setOn(c: Context, v: Boolean) { sp(c).edit().putBoolean("auto_on", v).apply(); rev.intValue++ }
     fun list(c: Context): List<String> = (sp(c).getString("auto_list", "") ?: "").split(',').filter { it.isNotBlank() }
     fun setList(c: Context, l: List<String>) { sp(c).edit().putString("auto_list", l.joinToString(",")).apply(); rev.intValue++ }
+    /** Режим приложения (9.0): screen — запуск на экран, bg — запуск и сразу возврат на главный экран (приложение остаётся работать в фоне), off — в списке, но не запускать. */
+    fun mode(c: Context, pkg: String): String = sp(c).getString("auto_mode_$pkg", "screen") ?: "screen"
+    fun setMode(c: Context, pkg: String, m: String) { sp(c).edit().putString("auto_mode_$pkg", m).apply(); rev.intValue++ }
+    fun nextMode(m: String): String = when (m) { "screen" -> "bg"; "bg" -> "off"; else -> "screen" }
     fun delaySec(c: Context) = sp(c).getInt("auto_delay", 20)
     fun setDelaySec(c: Context, v: Int) { sp(c).edit().putInt("auto_delay", v.coerceIn(0, 600)).apply(); rev.intValue++ }
     fun gapSec(c: Context) = sp(c).getInt("auto_gap", 5)
@@ -68,6 +72,10 @@ object Autostart {
         runCatching { if (Cfg.useRoot && !Adb.isConnected) Adb.tryRoot() }
         val viaShell = Adb.isConnected
         for ((i, pkg) in pkgs.withIndex()) {
+            // само «Меню приложений» автозапуском не запускается; режим «Не запускать» пропускает приложение
+            if (pkg == app.packageName) continue
+            val mode = mode(app, pkg)
+            if (mode == "off") { addLog(app, "$pkg: " + app.getString(R.string.auto_mode_off)); continue }
             if (i > 0) delay(gapSec(app) * 1000L)
             val pm = app.packageManager
             val intent = pm.getLeanbackLaunchIntentForPackage(pkg) ?: pm.getLaunchIntentForPackage(pkg)
@@ -90,6 +98,13 @@ object Autostart {
                 how = app.getString(R.string.auto_l_plain)
             }
             if (ok) addLog(app, "$pkg: " + app.getString(R.string.auto_l_ok) + " ($how)")
+            // «В фоне»: приложение запущено, через пару секунд возвращаем главный экран; оно остаётся работать
+            if (ok && mode == "bg") {
+                delay(3000)
+                if (viaShell) runCatching { Adb.shell("input keyevent 3") }
+                else runCatching { app.startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                addLog(app, "$pkg: " + app.getString(R.string.auto_mode_bg))
+            }
         }
         addLog(app, app.getString(R.string.auto_l_done))
     }

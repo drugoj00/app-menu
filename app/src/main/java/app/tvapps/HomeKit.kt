@@ -183,6 +183,7 @@ internal fun HomeBox(
         onDispose { if (memKey != null && TileFocus.reqs[memKey] === selfReq) TileFocus.reqs.remove(memKey) }
     }
     var boxCoords by remember { mutableStateOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
+    val snd = rememberClickSound()
     val t = LocalTh.current
     var focused by remember { mutableStateOf(false) }
     var pending by remember { mutableStateOf(false) }
@@ -256,7 +257,7 @@ internal fun HomeBox(
             .drawWithContent { drawContent(); if (focusTint && !moving && (focused || hover)) drawRect(Color.White.copy(alpha = 0.16f)) }
             .mouseSecondary { long() }
             .combinedClickable(
-                onClick = { if (android.os.SystemClock.elapsedRealtime() > suppressUntil) click() },
+                onClick = { if (android.os.SystemClock.elapsedRealtime() > suppressUntil) { snd(); click() } },
                 onLongClick = if (dragStart == null) ({ suppressUntil = android.os.SystemClock.elapsedRealtime() + 700; long() }) else null,
             )
             .onGloballyPositioned { boxCoords = it }

@@ -167,6 +167,11 @@ object NetSearch {
             val dir = File(ctx.cacheDir, "batch").apply { mkdirs() }
             val name = url.substringAfterLast('/').substringBefore('?').ifBlank { "app.apk" }.let { if (it.lowercase().endsWith(".apk")) it else "$it.apk" }
             val out = File(dir, "net_" + name.replace(Regex("[^\\w.\\-]"), "_"))
+            // отладочная сборка: file:-адрес берётся с диска (проверка установки без сети)
+            if (BuildConfig.DEBUG && url.startsWith("file:")) {
+                File(java.net.URI(url)).copyTo(out, true)
+                return@runCatching ApkFile(name, Uri.fromFile(out), out.length(), out)
+            }
             val c = URL(url).openConnection() as HttpURLConnection
             c.connectTimeout = 15_000
             c.readTimeout = 40_000

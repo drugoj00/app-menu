@@ -1379,6 +1379,8 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
                 Text(removable.take(8).joinToString("\n") { "• " + it.label } + if (removable.size > 8) "\n…" else "", color = t.sub, fontSize = 14.sp)
                 if (skipped > 0) Text(stringResource(R.string.del_skipped, skipped), color = t.hint, fontSize = 12.sp)
                 Text(stringResource(if (Adb.isConnected) R.string.del_silent else R.string.del_dialogs), color = t.hint, fontSize = 12.sp)
+                // копия APK перед удалением: то же значение, что в настройках («Обновления и копии»)
+                Chip(stringResource(R.string.bk_del_row) + ": " + stringResource(if (Cfg.backupOnDelete) R.string.on else R.string.off), Cfg.backupOnDelete) { Cfg.changeBackupOnDelete(!Cfg.backupOnDelete) }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Chip(stringResource(R.string.cancel), false, Modifier.focusRequester(noFocus)) { confirmDelete = false }
                     Chip(stringResource(R.string.del_yes), true) {
@@ -1564,6 +1566,7 @@ internal fun AppTile(
     var pending by remember { mutableStateOf(false) }
     var downAt by remember { mutableStateOf(0L) }
     val okScope = androidx.compose.runtime.rememberCoroutineScope()
+    val snd = rememberClickSound()
     val dragFlag = remember { booleanArrayOf(false) }   // палец уже потянул значок: меню действий открывать не надо
     val tileLc = remember { arrayOfNulls<LayoutCoordinates>(1) }
     // пока значок тянут, плитка закреплена в ленивой сетке: уйдя за край при автопрокрутке, она не разрушается и жест не обрывается
@@ -1647,10 +1650,10 @@ internal fun AppTile(
             .then(
                 // в облегчённом режиме явный вариант без волны нажатия и без composed-модификатора (дешевле в создании)
                 if (lite) Modifier.combinedClickable(
-                    interactionSource = null, indication = null, onClick = onOpen,
+                    interactionSource = null, indication = null, onClick = { snd(); onOpen() },
                     onLongClick = { dragFlag[0] = false; okScope.launch { kotlinx.coroutines.delay(170); if (!dragFlag[0]) onMenu() } },
                 )
-                else Modifier.combinedClickable(onClick = onOpen, onLongClick = {
+                else Modifier.combinedClickable(onClick = { snd(); onOpen() }, onLongClick = {
                     dragFlag[0] = false
                     okScope.launch { kotlinx.coroutines.delay(170); if (!dragFlag[0]) onMenu() }
                 })

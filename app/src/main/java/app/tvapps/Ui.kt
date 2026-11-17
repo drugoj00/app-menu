@@ -42,8 +42,54 @@ object UiScale {
     }
 
     /** Живой масштаб: пересчитывается при повороте и смене размера окна (конфигурация подменяется на уровне Compose, а не заморожена при запуске). */
+    /**
+     * Правило 28 (9.0): автомасштаб для крупных экранов с низкой плотностью (автомагнитолы, планшеты): короткая сторона не меньше 600 px при плотности
+     * не выше 240, либо не меньше 600 dp при плотности не выше 213, либо режим «автомобиль». Телевизоры и приставки не затрагиваются.
+     * Старт 1,25 (не больше 1,5: у ADB-phon 1,75 на магнитоле оказалось слишком много). Если уже действует прежний пересчёт по физической плотности (of), новый не добавляется.
+     */
+    fun autoK(base: android.content.Context): Float {
+        val m = base.resources.displayMetrics
+        val um = base.getSystemService(android.content.Context.UI_MODE_SERVICE) as? android.app.UiModeManager
+        val type = um?.currentModeType
+        // отладочная сборка: файл files/dbg_notv отключает проверку «телевизор» (эмулятор ТВ для проверки автомасштаба магнитолы)
+        val dbgNoTv = BuildConfig.DEBUG && java.io.File(base.filesDir, "dbg_notv").exists()
+        if (!dbgNoTv && type == android.content.res.Configuration.UI_MODE_TYPE_TELEVISION) return 1f
+        if (!dbgNoTv && TopMode.isTv(base)) return 1f
+        if (of(base) > 1.01f) return 1f
+        val car = type == android.content.res.Configuration.UI_MODE_TYPE_CAR || base.packageManager.hasSystemFeature("android.hardware.type.automotive")
+        val shortPx = minOf(m.widthPixels, m.heightPixels)
+        val dpi = m.densityDpi
+        val shortDp = if (dpi > 0) shortPx * 160f / dpi else 0f
+        val bigLow = (shortPx >= 600 && dpi in 1..240) || (shortDp >= 600f && dpi in 1..213)
+        return if (car || bigLow) 1.25f else 1f
+    }
+
+    /** Итоговый коэффициент: автомасштаб на ручной множитель (0,5…2,5). */
+    fun totalK(base: android.content.Context, mul: Float): Float = (autoK(base) * mul).coerceIn(0.5f, 2.5f)
+
+    /** Масштаб правила 28 для содержимого: размеры в dp и текст в sp умножаются на итоговый коэффициент, конфигурация (ширина в dp) делится на него. Используется и окнами-диалогами (у каждого своё Compose-окно со своей плотностью). */
     @Composable
-    fun Root(content: @Composable () -> Unit) {
+    fun ExtraScale(content: @Composable () -> Unit) {
+        val ctx = LocalContext.current
+        val k = totalK(ctx, Cfg.uiMul)
+        if (k in 0.99f..1.01f) { content(); return }
+        val d = LocalDensity.current
+        val cfg = LocalConfiguration.current
+        val cfgK = remember(cfg, k) {
+            android.content.res.Configuration(cfg).also {
+                it.screenWidthDp = (cfg.screenWidthDp / k).toInt()
+                it.screenHeightDp = (cfg.screenHeightDp / k).toInt()
+                // smallestScreenWidthDp не делится: он выбирает «телефонный» или «широкий» вид окон; увеличение текста не должно превращать магнитолу в телефон (кнопки вдвое мельче)
+            }
+        }
+        CompositionLocalProvider(LocalDensity provides Density(d.density * k, d.fontScale), LocalConfiguration provides cfgK) { content() }
+    }
+
+    @Composable
+    fun Root(content: @Composable () -> Unit) = ExtraScale { Inner(content) }
+
+    @Composable
+    private fun Inner(content: @Composable () -> Unit) {
         val ctx = LocalContext.current
         val k = remember { tvK(ctx) }
         if (k > 1.01f) {
@@ -162,7 +208,7 @@ fun hintSp(v: Int): androidx.compose.ui.unit.TextUnit {
  */
 @Composable
 fun HDialog(onDismissRequest: () -> Unit, properties: androidx.compose.ui.window.DialogProperties = androidx.compose.ui.window.DialogProperties(), content: @Composable () -> Unit) {
-    androidx.compose.ui.window.Dialog(onDismissRequest = onDismissRequest, properties = properties) { MouseDragInDialog(); CompositionLocalProvider(LocalChipReg provides null) { HalfUi { TvBoost { content() } } } }
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismissRequest, properties = properties) { MouseDragInDialog(); CompositionLocalProvider(LocalChipReg provides null) { UiScale.ExtraScale { HalfUi { TvBoost { content() } } } } }
 }
 
 /**

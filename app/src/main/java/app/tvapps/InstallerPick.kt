@@ -152,27 +152,44 @@ object InstallerPick {
         return try { app.startActivity(i); "system" } catch (e: Throwable) { "fail:" + (e.message ?: e.javaClass.simpleName) }
     }
 
-    /** Установка выбранным способом. Итог: "ok", "system" (передано, итог по версии) или "fail:…". */
+    /** Ход тихой установки для окна «Установка…» вызывающего (задаётся им на время установки). */
+    @Volatile var progressSink: ((String) -> Unit)? = null
+
+    /**
+     * Установка выбранным способом. Порядок (9.0): выбор установщика уже сделан → ОКНО СВЕДЕНИЙ О ПАКЕТЕ для ВСЕХ способов (до любого запуска установщика) → «Установить» → установка.
+     * Другие приложения до окна сведений не открываются. «ADB-phon»: тихая передача файла службе ADB-phon без его экрана; если службы нет, откат на окно ADB-phon (в окне сведений об этом сказано).
+     * «Через ADB этого устройства» — только собственный ADB-клиент программы. Итог: "ok", "system" (передано, итог по версии) или "fail:…".
+     */
     suspend fun dispatch(ctx: Context, id: String, pkg: String, files: List<File>, name: String, confirm: Boolean = true): String {
         val app = ctx.applicationContext
-        // 8.1: у собственных способов (ADB, системная сессия) окно сведений о пакете показывается ВСЕГДА, и при запомненном выборе; ADB-phon и другие установщики показывают своё окно сами
-        if (confirm && (id == ADB || id == SYSTEM) && !InstallInfo.confirm(app, files, name.ifBlank { pkg })) return "fail:" + app.getString(R.string.inst_cancelled)
+        val label = name.ifBlank { pkg }
+        val silent = if (id == ADBPHON && files.size == 1) AdbPhoneSilent.available(app) else (false to "")
+        if (confirm) {
+            val note = if (id == ADBPHON && !silent.first) app.getString(R.string.inst_note_fallback, silent.second) else ""
+            if (!InstallInfo.confirm(app, files, label, note)) return "fail:" + app.getString(R.string.inst_cancelled)
+        }
         return when {
             id == ADB -> {
                 if (!Adb.isConnected) return "need_adb"
+                progressSink?.invoke(app.getString(R.string.net_installing))
                 val r = Adb.installFiles(files, "-r")
                 if (r.contains("Success", true)) "ok" else "fail:" + r.take(140)
             }
             id == SYSTEM -> try {
-                withContext(Dispatchers.IO) { SessionInstaller.install(app, files, {}, name.ifBlank { pkg }) }
+                withContext(Dispatchers.IO) { SessionInstaller.install(app, files, {}, label) }
                 "system"
             } catch (e: Throwable) { "fail:" + (e.message ?: e.javaClass.simpleName) }
-            files.size == 1 -> withContext(Dispatchers.IO) { handoff(app, id, files[0], pkg.ifBlank { name }) }
+            id == ADBPHON && silent.first -> {
+                progressSink?.invoke(app.getString(R.string.net_installing))
+                val r = AdbPhoneSilent.install(app, files[0], label) { progressSink?.invoke(it) }
+                if (r == "unavailable") withContext(Dispatchers.IO) { handoff(app, id, files[0], label) } else r
+            }
+            files.size == 1 -> withContext(Dispatchers.IO) { handoff(app, id, files[0], label) }
             else -> "need_adb"
         }
     }
 
-    /** Полный путь для обновления и версий: выбор + установка. */
+    /** Полный путь для обновления и версий: выбор + сведения + установка. */
     suspend fun run(ctx: Context, pkg: String, files: List<File>, name: String): String {
         val label = name.ifBlank { pkg }
         val id = choose(ctx, label, files.size, files.firstOrNull()) ?: return "fail:" + ctx.getString(R.string.inst_cancelled)

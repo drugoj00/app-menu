@@ -48,7 +48,7 @@ import java.security.MessageDigest
 object InstallInfo {
     class Info(
         val name: String, val icon: Drawable?, val pkg: String, val newName: String, val newCode: Long,
-        val oldName: String?, val oldCode: Long, val sizeMb: String, val sig: Int, val downgrade: Boolean, val parts: Int,
+        val oldName: String?, val oldCode: Long, val sizeMb: String, val sig: Int, val downgrade: Boolean, val parts: Int, val note: String = "",
     )
 
     class Req(val info: Info, val done: CompletableDeferred<Boolean>)
@@ -101,8 +101,8 @@ object InstallInfo {
     }
 
     /** Показать окно и дождаться «Установить» (true) или «Отмена» (false). */
-    suspend fun confirm(ctx: Context, files: List<File>, fallbackName: String): Boolean {
-        val info = withContext(Dispatchers.IO) { describe(ctx.applicationContext, files, fallbackName) }
+    suspend fun confirm(ctx: Context, files: List<File>, fallbackName: String, note: String = ""): Boolean {
+        val info = withContext(Dispatchers.IO) { describe(ctx.applicationContext, files, fallbackName) }.let { if (note.isEmpty()) it else Info(it.name, it.icon, it.pkg, it.newName, it.newCode, it.oldName, it.oldCode, it.sizeMb, it.sig, it.downgrade, it.parts, note) }
         val d = CompletableDeferred<Boolean>()
         withContext(Dispatchers.Main) { req = Req(info, d) }
         return try { d.await() } finally { withContext(Dispatchers.Main) { req = null } }
@@ -149,6 +149,7 @@ fun InstallInfoHost() {
                 0 -> Text(stringResource(R.string.inst_sig_bad), color = androidx.compose.ui.graphics.Color(0xFFF59E0B), fontSize = 14.sp)
                 else -> if (i.oldName != null) Text(stringResource(R.string.inst_sig_unknown), color = t.hint, fontSize = 14.sp)
             }
+            if (i.note.isNotEmpty()) Text(i.note, color = androidx.compose.ui.graphics.Color(0xFFF59E0B), fontSize = 13.sp)
             if (i.downgrade) Text(stringResource(R.string.inst_downgrade), color = androidx.compose.ui.graphics.Color(0xFFF59E0B), fontSize = 14.sp)
             androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 ActionRow(HIcons.download, stringResource(R.string.inst_go), "", Modifier.focusRequester(go)) { r.done.complete(true) }

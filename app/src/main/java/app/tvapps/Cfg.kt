@@ -89,6 +89,10 @@ object Cfg {
     var selfUpd by mutableStateOf(true); private set
     /** Окно «Установить через…» перед установкой (8.1): по умолчанию спрашивать; instSaved: запомненный установщик (adbphon, system, adb, cmp:пакет/класс). */
     var askInstaller by mutableStateOf(true); private set
+    /** Правило 28: ручной множитель размера интерфейса поверх автомасштаба (1 = как задумано; 0,5…2). */
+    var uiMul by mutableStateOf(1f); private set
+    /** Системный звук нажатия на кнопки и строки (учитывает системную настройку «Звук касания»). */
+    var clickSound by mutableStateOf(true); private set
     var instSaved by mutableStateOf(""); private set
     /** Как часто проверять, часов: 6, 24 или 72. */
     var autoUpdHours by mutableIntStateOf(24); private set
@@ -181,6 +185,8 @@ object Cfg {
         autoUpd = sp.getBoolean("auto_upd", false)
         selfUpd = sp.getBoolean("self_upd", true)
         askInstaller = sp.getBoolean("inst_ask", true)
+        uiMul = sp.getFloat("ui_mul", 1f).coerceIn(0.5f, 2f)
+        clickSound = sp.getBoolean("click_sound", true)
         instSaved = sp.getString("inst_saved", "") ?: ""
         autoUpdHours = sp.getInt("auto_upd_hours", 24).let { if (it == 6 || it == 24 || it == 72) it else 24 }
         autoInstall = sp.getBoolean("auto_install", false)
@@ -315,6 +321,8 @@ object Cfg {
         updSkip = if (pkg in updSkip) updSkip - pkg else updSkip + pkg
         sp.edit().putStringSet("upd_skip", updSkip).apply()
     }
+    fun changeUiMul(v: Float) { uiMul = (Math.round(v.coerceIn(0.5f, 2f) * 20) / 20f); sp.edit().putFloat("ui_mul", uiMul).apply() }
+    fun changeClickSound(v: Boolean) { clickSound = v; sp.edit().putBoolean("click_sound", v).apply() }
     fun changeAskInstaller(v: Boolean) { askInstaller = v; sp.edit().putBoolean("inst_ask", v).apply() }
     fun saveInstaller(v: String) { instSaved = v; sp.edit().putString("inst_saved", v).apply() }
     fun changeSelfUpd(v: Boolean) { selfUpd = v; sp.edit().putBoolean("self_upd", v).apply() }

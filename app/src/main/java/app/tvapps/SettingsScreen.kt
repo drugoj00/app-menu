@@ -90,6 +90,7 @@ internal fun Chip(text: String, selected: Boolean, modifier: Modifier = Modifier
         val item = reg?.let { r -> SettingsChipReg.Item(text, req) { ypos[0] + (scrollSt?.value ?: 0) }.also { r.items.add(it) } }
         onDispose { if (item != null) reg.items.remove(item) }
     }
+    val snd = rememberClickSound()
     Box(
         modifier
             .then(if (reg != null) Modifier.focusRequester(req).onGloballyPositioned { ypos[0] = it.positionInRoot().y } else Modifier)
@@ -98,7 +99,7 @@ internal fun Chip(text: String, selected: Boolean, modifier: Modifier = Modifier
             .clip(RoundedCornerShape(12.dp))
             .background(if (selected) t.chipSel else if (hover) t.tileFocus else t.tile)
             .border(if (focused) 3.dp else 1.dp, if (focused) t.accent else t.border, RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
+            .clickable(onClick = { snd(); onClick() })
             .padding(horizontal = if (isNarrow()) 11.dp else 16.dp, vertical = if (isNarrow()) 5.dp else 10.dp),
         contentAlignment = Alignment.Center,
     ) { Text(text, color = t.text, fontSize = btnSp(15), fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal) }
@@ -344,6 +345,7 @@ internal fun ActionRow(icon: androidx.compose.ui.graphics.vector.ImageVector, ti
         val item = reg?.let { r -> SettingsChipReg.Item(title, req) { ypos[0] + (scrollSt?.value ?: 0) }.also { r.items.add(it) } }
         onDispose { if (item != null) reg.items.remove(item) }
     }
+    val snd = rememberClickSound()
     val shape = RoundedCornerShape(12.dp)
     Row(
         modifier.then(if (reg != null) Modifier.fillMaxWidth() else Modifier).widthIn(min = 240.dp, max = 900.dp).heightIn(min = if (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 500) 48.dp else 56.dp)
@@ -353,7 +355,7 @@ internal fun ActionRow(icon: androidx.compose.ui.graphics.vector.ImageVector, ti
             .clip(shape)
             .background(if (hover) t.tileFocus else t.tile)
             .border(if (focused) 3.dp else 1.dp, if (focused) t.accent else t.border, shape)
-            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
+            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = { snd(); onClick() })
             .padding(horizontal = 14.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -439,6 +441,8 @@ private fun AutoAppsPane(ctx: android.content.Context, apps: List<Entry>) {
                 Text(pkg, color = t.hint, fontSize = btnSp(11), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             if (on) {
+                val m = Autostart.mode(ctx, pkg)
+                Chip(stringResource(when (m) { "bg" -> R.string.auto_mode_bg; "off" -> R.string.auto_mode_off; else -> R.string.auto_mode_screen }), m != "off") { Autostart.setMode(ctx, pkg, Autostart.nextMode(m)) }
                 Chip("▲", false) { if (idx > 0) Autostart.setList(ctx, sel.toMutableList().also { java.util.Collections.swap(it, idx, idx - 1) }) }
                 Chip("▼", false) { if (idx < sel.size - 1) Autostart.setList(ctx, sel.toMutableList().also { java.util.Collections.swap(it, idx, idx + 1) }) }
             }
@@ -799,6 +803,8 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                         ActionRow(HIcons.open, stringResource(R.string.about_title), stringResource(R.string.about_hero_h)) { sub = "about" }
                     }
                     SwitchRow(stringResource(R.string.self_upd_auto), Cfg.selfUpd, listOf()) { Cfg.changeSelfUpd(it) }
+                    // 9.0 (просьба Евгения): на виду, один переключатель на удаление и обновление; путь папки копий в пояснении
+                    SwitchRow(stringResource(R.string.bk_del_switch), Cfg.backupOnDelete, listOf(stringResource(R.string.bk_del_hint, remember { AppBackups.root(ctx).absolutePath }))) { Cfg.changeBackupOnDelete(it) }
                     SwitchRow(stringResource(R.string.inst_ask_setting), Cfg.askInstaller, listOf(stringResource(R.string.inst_ask_hint), stringResource(R.string.inst_default_now, InstallerPick.labelOf(ctx, Cfg.instSaved)))) { Cfg.changeAskInstaller(it) }
                     Section(stringResource(R.string.backup_title)) {
                         SectionHint(stringResource(R.string.backup_hint))
@@ -830,6 +836,11 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                             (ctx as? android.app.Activity)?.recreate()
                         }
                     }
+                    Section(stringResource(R.string.ui_size_title)) {
+                        SectionHint(stringResource(R.string.ui_size_hint))
+                        UiSizeSetting()
+                    }
+                    SwitchRow(stringResource(R.string.click_sound_title), Cfg.clickSound, listOf(stringResource(R.string.click_sound_hint))) { Cfg.changeClickSound(it) }
                     Section(stringResource(R.string.set_control)) {
                         SectionHint(stringResource(R.string.ctl_help))
                     }

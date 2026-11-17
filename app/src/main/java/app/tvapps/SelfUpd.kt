@@ -212,8 +212,9 @@ object SelfUpd {
         }
         appScope.launch {
             val res = try {
+                InstallerPick.progressSink = { t -> if (token == my) state = St.Installing(t) }
                 Updates.install(app, f.upd, f.cand) { s -> if (token == my) state = St.Installing(s) }
-            } catch (e: CancellationException) { throw e } catch (e: Throwable) { "fail:" + (e.message ?: "") }
+            } catch (e: CancellationException) { throw e } catch (e: Throwable) { "fail:" + (e.message ?: "") } finally { InstallerPick.progressSink = null }
             if (res == "system") {
                 // файл передан внешнему установщику (системному, App Manager и др.): окно закрывается сразу, итог проверяется тихо по версии при возврате
                 awaited = f.cand.versionName; awaitedFound = f
