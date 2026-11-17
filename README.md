@@ -14,15 +14,16 @@ App Menu replaces the stock app list with a big grid made for a remote and for t
 
 ## Download
 
-**Version 8.5.** [AppMenu-8.5.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
+**Version 9.0.** [AppMenu-9.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `9b91fc0c33682f560592842c741a54f99b676b5e425233c3c0e20352459c19c3`
+SHA-256: `7787a10a01c23a221237880b749c342b0b429780f6ef55804c4ba5a6ef683219`
 
-## What's new in 8.5
+## What's new in 9.0
 
-- Installer choice for updates and installs (ADB-phon, system, others)
-- Package info window before installing
-- Bug fixes
+- Interface auto-scale for car radios and an “Interface size” setting
+- Installer choice and a package info window; quiet install through ADB-phon
+- Autostart of apps in the background: a mode for each app
+- A switch for the backup copy on delete, bug fixes
 
 ## Features
 
@@ -58,7 +59,7 @@ SHA-256: `9b91fc0c33682f560592842c741a54f99b676b5e425233c3c0e20352459c19c3`
 
 ## Quick start
 
-1. Download AppMenu-8.5.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
+1. Download AppMenu-9.0.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
 2. Open it: apps are launched with OK or a tap, a long press (or holding OK, or the Menu key) opens the action card. To use it instead of the stock menu turn on “Launcher mode” in Settings.
 3. To act on other apps connect ADB: Settings → “Connect ADB”. Android 9 and older TV boxes with network ADB connect by themselves. Android 11+: turn on the “App Menu” service in Accessibility once, press “Connect automatically”. Android 10 and older: run adb tcpip 5555 once from a computer (repeat after a reboot). With root none of this is needed: allow root for the app once and it connects by itself.
 
