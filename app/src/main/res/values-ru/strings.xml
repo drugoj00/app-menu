@@ -1149,8 +1149,15 @@
     <string name="inst_timeout_silent">ADB-phon не ответил за отведённое время</string>
     <string name="inst_note_fallback">Тихая установка через ADB-phon недоступна (%1$s; нужен ADB-phon 11.0): откроется окно ADB-phon.</string>
     <string name="bk_del_switch">Сохранять копию приложения при удалении и обновлении</string>
-    <string name="bk_del_hint">Одна настройка на оба действия. Копия APK кладётся в папку: %1$s. Вернуть версию: карточка приложения, «Версии», или «Копии и версии» ниже.</string>
+    <string name="bk_del_hint">Одна настройка на оба действия. Копия APK кладётся в папку: %1$s. Вернуть версию: карточка приложения, «Версии», или «Копии и версии» ниже. Хранится не больше двух последних копий на приложение, старые удаляются сами; скачанные для установки файлы удаляются сразу после неё.</string>
     <string name="bk_del_row">Сохранить копию (APK) перед удалением</string>
     <string name="bk_del_toast_on">Копия APK перед удалением сохраняется (настройка «Сохранять копию приложения»)</string>
     <string name="bk_del_toast_off">Копия APK не сохраняется (выключено в настройках)</string>
+    <string name="clean_row">Очистить копии и временные файлы</string>
+    <string name="clean_row_h">Занято: %1$s (копии версий: %2$s, временные файлы: %3$s). Установленные приложения не затрагиваются.</string>
+    <string name="clean_confirm_title">Очистить копии и временные файлы?</string>
+    <string name="clean_confirm_text">Будет удалено: %1$s. Установленные приложения останутся, но вернуться к сохранённым версиям будет нельзя.</string>
+    <string name="clean_do">Очистить</string>
+    <string name="clean_done">Освобождено: %1$s</string>
+    <string name="bk_merged">Копии объединены</string>
 </resources>
