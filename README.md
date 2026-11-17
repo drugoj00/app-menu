@@ -16,7 +16,7 @@ App Menu replaces the stock app list with a big grid made for a remote and for t
 
 **Version 9.0.** [AppMenu-9.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `40205e230285301e123715b41747425f6c651f29075c0c97fa3c1b255f05b6ca`
+SHA-256: `bbbf106ca905c06c8dfd2c6760b900ddcddda6d4e277487e26014a4e9879e711`
 
 ## What's new in 9.0
 
