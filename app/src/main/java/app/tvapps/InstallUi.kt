@@ -142,7 +142,7 @@ fun InstallDialog(files: List<ApkFile>, onClose: () -> Unit) {
                     val ff = Batch.materialize(it)
                     val fl = ff.file
                     val okS = fl != null && runCatching { SessionInstaller.install(ctx, listOf(fl), {}, it.name) }.isSuccess
-                    if (!okS) Pending.installs.add(Batch.shareUri(ctx, ff))
+                    if (!okS) Toast.makeText(ctx, ctx.getString(R.string.bundle_failed), Toast.LENGTH_LONG).show()
                 }
             }
             busy = false

@@ -89,8 +89,7 @@ fun NetDialog(onClose: () -> Unit) {
                     if (r == "system") { status = ctx.getString(R.string.net_system_dialog); done = true; break }
                     if (r == "ok") { status = ctx.getString(R.string.net_done); done = true; break }
                 } else {
-                    Pending.installs.add(Batch.shareUri(ctx, f))
-                    Pending.next(ctx)
+                    Installers.sessionInstallUri(ctx, Batch.shareUri(ctx, f), f.name)
                     status = ctx.getString(R.string.net_system_dialog)
                     done = true
                     break

@@ -134,6 +134,8 @@ object InstallerPick {
         val o = opts.firstOrNull { it.id == saved && it.enabled }
             ?: opts.firstOrNull { it.id.startsWith("cmp:") && saved.startsWith("cmp:") && it.id.substringBefore('/') == saved.substringBefore('/') && it.enabled }
         if (o != null) return o.id
+        // запомненный способ сейчас недоступен (например, ADB отключён): окно Меню с причиной вместо тихого перехода на другой способ
+        if (saved.isNotBlank()) { val r = ask(name, opts) ?: return null; if (r.second) Cfg.saveInstaller(r.first); return r.first }
         return if (Adb.isConnected) ADB else SYSTEM
     }
 
@@ -149,7 +151,7 @@ object InstallerPick {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
         i.clipData = ClipData.newRawUri("", uri)
         runCatching { app.grantUriPermission(cn.packageName, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-        return try { app.startActivity(i); "system" } catch (e: Throwable) { "fail:" + (e.message ?: e.javaClass.simpleName) }
+        return try { if (Installers.start(app, if (id == ADBPHON) Installers.M_ADBPHON else Installers.M_OTHER, i)) "system" else "fail:" + app.getString(R.string.inst_cancelled) } catch (e: Throwable) { "fail:" + (e.message ?: e.javaClass.simpleName) }
     }
 
     /** Ход тихой установки для окна «Установка…» вызывающего (задаётся им на время установки). */
@@ -176,7 +178,7 @@ object InstallerPick {
                 if (r.contains("Success", true)) "ok" else "fail:" + r.take(140)
             }
             id == SYSTEM -> try {
-                withContext(Dispatchers.IO) { SessionInstaller.install(app, files, {}, label) }
+                withContext(Dispatchers.IO) { Installers.sessionInstall(app, files, {}, label) }
                 "system"
             } catch (e: Throwable) { "fail:" + (e.message ?: e.javaClass.simpleName) }
             id == ADBPHON && silent.first -> {
@@ -193,7 +195,15 @@ object InstallerPick {
     suspend fun run(ctx: Context, pkg: String, files: List<File>, name: String): String {
         val label = name.ifBlank { pkg }
         val id = choose(ctx, label, files.size, files.firstOrNull()) ?: return "fail:" + ctx.getString(R.string.inst_cancelled)
-        return dispatch(ctx, id, pkg, files, label)
+        val r = dispatch(ctx, id, pkg, files, label)
+        // 9.0 (код 44): «ADB» не подключён или не справился: окно Меню с причиной и выбором другого способа, без перехода на системные окна само по себе
+        if (id == ADB && (r == "need_adb" || (r.startsWith("fail:") && !r.contains(ctx.getString(R.string.inst_cancelled))))) {
+            val why = if (r == "need_adb") ctx.getString(R.string.inst_no_adb) else r.removePrefix("fail:")
+            val opts = withContext(Dispatchers.IO) { options(ctx, files.size, files.firstOrNull()) }.map { if (it.id == ADB) Opt(it.id, it.label, false, why) else it }
+            val pick = ask(label, opts) ?: return if (r == "need_adb") "fail:$why" else r
+            return dispatch(ctx, pick.first, pkg, files, label, confirm = false)
+        }
+        return r
     }
 }
 

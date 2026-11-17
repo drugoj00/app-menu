@@ -178,14 +178,9 @@ object AppBackups {
             return@withContext InstallerPick.run(ctx, pkg, files, label)
         }
         if (!Adb.isConnected) {
-            if (down || files.size != 1) return@withContext "need_adb"
-            val tmp = File(File(ctx.cacheDir, "batch").apply { mkdirs() }, "inst_" + pkg.replace(Regex("[^\\w.]"), "_") + ".apk")
-            files[0].copyTo(tmp, true)
-            withContext(Dispatchers.Main) {
-                Pending.installs.add(FileProvider.getUriForFile(ctx, ctx.packageName + ".files", tmp))
-                Pending.next(ctx)
-            }
-            return@withContext "system"
+            if (down) return@withContext "need_adb"
+            // 9.0 (код 44): без неявных намерений (их мог взять ADB-phon): сессия PackageInstaller нашего пакета
+            return@withContext try { withContext(Dispatchers.IO) { Installers.sessionInstall(ctx, files, {}, pkg) }; "system" } catch (e: Throwable) { "fail:" + (e.message ?: e.javaClass.simpleName) }
         }
         if (!down) {
             val r = Adb.installFiles(files, "-r")

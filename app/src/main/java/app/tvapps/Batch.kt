@@ -92,7 +92,7 @@ object Pending {
                 0 -> {
                     if (!installed) { j.stage = 2; continue }
                     j.stage = 1; j.ts = System.currentTimeMillis(); fixSave(ctx)
-                    val ok = runCatching { ctx.startActivity(Intent(Intent.ACTION_DELETE, Uri.parse("package:" + j.pkg)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess
+                    val ok = Installers.uninstall(ctx, j.pkg)
                     if (ok) return true
                     fixDone(ctx, j, false, ctx.getString(R.string.install_fix_unfail))
                 }
@@ -126,12 +126,7 @@ object Pending {
                     if (!f.exists()) { fixDone(ctx, j, false, ctx.getString(R.string.install_fix_nofile)); continue }
                     j.stage = 3; j.ts = System.currentTimeMillis(); fixSave(ctx)
                     val uri = Batch.shareUri(ctx, ApkFile(j.name, Uri.fromFile(f), f.length(), f))
-                    val ok = runCatching {
-                        ctx.startActivity(
-                            Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive")
-                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION),
-                        )
-                    }.isSuccess
+                    val ok = Installers.sessionInstallUri(ctx, uri, j.name)
                     if (ok) return true
                     fixDone(ctx, j, false, ctx.getString(R.string.install_fix_sys_fail))
                 }
@@ -147,16 +142,11 @@ object Pending {
     fun next(ctx: Context): Boolean {
         if (fixNext(ctx)) return true
         uninstalls.removeFirstOrNull()?.let {
-            runCatching { ctx.startActivity(Intent(Intent.ACTION_DELETE, Uri.parse("package:$it")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            Installers.uninstall(ctx, it)
             return true
         }
         installs.removeFirstOrNull()?.let {
-            runCatching {
-                ctx.startActivity(
-                    Intent(Intent.ACTION_VIEW).setDataAndType(it, "application/vnd.android.package-archive")
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION),
-                )
-            }
+            Installers.sessionInstallUri(ctx, it)
             return true
         }
         return false

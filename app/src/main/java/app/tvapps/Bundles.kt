@@ -335,7 +335,7 @@ object SessionInstaller {
                     PackageInstaller.STATUS_PENDING_USER_ACTION -> {
                         @Suppress("DEPRECATION")
                         val next = i.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
-                        runCatching { c.startActivity(next?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                        runCatching { Installers.sessionUi(c, next) }
                     }
                     PackageInstaller.STATUS_SUCCESS -> {
                         failed.remove(id)?.let { InstallLog.add(c, InstallRes(it.name, it.pkg, true, "")) }
