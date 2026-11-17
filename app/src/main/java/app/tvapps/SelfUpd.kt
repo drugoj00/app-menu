@@ -59,6 +59,8 @@ object SelfUpd {
         data object Failed : St
         data class Installing(val status: String) : St
         data class Result(val text: String) : St
+        /** Установка не завершена (отмена во внешнем установщике, таймаут): «Повторить / Закрыть». */
+        data class Cancelled(val f: Found, val text: String) : St
     }
 
     /** Состояние окна (общее для «Меню» и «Дома»: один процесс); null — окно закрыто. */
@@ -93,8 +95,9 @@ object SelfUpd {
         val lines = f.readText().lines()
         val v = lines.firstOrNull()?.trim().orEmpty().ifBlank { return null }
         val inst = runCatching { ctx.packageManager.getPackageInfo(PKG, 0) }.getOrNull()
-        val cand = UpdCand("github", v, 0, listOf("https://127.0.0.1/none.apk"), 1048576, note = "test", body = lines.drop(1).joinToString("\n"))
-        return AppUpd(PKG, "", inst?.versionName ?: "0", 0, listOf(cand), emptyList())
+        val tcode = lines.drop(1).firstOrNull { it.startsWith("code=") }?.removePrefix("code=")?.trim()?.toLongOrNull() ?: 0L
+        val cand = UpdCand("github", v, tcode, listOf(lines.drop(1).firstOrNull { it.startsWith("url=") }?.removePrefix("url=")?.trim() ?: "https://127.0.0.1/none.apk"), 1048576, note = "test", body = lines.drop(1).filter { !it.startsWith("url=") && !it.startsWith("code=") }.joinToString("\n"))
+        return AppUpd(PKG, "", inst?.versionName ?: "0", if (tcode > 0 && inst != null) (if (android.os.Build.VERSION.SDK_INT >= 28) inst.longVersionCode else @Suppress("DEPRECATION") inst.versionCode.toLong()) else 0, listOf(cand), emptyList())
     }
 
     /**
@@ -163,14 +166,56 @@ object SelfUpd {
         state = null
     }
 
+    /** Своя область: установка не должна зависеть от окна, из которого её запустили (плашка исчезает, и её область отменяла установку на середине). */
+    private val appScope = CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.Default)
+    @Volatile private var token = 0
+    private const val INSTALL_TIMEOUT_MS = 5 * 60_000L
+
+    /** Версия, которую ждём после передачи файла внешнему установщику; пустая: ничего не ждём. */
+    @Volatile private var awaited = ""
+    @Volatile private var awaitedFound: St.Found? = null
+    @Volatile private var leftApp = false
+
+    /** Окно ушло с экрана (открылся внешний установщик). */
+    @Volatile private var watching = false
+    fun onLeft() { if (watching) leftApp = true; android.util.Log.i("TVApps", "самообновление: окно ушло, ждём=" + watching) }
+
+    /** Возврат из внешнего установщика: версия выросла — «Готово»; нет — «Установка не завершена: повторить / закрыть». */
+    fun onBack(ctx: Context) {
+        val want = awaited
+        android.util.Log.i("TVApps", "самообновление: возврат, ждём версию '" + want + "', уходили=" + leftApp)
+        if (want.isEmpty() || !leftApp) return
+        leftApp = false; watching = false
+        val cur = runCatching { ctx.packageManager.getPackageInfo(PKG, 0).versionName }.getOrNull().orEmpty()
+        awaited = ""
+        val f = awaitedFound
+        state = if (cur.isNotEmpty() && Updates.compareVersions(cur, want) >= 0) St.Result(ctx.getString(R.string.ver_done))
+        else if (f != null) St.Cancelled(f, ctx.getString(R.string.self_upd_cancelled)) else null
+    }
+
+    /** Закрыть окно «Установка…» (кнопка «Закрыть» и «Назад»): установка в фоне может закончиться позже, тогда результат не показывается. */
+    fun closeInstalling() { token++; if (state is St.Installing) state = null }
+
     fun install(ctx: Context, scope: CoroutineScope, f: St.Found) {
         Cfg.setSelfUpdDismissed(f.cand.versionName)
+        val my = ++token
+        awaited = ""; leftApp = false; watching = true
         state = St.Installing("")
-        scope.launch(Dispatchers.Default) {
+        val app = ctx.applicationContext
+        // страховка: если через 5 минут окно всё ещё «Установка…», оно превращается в «Не удалось: повторить / закрыть»
+        appScope.launch {
+            kotlinx.coroutines.delay(INSTALL_TIMEOUT_MS)
+            if (token == my && state is St.Installing) { awaited = ""; state = St.Cancelled(f, app.getString(R.string.self_upd_timeout)) }
+        }
+        appScope.launch {
             val res = try {
-                updResultText(ctx, Updates.install(ctx, f.upd, f.cand) { s -> state = St.Installing(s) })
-            } catch (e: CancellationException) { throw e } catch (e: Throwable) { ctx.getString(R.string.ver_failed) + ": " + (e.message ?: "") }
-            state = St.Result(res)
+                Updates.install(app, f.upd, f.cand) { s -> if (token == my) state = St.Installing(s) }
+            } catch (e: CancellationException) { throw e } catch (e: Throwable) { "fail:" + (e.message ?: "") }
+            if (res == "system") {
+                // файл передан внешнему установщику (системному, App Manager и др.): окно закрывается сразу, итог проверяется тихо по версии при возврате
+                awaited = f.cand.versionName; awaitedFound = f
+                if (token == my) state = null
+            } else if (token == my) state = St.Result(updResultText(app, res))
         }
     }
 }
@@ -180,6 +225,15 @@ object SelfUpd {
 fun SelfUpdHost() {
     val ctx = LocalContext.current
     LaunchedEffect(Unit) { SelfUpd.clearStale(); SelfUpd.checkRequired(ctx.applicationContext); SelfUpd.autoCheck(ctx.applicationContext) }
+    val owner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(owner) {
+        val ob = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) SelfUpd.onLeft()
+            else if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) SelfUpd.onBack(ctx.applicationContext)
+        }
+        owner.lifecycle.addObserver(ob)
+        onDispose { owner.lifecycle.removeObserver(ob) }
+    }
     SelfUpd.required?.let { RequiredUpdateScreen(it) }
     val st = SelfUpd.state
     SelfUpd.notes?.let { NotesDialog(it) }
@@ -316,7 +370,7 @@ object ReleaseNotes {
             s = b.substring(from, next)
         }
         return s.lines().map { it.trim() }
-            .filter { it.isNotEmpty() && !it.startsWith("###") && !it.startsWith("**") && !it.lowercase().contains("sha-256") && !it.lowercase().startsWith("android ") && !reqAny.containsMatchIn(it) }
+            .filter { it.isNotEmpty() && !it.startsWith("###") && !it.startsWith("**") && !it.lowercase().contains("sha-256") && !it.lowercase().startsWith("android ") && !reqAny.containsMatchIn(it) && !Regex("""(?i)^version ?code\s*[:=]""").containsMatchIn(it) }
             .joinToString("\n") { if (it.startsWith("- ") || it.startsWith("* ")) "•  " + it.drop(2) else it }
     }
 }
@@ -328,7 +382,7 @@ private fun SelfUpdDialog(st: SelfUpd.St) {
     val scope = rememberCoroutineScope()
     val first = remember { FocusRequester() }
     LaunchedEffect(st::class) { runCatching { first.requestFocus() } }
-    HDialog(onDismissRequest = { if (st !is SelfUpd.St.Installing) SelfUpd.dismiss() }) {
+    HDialog(onDismissRequest = { if (st is SelfUpd.St.Installing) SelfUpd.closeInstalling() else SelfUpd.dismiss() }) {
         Column(
             Modifier.clip(RoundedCornerShape(20.dp)).background(t.tile).border(1.dp, t.border, RoundedCornerShape(20.dp)).padding(20.dp).fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -360,6 +414,14 @@ private fun SelfUpdDialog(st: SelfUpd.St) {
                 is SelfUpd.St.Installing -> {
                     Text(st.status.ifBlank { stringResource(R.string.self_upd_installing) }, color = t.accent, fontSize = 14.sp)
                     Text(stringResource(R.string.self_upd_wait), color = t.hint, fontSize = 12.sp)
+                    Chip(stringResource(R.string.close), true, Modifier.focusRequester(first)) { SelfUpd.closeInstalling() }
+                }
+                is SelfUpd.St.Cancelled -> {
+                    Text(st.text, color = t.text, fontSize = 15.sp)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ActionRow(HIcons.refresh, stringResource(R.string.self_upd_retry), "", Modifier.focusRequester(first)) { SelfUpd.install(ctx, scope, st.f) }
+                        Chip(stringResource(R.string.close), false) { SelfUpd.dismiss() }
+                    }
                 }
                 is SelfUpd.St.Result -> {
                     Text(st.text, color = t.text, fontSize = 15.sp, modifier = Modifier.padding(vertical = 2.dp))

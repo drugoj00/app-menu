@@ -255,7 +255,9 @@ object Updates {
             val sorted = sortByAbi(apks) { it.optString("name") }
             // сумма из описания выпуска: строка «SHA-256 <64 hex>»; берётся, только если в выпуске один APK
             val sum = if (sorted.size == 1) Regex("(?i)sha-?256[^0-9a-f]{0,8}([0-9a-f]{64})").find(j.optString("body"))?.groupValues?.get(1).orEmpty() else ""
-            val cand = UpdCand("github", name, 0, sorted.take(4).map { it.getString("browser_download_url") }, sorted.first().optLong("size"), note = "$user/$repo", sha256 = sum, body = j.optString("body"))
+            // строка «versionCode: N» в описании выпуска: если название версии то же (8.1 и 8.1), но код больше установленного, обновление предлагается (старые клиенты строку не читают)
+            val relCode = Regex("""(?im)^[\s>*_•-]*version ?code\s*[:=]\s*[*_`]*\s*(\d{1,9})""").find(j.optString("body"))?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+            val cand = UpdCand("github", name, relCode, sorted.take(4).map { it.getString("browser_download_url") }, sorted.first().optLong("size"), note = "$user/$repo", sha256 = sum, body = j.optString("body"))
             if (best == null || compareVersions(cand.versionName, best.versionName) > 0) best = cand
         }
         return best
