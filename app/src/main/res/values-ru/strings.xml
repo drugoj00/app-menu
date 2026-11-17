@@ -1100,4 +1100,7 @@
     <string name="dock_close_after_h">Вкл: док скрывается после запуска приложения (из дока или из панели «Все приложения») и возвращается кнопкой «Док-панель» или клавишей. Выкл: док остаётся (по умолчанию).</string>
     <string name="dock_m_hide_app">Скрыть приложение из меню</string>
     <string name="dock_m_close_menu">Закрыть меню</string>
+    <string name="req_upd_title">Нужно обновиться для работы программы</string>
+    <string name="req_upd_text">Вышла версия %1$s. Эту версию программы нужно обновить.</string>
+    <string name="req_upd_exit">Выйти</string>
 </resources>
