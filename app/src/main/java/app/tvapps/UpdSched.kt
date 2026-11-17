@@ -119,7 +119,7 @@ object UpdSched {
             if (!Adb.isConnected) log(ctx, "автоустановка пропущена: нет root/ADB")
             else for (a in upd) {
                 val c = a.best ?: continue
-                val r = runCatching { Updates.install(ctx, a, c) { } }.getOrElse { "fail:" + (it.message ?: "") }
+                val r = runCatching { Updates.install(ctx, a, c, quiet = true) { } }.getOrElse { "fail:" + (it.message ?: "") }
                 log(ctx, "установка ${a.label} ${a.instName}→${c.versionName} [${c.source}]: $r")
                 if (r == "ok") done.add(a)
             }

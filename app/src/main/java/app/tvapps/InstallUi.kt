@@ -137,7 +137,13 @@ fun InstallDialog(files: List<ApkFile>, onClose: () -> Unit) {
                             Toast.makeText(ctx, ctx.getString(R.string.bundle_failed) + ": " + (e.message ?: ""), Toast.LENGTH_LONG).show()
                         }
                 }
-                else Pending.installs.add(Batch.shareUri(ctx, Batch.materialize(it)))
+                else {
+                    // системная сессия установки (8.1), при отказе прежний путь через системный просмотр APK
+                    val ff = Batch.materialize(it)
+                    val fl = ff.file
+                    val okS = fl != null && runCatching { SessionInstaller.install(ctx, listOf(fl), {}, it.name) }.isSuccess
+                    if (!okS) Pending.installs.add(Batch.shareUri(ctx, ff))
+                }
             }
             busy = false
             Pending.next(ctx)
@@ -243,7 +249,7 @@ fun InstallDialog(files: List<ApkFile>, onClose: () -> Unit) {
                     ActionRow(HIcons.download, stringResource(R.string.install_go, chosen.size), "", Modifier.focusRequester(fr)) {
                         val picked = files.filter { it.name in chosen }
                         if (picked.isEmpty() || busy) return@ActionRow
-                        if (Adb.isConnected) {
+                        fun runAdb() {
                             busy = true
                             results = emptyList()
                             scope.launch {
@@ -258,7 +264,8 @@ fun InstallDialog(files: List<ApkFile>, onClose: () -> Unit) {
                                 busy = false
                                 AppsMem.stamp = 0L; Cfg.bumpList()
                             }
-                        } else {
+                        }
+                        fun runSys() {
                             // без ADB и root система сама не поставит версию ниже установленной и с другой подписью: заранее находим такие файлы
                             // и предлагаем «Удалить установленную версию и поставить эту?» (системное окно удаления, затем системный установщик)
                             busy = true
@@ -271,6 +278,22 @@ fun InstallDialog(files: List<ApkFile>, onClose: () -> Unit) {
                                     restFiles = picked.filter { p -> conflicts.none { it.first.name == p.name } }
                                     sysFix = true
                                     fixAsk = true
+                                }
+                            }
+                        }
+                        // 8.1: сначала выбор установщика («Установить через…»); ADB и системный идут прежними путями
+                        busy = true
+                        scope.launch {
+                            val one = if (picked.size == 1) runCatching { Batch.materialize(picked[0]) }.getOrNull() else null
+                            val id = InstallerPick.choose(ctx, picked.joinToString { it.name }.take(80), picked.size, one?.file)
+                            busy = false
+                            when {
+                                id == null -> {}
+                                id == InstallerPick.ADB && Adb.isConnected -> runAdb()
+                                id == InstallerPick.SYSTEM || id == InstallerPick.ADB -> runSys()
+                                else -> {
+                                    val fl = one?.file
+                                    if (fl != null) { InstallerPick.handoff(ctx, id, fl, one.name); onClose() } else runSys()
                                 }
                             }
                         }

@@ -319,7 +319,7 @@ fun UpdatesAllDialog(onClose: () -> Unit) {
                         updatable.forEachIndexed { i, a ->
                             val c = a.best ?: return@forEachIndexed
                             status = ctx.getString(R.string.upd_updating, i + 1, updatable.size, a.label)
-                            val r = try { Updates.install(ctx, a, c) { s -> status = s } } catch (e: CancellationException) { throw e } catch (e: Throwable) { "fail:" + (e.message ?: "") }
+                            val r = try { Updates.install(ctx, a, c, quiet = true) { s -> status = s } } catch (e: CancellationException) { throw e } catch (e: Throwable) { "fail:" + (e.message ?: "") }
                             if (r == "ok") { ok++; refreshOne(a.pkg) }
                         }
                         status = ctx.getString(R.string.upd_all_done, ok, updatable.size)

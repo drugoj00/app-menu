@@ -87,6 +87,9 @@ object Cfg {
     var autoUpd by mutableStateOf(false); private set
     /** Сообщать о новых версиях самой программы (правило 17): раз в сутки, окно один раз на версию; по умолчанию включено. */
     var selfUpd by mutableStateOf(true); private set
+    /** Окно «Установить через…» перед установкой (8.1): по умолчанию спрашивать; instSaved: запомненный установщик (adbphon, system, adb, cmp:пакет/класс). */
+    var askInstaller by mutableStateOf(true); private set
+    var instSaved by mutableStateOf(""); private set
     /** Как часто проверять, часов: 6, 24 или 72. */
     var autoUpdHours by mutableIntStateOf(24); private set
     /** Ставить найденные обновления сами (только с root/ADB; по умолчанию выключено). */
@@ -177,6 +180,8 @@ object Cfg {
         ghToken = sp.getString("gh_token", "") ?: ""
         autoUpd = sp.getBoolean("auto_upd", false)
         selfUpd = sp.getBoolean("self_upd", true)
+        askInstaller = sp.getBoolean("inst_ask", true)
+        instSaved = sp.getString("inst_saved", "") ?: ""
         autoUpdHours = sp.getInt("auto_upd_hours", 24).let { if (it == 6 || it == 24 || it == 72) it else 24 }
         autoInstall = sp.getBoolean("auto_install", false)
         updFound = sp.getInt("upd_found", 0)
@@ -310,6 +315,8 @@ object Cfg {
         updSkip = if (pkg in updSkip) updSkip - pkg else updSkip + pkg
         sp.edit().putStringSet("upd_skip", updSkip).apply()
     }
+    fun changeAskInstaller(v: Boolean) { askInstaller = v; sp.edit().putBoolean("inst_ask", v).apply() }
+    fun saveInstaller(v: String) { instSaved = v; sp.edit().putString("inst_saved", v).apply() }
     fun changeSelfUpd(v: Boolean) { selfUpd = v; sp.edit().putBoolean("self_upd", v).apply() }
     fun selfUpdDismissed(): String = sp.getString("self_upd_dismissed", "") ?: ""
     fun setSelfUpdDismissed(v: String) { sp.edit().putString("self_upd_dismissed", v).apply() }

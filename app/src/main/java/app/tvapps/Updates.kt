@@ -488,7 +488,7 @@ object Updates {
      * Скачивает и ставит обновление. Возвращает "ok", "system", "need_adb", "fail:<причина>" либо код проверки:
      * "sig" (подпись не совпала), "abi", "minsdk", "hash", "uptodate", "manual", "net".
      */
-    suspend fun install(ctx: Context, app: AppUpd, cand: UpdCand, onStatus: (String) -> Unit): String = withContext(Dispatchers.IO) {
+    suspend fun install(ctx: Context, app: AppUpd, cand: UpdCand, quiet: Boolean = false, onStatus: (String) -> Unit): String = withContext(Dispatchers.IO) {
         if (cand.manual) return@withContext "manual"
         if (!Integrity.safe(ctx)) return@withContext "fail:integrity"
         val pm = ctx.packageManager
@@ -518,7 +518,7 @@ object Updates {
                 // копия прежней версии (если включено): к ней можно вернуться через «Версии»
                 if (Cfg.backupOnDelete) runCatching { AppBackups.save(ctx, app.pkg) }
                 val copy = AppBackups.importApk(ctx, file) ?: return@withContext "fail:" + ctx.getString(R.string.ver_not_apk)
-                return@withContext AppBackups.installFiles(ctx, app.pkg, copy.files, copy.versionCode)
+                return@withContext AppBackups.installFiles(ctx, app.pkg, copy.files, copy.versionCode, interactive = !quiet)
             } finally {
                 // скачанный файл больше не нужен: установка идёт из копии в AppMenuBackups
                 runCatching { file.delete() }

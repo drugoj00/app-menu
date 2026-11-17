@@ -799,6 +799,7 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                         ActionRow(HIcons.open, stringResource(R.string.about_title), stringResource(R.string.about_hero_h)) { sub = "about" }
                     }
                     SwitchRow(stringResource(R.string.self_upd_auto), Cfg.selfUpd, listOf()) { Cfg.changeSelfUpd(it) }
+                    SwitchRow(stringResource(R.string.inst_ask_setting), Cfg.askInstaller, listOf(stringResource(R.string.inst_ask_hint), stringResource(R.string.inst_default_now, InstallerPick.labelOf(ctx, Cfg.instSaved)))) { Cfg.changeAskInstaller(it) }
                     Section(stringResource(R.string.backup_title)) {
                         SectionHint(stringResource(R.string.backup_hint))
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

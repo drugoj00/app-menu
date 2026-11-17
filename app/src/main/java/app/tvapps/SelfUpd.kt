@@ -215,7 +215,10 @@ object SelfUpd {
                 // файл передан внешнему установщику (системному, App Manager и др.): окно закрывается сразу, итог проверяется тихо по версии при возврате
                 awaited = f.cand.versionName; awaitedFound = f
                 if (token == my) state = null
-            } else if (token == my) state = St.Result(updResultText(app, res))
+            } else if (token == my) {
+                // отказ в окне «Установить через…»: «Установка отменена. Повторить / Закрыть»
+                state = if (res == "fail:" + app.getString(R.string.inst_cancelled)) St.Cancelled(f, app.getString(R.string.inst_cancelled)) else St.Result(updResultText(app, res))
+            }
         }
     }
 }
@@ -238,6 +241,8 @@ fun SelfUpdHost() {
     val st = SelfUpd.state
     SelfUpd.notes?.let { NotesDialog(it) }
     if (st != null) SelfUpdDialog(st)
+    // «Установить через…» поверх остальных окон
+    InstallerPickHost()
 }
 
 /** Окно обязательного обновления на весь экран: «Назад» и касание вне окна не закрывают; есть «Обновить» (как у плашки: «Что нового» и установка) и «Выйти». */

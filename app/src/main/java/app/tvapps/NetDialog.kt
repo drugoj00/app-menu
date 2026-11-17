@@ -76,10 +76,18 @@ fun NetDialog(onClose: () -> Unit) {
                 status = ctx.getString(R.string.net_downloading, u.substringAfterLast('/'), 0)
                 val f = NetSearch.download(ctx, u) { mb -> status = ctx.getString(R.string.net_downloading, u.substringAfterLast('/'), mb) }
                 if (f == null) continue
-                if (Adb.isConnected) {
+                // 8.1: единый выбор установщика («Установить через…»)
+                val fl = f.file
+                val id = if (fl != null) InstallerPick.choose(ctx, f.name, 1, fl) else null
+                if (fl != null && id == null) { status = ctx.getString(R.string.inst_cancelled); done = true; break }
+                if (id == InstallerPick.ADB && Adb.isConnected || (fl == null && Adb.isConnected)) {
                     status = ctx.getString(R.string.net_installing)
                     val (ok, _) = Batch.installViaAdb(ctx, listOf(f))
                     if (ok > 0) { status = ctx.getString(R.string.net_done); done = true; break }
+                } else if (fl != null && id != null) {
+                    val r = InstallerPick.dispatch(ctx, id, "", listOf(fl), f.name)
+                    if (r == "system") { status = ctx.getString(R.string.net_system_dialog); done = true; break }
+                    if (r == "ok") { status = ctx.getString(R.string.net_done); done = true; break }
                 } else {
                     Pending.installs.add(Batch.shareUri(ctx, f))
                     Pending.next(ctx)

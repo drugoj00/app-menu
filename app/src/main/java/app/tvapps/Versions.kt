@@ -168,10 +168,15 @@ object AppBackups {
      * Понижение версии: сначала обычная установка с флагом разрешения понижения; если система отказала, приложение
      * удаляется с сохранением данных и ставится нужная версия; при неудаче возвращается прежняя версия из копии.
      */
-    suspend fun installFiles(ctx: Context, pkg: String, files: List<File>, code: Long): String = withContext(Dispatchers.IO) {
+    suspend fun installFiles(ctx: Context, pkg: String, files: List<File>, code: Long, interactive: Boolean = true): String = withContext(Dispatchers.IO) {
         if (!Integrity.safe(ctx)) return@withContext "fail:integrity"
         val cur = installedVersion(ctx, pkg)?.second
         val down = cur != null && code < cur
+        // 8.1: обычная установка и обновление идут через выбор установщика («Установить через…»); понижение версии и фоновые задания только по ADB как раньше
+        if (interactive && !down) {
+            val label = runCatching { ctx.packageManager.getApplicationLabel(ctx.packageManager.getApplicationInfo(pkg, 0)).toString() }.getOrDefault(pkg)
+            return@withContext InstallerPick.run(ctx, pkg, files, label)
+        }
         if (!Adb.isConnected) {
             if (down || files.size != 1) return@withContext "need_adb"
             val tmp = File(File(ctx.cacheDir, "batch").apply { mkdirs() }, "inst_" + pkg.replace(Regex("[^\\w.]"), "_") + ".apk")
