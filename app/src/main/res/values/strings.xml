@@ -1149,8 +1149,15 @@
     <string name="inst_timeout_silent">ADB-phon did not answer in time</string>
     <string name="inst_note_fallback">Quiet install through ADB-phon is unavailable (%1$s; needs ADB-phon 11.0): the ADB-phon window will open.</string>
     <string name="bk_del_switch">Keep an app copy when removing and updating</string>
-    <string name="bk_del_hint">One setting for both actions. The APK copy is saved to: %1$s. To bring a version back: the app card, “Versions”, or “Copies and versions” below.</string>
+    <string name="bk_del_hint">One setting for both actions. The APK copy is saved to: %1$s. To bring a version back: the app card, “Versions”, or “Copies and versions” below. At most the two latest copies per app are kept, older ones are removed automatically; files downloaded for installing are deleted right after it.</string>
     <string name="bk_del_row">Save a copy (APK) before removing</string>
     <string name="bk_del_toast_on">An APK copy is saved before removing (setting “Keep an app copy”)</string>
     <string name="bk_del_toast_off">The APK copy is not saved (turned off in settings)</string>
+    <string name="clean_row">Clear copies and temporary files</string>
+    <string name="clean_row_h">Used: %1$s (version copies: %2$s, temporary files: %3$s). Installed apps are not touched.</string>
+    <string name="clean_confirm_title">Clear copies and temporary files?</string>
+    <string name="clean_confirm_text">This will delete: %1$s. Installed apps stay, but you will not be able to go back to the saved versions.</string>
+    <string name="clean_do">Clear</string>
+    <string name="clean_done">Freed: %1$s</string>
+    <string name="bk_merged">Copies merged</string>
 </resources>
