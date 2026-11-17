@@ -275,6 +275,8 @@ private fun AppsRow(
             if (i >= 0) {
                 runCatching { state.scrollToItem(i) }
                 delay(150)
+                // два кадра: плитка должна быть размещена (иначе встроенная прокрутка Compose к фокусу падает «before parents are placed»)
+                runCatching { androidx.compose.runtime.withFrameNanos { }; androidx.compose.runtime.withFrameNanos { } }
                 if (runCatching { (if (i == 0 && firstReq != null) firstReq else lastReq).requestFocus() }.isSuccess) HomeFocus.pending = false
             }
         }
@@ -316,7 +318,7 @@ private fun AppsRow(
             val isMoving = movingItem == el.item.id
             val bring = remember { BringIntoViewRequester() }
             val idx = els.indexOf(el)
-            if (isMoving) LaunchedEffect(idx, row.id) { delay(30); runCatching { movingReq.requestFocus() }; runCatching { bring.bringIntoView() } }
+            if (isMoving) LaunchedEffect(idx, row.id) { delay(30); runCatching { androidx.compose.runtime.withFrameNanos { }; androidx.compose.runtime.withFrameNanos { } }; runCatching { movingReq.requestFocus() }; runCatching { bring.bringIntoView() } }
             val sizeDp = row.size * k
             val wDp = if (el.item.mode == "banner") sizeDp * 16f / 9f else sizeDp
             val req = if (isMoving) movingReq else if (el === els.first()) firstReq else if (HomeFocus.key == el.item.id && HomeFocus.rowId == row.id) lastReq else null
@@ -510,6 +512,8 @@ private fun CardsRow(
             if (i >= 0) {
                 runCatching { state.scrollToItem(i) }
                 delay(150)
+                // два кадра: плитка должна быть размещена (иначе встроенная прокрутка Compose к фокусу падает «before parents are placed»)
+                runCatching { androidx.compose.runtime.withFrameNanos { }; androidx.compose.runtime.withFrameNanos { } }
                 if (runCatching { (if (i == 0 && firstReq != null) firstReq else lastReq).requestFocus() }.isSuccess) HomeFocus.pending = false
             }
         }

@@ -13,6 +13,8 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        // падение Compose «BringIntoViewRequester ... before parents are placed» (8.0, Android 7.1) не роняет процесс, см. CrashGuard
+        runCatching { CrashGuard.install(this); CrashGuard.debugHook(this) }
         // Состояние Compose (mutableStateOf) у объектов создаётся здесь, в главном потоке и вне рисования: если объект впервые создаётся
         // во время рисования или в фоновом потоке, возможна ошибка «Reading a state that was created after the snapshot was taken»
         warmComposeState()

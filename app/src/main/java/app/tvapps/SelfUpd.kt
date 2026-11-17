@@ -77,9 +77,46 @@ object SelfUpd {
     fun bannerInstall(ctx: Context, scope: CoroutineScope) { val f = banner ?: return; banner = null; Cfg.setSelfUpdPending(""); install(ctx, scope, f) }
 
     private suspend fun fetch(ctx: Context): Pair<AppUpd, UpdCand?> {
-        val r = Updates.check(ctx, PKG, force = true, only = setOf("github"))
+        val r = testRelease(ctx) ?: Updates.check(ctx, PKG, force = true, only = setOf("github"))
         val best = r.newer.filter { !it.manual }.maxWithOrNull { a, b -> Updates.compareVersions(a.versionName, b.versionName) }
         return r to best
+    }
+
+    /**
+     * Проверка без настоящего выпуска (ТОЛЬКО в отладочной сборке): если в папке программы есть файл test_release.txt, из него берётся «последний выпуск»:
+     * первая строка — версия (например 99.0), дальше описание выпуска. В выпускной сборке этого пути нет.
+     */
+    private fun testRelease(ctx: Context): AppUpd? {
+        if (!BuildConfig.DEBUG) return null
+        val f = java.io.File(ctx.filesDir, "test_release.txt")
+        if (!f.isFile) return null
+        val lines = f.readText().lines()
+        val v = lines.firstOrNull()?.trim().orEmpty().ifBlank { return null }
+        val inst = runCatching { ctx.packageManager.getPackageInfo(PKG, 0) }.getOrNull()
+        val cand = UpdCand("github", v, 0, listOf("https://127.0.0.1/none.apk"), 1048576, note = "test", body = lines.drop(1).joinToString("\n"))
+        return AppUpd(PKG, "", inst?.versionName ?: "0", 0, listOf(cand), emptyList())
+    }
+
+    /**
+     * Обязательное обновление: если в описании ПОСЛЕДНЕГО выпуска GitHub есть строка «Обязательное обновление / Required update: да» и версия программы ниже,
+     * при запуске открывается окно «Нужно обновиться для работы программы» (кнопки «Обновить», «Что нового», «Выйти»; закрыть иначе нельзя).
+     * Нет сети или проверка не удалась: ничего не блокируется. Проверка идёт при запуске и не чаще раза в 30 минут; выключена вместе с автопроверкой в настройках.
+     */
+    var required by mutableStateOf<St.Found?>(null)
+        private set
+    @Volatile private var reqBusy = false
+    @Volatile private var reqAt = 0L
+    suspend fun checkRequired(ctx: Context) {
+        if (!Cfg.selfUpd || reqBusy || required != null) return
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (reqAt != 0L && now - reqAt < 30 * 60_000L) return
+        reqBusy = true
+        try {
+            val (r, best) = fetch(ctx)
+            val netOk = r.errors.isEmpty() || r.cands.isNotEmpty()
+            if (netOk) reqAt = now
+            if (netOk && best != null && ReleaseNotes.isRequired(best.body)) required = St.Found(r, best)
+        } catch (e: CancellationException) { throw e } catch (_: Throwable) { } finally { reqBusy = false }
     }
 
     /** Кнопка «Проверить обновления»: показывает результат всегда. */
@@ -142,10 +179,45 @@ object SelfUpd {
 @Composable
 fun SelfUpdHost() {
     val ctx = LocalContext.current
-    LaunchedEffect(Unit) { SelfUpd.clearStale(); SelfUpd.autoCheck(ctx.applicationContext) }
+    LaunchedEffect(Unit) { SelfUpd.clearStale(); SelfUpd.checkRequired(ctx.applicationContext); SelfUpd.autoCheck(ctx.applicationContext) }
+    SelfUpd.required?.let { RequiredUpdateScreen(it) }
     val st = SelfUpd.state
     SelfUpd.notes?.let { NotesDialog(it) }
     if (st != null) SelfUpdDialog(st)
+}
+
+/** Окно обязательного обновления на весь экран: «Назад» и касание вне окна не закрывают; есть «Обновить» (как у плашки: «Что нового» и установка) и «Выйти». */
+@Composable
+private fun RequiredUpdateScreen(f: SelfUpd.St.Found) {
+    val ctx = LocalContext.current
+    val t = LocalTh.current
+    val scope = rememberCoroutineScope()
+    val first = remember { FocusRequester() }
+    val tv = TopMode.isTv(ctx)
+    LaunchedEffect(Unit) { kotlinx.coroutines.delay(150); runCatching { first.requestFocus() } }
+    HDialog(
+        onDismissRequest = {},
+        properties = androidx.compose.ui.window.DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false, usePlatformDefaultWidth = false),
+    ) {
+        androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().background(t.bg).padding(24.dp), contentAlignment = androidx.compose.ui.Alignment.Center) {
+            Column(
+                Modifier.widthIn(max = if (tv) 780.dp else 560.dp).clip(RoundedCornerShape(20.dp)).background(t.tile).border(2.dp, t.accent, RoundedCornerShape(20.dp)).padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(stringResource(R.string.req_upd_title), color = t.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.req_upd_text, f.cand.versionName), color = t.text, fontSize = 16.sp)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ActionRow(HIcons.download, stringResource(R.string.self_upd_install), "", Modifier.focusRequester(first)) { SelfUpd.install(ctx, scope, f) }
+                    ActionRow(HIcons.list, stringResource(R.string.notes_btn)) { SelfUpd.notes = f.cand }
+                    ActionRow(HIcons.open, stringResource(R.string.req_upd_exit)) {
+                        var c: Context? = ctx
+                        while (c is android.content.ContextWrapper && c !is android.app.Activity) c = c.baseContext
+                        (c as? android.app.Activity)?.finishAffinity()
+                    }
+                }
+            }
+        }
+    }
 }
 
 /** Плашка рисуется отдельно и ПОСЛЕДНЕЙ в экране (иначе её закрывает содержимое): ставится в конце «Меню» и «Дома». */
@@ -225,6 +297,12 @@ private fun NotesDialog(c: UpdCand) {
 
 /** Текст «Что нового» из описания выпуска GitHub: берётся блок на нужном языке (**English**, **Русский**, **Українська**), без заголовка «###», SHA и служебных строк. */
 object ReleaseNotes {
+    /** Строка-признак в описании выпуска: «Обязательное обновление / Required update: да» (также «Обов'язкове оновлення: так», «Required update: yes»). */
+    private const val REQ_WORDS = """(?:обязательное обновление|обов['’ʼ`]?язкове оновлення|required update)"""
+    private val reqOn = Regex("""(?im)^[\s>*_•-]*$REQ_WORDS[^\n:：]*[:：]\s*[*_`]*\s*(?:да|так|yes|true)(?![\p{L}\d])""")
+    /** Строка-признак с любым значением (да/нет): в окно «Что нового» не попадает. */
+    private val reqAny = Regex("""(?i)^[\s>*_•-]*$REQ_WORDS[^\n:：]*[:：]\s*[*_`]*\s*(?:да|нет|так|ні|yes|no|true|false)(?![\p{L}\d])""")
+    fun isRequired(body: String): Boolean = reqOn.containsMatchIn(body.replace("\r\n", "\n"))
     private val marks = mapOf("en" to "**English**", "ru" to "**Русский**", "uk" to "**Українська**")
     fun forLang(body: String, lang: String): String {
         val b = body.replace("\r\n", "\n")
@@ -238,7 +316,7 @@ object ReleaseNotes {
             s = b.substring(from, next)
         }
         return s.lines().map { it.trim() }
-            .filter { it.isNotEmpty() && !it.startsWith("###") && !it.startsWith("**") && !it.lowercase().contains("sha-256") && !it.lowercase().startsWith("android ") }
+            .filter { it.isNotEmpty() && !it.startsWith("###") && !it.startsWith("**") && !it.lowercase().contains("sha-256") && !it.lowercase().startsWith("android ") && !reqAny.containsMatchIn(it) }
             .joinToString("\n") { if (it.startsWith("- ") || it.startsWith("* ")) "•  " + it.drop(2) else it }
     }
 }

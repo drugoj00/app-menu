@@ -661,6 +661,8 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
             val visible = if (Cfg.listMode) listState.layoutInfo.visibleItemsInfo.any { it.key == p } else gridState.layoutInfo.visibleItemsInfo.any { it.key == p }
             if (!visible) runCatching { if (Cfg.listMode) listState.scrollToItem(idx) else gridState.scrollToItem(idx) }
             kotlinx.coroutines.delay(80)
+            // два кадра: плитка должна быть размещена до фокуса (иначе встроенная прокрутка Compose падает «before parents are placed»)
+            runCatching { androidx.compose.runtime.withFrameNanos { }; androidx.compose.runtime.withFrameNanos { } }
             runCatching { reqFor(p).requestFocus() }
         }
     }
