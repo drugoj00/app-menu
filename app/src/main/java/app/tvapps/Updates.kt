@@ -517,10 +517,10 @@ object Updates {
                 if (app.pkg == ctx.packageName) SaverGuard.releaseBeforeSelfUpdate(ctx)
                 // копия прежней версии (если включено): к ней можно вернуться через «Версии»
                 if (Cfg.backupOnDelete) runCatching { AppBackups.save(ctx, app.pkg) }
-                val copy = AppBackups.importApk(ctx, file) ?: return@withContext "fail:" + ctx.getString(R.string.ver_not_apk)
-                return@withContext AppBackups.installFiles(ctx, app.pkg, copy.files, copy.versionCode, interactive = !quiet)
+                // 9.0 (код 45): ставим прямо из скачанного файла, он удаляется в finally (в архив копий кладётся только прежняя версия, и только по переключателю)
+                return@withContext AppBackups.installFiles(ctx, app.pkg, listOf(file), newCode, interactive = !quiet)
             } finally {
-                // скачанный файл больше не нужен: установка идёт из копии в AppMenuBackups
+                // скачанный файл больше не нужен при любом исходе (успех, отказ, отмена)
                 runCatching { file.delete() }
             }
         }

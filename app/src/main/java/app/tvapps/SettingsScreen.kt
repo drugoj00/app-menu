@@ -805,6 +805,7 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                     SwitchRow(stringResource(R.string.self_upd_auto), Cfg.selfUpd, listOf()) { Cfg.changeSelfUpd(it) }
                     // 9.0 (просьба Евгения): на виду, один переключатель на удаление и обновление; путь папки копий в пояснении
                     SwitchRow(stringResource(R.string.bk_del_switch), Cfg.backupOnDelete, listOf(stringResource(R.string.bk_del_hint, remember { AppBackups.root(ctx).absolutePath }))) { Cfg.changeBackupOnDelete(it) }
+                    CleanCopiesRow()
                     SwitchRow(stringResource(R.string.inst_ask_setting), Cfg.askInstaller, listOf(stringResource(R.string.inst_ask_hint), stringResource(R.string.inst_default_now, InstallerPick.labelOf(ctx, Cfg.instSaved)))) { Cfg.changeAskInstaller(it) }
                     Section(stringResource(R.string.backup_title)) {
                         SectionHint(stringResource(R.string.backup_hint))

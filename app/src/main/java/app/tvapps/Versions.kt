@@ -114,7 +114,7 @@ object AppBackups {
             writeMeta(tmp, label, pi.versionName ?: "?", code)
             dir.deleteRecursively()
             tmp.renameTo(dir)
-            readCopy(pkg, dir)
+            readCopy(pkg, dir).also { rotate(ctx, pkg) }
         }.onFailure { tmp.deleteRecursively() }.getOrNull()
     }
 
@@ -133,7 +133,7 @@ object AppBackups {
             dir.mkdirs()
             apk.copyTo(File(dir, "base.apk"), true)
             writeMeta(dir, pm.getApplicationLabel(ai).toString(), pi.versionName ?: "?", code)
-            readCopy(pi.packageName, dir)
+            readCopy(pi.packageName, dir).also { rotate(ctx, pi.packageName) }
         }.getOrNull()
     }
 
@@ -148,6 +148,47 @@ object AppBackups {
     }
 
     fun delete(copy: AppCopy) { copy.dir.deleteRecursively() }
+
+    /** Сколько копий держим на одно приложение (9.0, код 45). */
+    const val KEEP = 2
+
+    /** Ротация: остаются установленная сейчас версия и самые свежие по времени сохранения, всего не больше [KEEP]; остальные удаляются. */
+    fun rotate(ctx: Context, pkg: String) {
+        val inst = installedVersion(ctx, pkg)?.second
+        val all = list(ctx, pkg).sortedWith(compareByDescending<AppCopy> { it.versionCode == inst }.thenByDescending { it.savedAt })
+        all.drop(KEEP).forEach { delete(it) }
+    }
+
+    /**
+     * Одно место хранения: всё из второй папки (публичная AppMenuBackups или папка программы) переносится в [root], одинаковые версии не дублируются,
+     * затем ротация. Возвращает число перенесённых или удалённых копий.
+     */
+    fun unify(ctx: Context): Int {
+        val target = root(ctx)
+        var n = 0
+        for (o in listOf(publicRoot(), privateRoot(ctx)).distinctBy { it.absolutePath }.filter { it.absolutePath != target.absolutePath }) {
+            for (p in o.listFiles()?.filter { it.isDirectory }.orEmpty()) {
+                for (d in p.listFiles()?.filter { it.isDirectory }.orEmpty()) {
+                    if (d.name.endsWith(".tmp")) { d.deleteRecursively(); continue }
+                    val dest = File(File(target, p.name).apply { mkdirs() }, d.name)
+                    if (dest.exists()) d.deleteRecursively()
+                    else if (!d.renameTo(dest)) { runCatching { d.copyRecursively(dest, true) }; d.deleteRecursively() }
+                    n++
+                }
+                p.delete()
+            }
+        }
+        for (p in target.listFiles()?.filter { it.isDirectory }.orEmpty()) rotate(ctx, p.name)
+        return n
+    }
+
+    /** Занятое копиями место (обе папки). */
+    fun totalSize(ctx: Context): Long = list(ctx, null).sumOf { it.size }
+
+    /** Удаляет все копии (установленные приложения не затрагиваются). */
+    fun clearAll(ctx: Context) {
+        for (r in listOf(publicRoot(), privateRoot(ctx)).distinctBy { it.absolutePath }) r.listFiles()?.forEach { runCatching { it.deleteRecursively() } }
+    }
 
     /** Перед удалением: сохраняет копии (если включено) и затем выполняет [then] в основном потоке. */
     fun saveThen(ctx: Context, pkgs: List<String>, then: () -> Unit) {
@@ -310,7 +351,9 @@ fun VersionsDialog(pkg: String, label: String, onClose: () -> Unit) {
                                 run {
                                     val apk = NetSearch.download(ctx, v.url) { mbDone -> status = ctx.getString(R.string.net_downloading, v.name, mbDone.toInt()) }?.file
                                         ?: return@run ctx.getString(R.string.net_failed)
-                                    val copy = withContext(Dispatchers.IO) { AppBackups.importApk(ctx, apk) } ?: return@run ctx.getString(R.string.ver_not_apk)
+                                    val copy = withContext(Dispatchers.IO) { AppBackups.importApk(ctx, apk) }
+                                    runCatching { apk.delete() }
+                                    if (copy == null) return@run ctx.getString(R.string.ver_not_apk)
                                     resultText(ctx, AppBackups.installFiles(ctx, pkg, copy.files, copy.versionCode))
                                 }
                             }

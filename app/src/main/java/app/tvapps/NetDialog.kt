@@ -76,6 +76,7 @@ fun NetDialog(onClose: () -> Unit) {
                 status = ctx.getString(R.string.net_downloading, u.substringAfterLast('/'), 0)
                 val f = NetSearch.download(ctx, u) { mb -> status = ctx.getString(R.string.net_downloading, u.substringAfterLast('/'), mb) }
                 if (f == null) continue
+                try {
                 // 8.1: единый выбор установщика («Установить через…»)
                 val fl = f.file
                 val id = if (fl != null) InstallerPick.choose(ctx, f.name, 1, fl) else null
@@ -94,6 +95,7 @@ fun NetDialog(onClose: () -> Unit) {
                     done = true
                     break
                 }
+                } finally { f.file?.let { runCatching { it.delete() } } }
             }
             if (!done) status = ctx.getString(R.string.net_failed) + NetErr.reason(ctx).let { if (it.isEmpty()) "" else ": $it" }
             busy = false

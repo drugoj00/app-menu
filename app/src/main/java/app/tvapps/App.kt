@@ -33,6 +33,8 @@ class App : Application() {
         // заставка по бездействию: если включена, служба и сторож поднимаются вместе с процессом программы
         runCatching { SaverGuard.startIfEnabled(this, "процесс программы") }
         runCatching { Integrity.warm(this) }
+        // уборка: временные файлы старше часа или от прежней версии, единое место копий, не больше двух копий на приложение
+        runCatching { Housekeeping.onStart(this) }
     }
 
     private fun warmComposeState() {
