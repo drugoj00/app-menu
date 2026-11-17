@@ -1117,8 +1117,18 @@
     <string name="inst_no_adb">ADB is not connected</string>
     <string name="inst_one_file">Only for one file</string>
     <string name="inst_ask_setting">Ask what to install with</string>
-    <string name="inst_ask_hint">Before installing an update or received files a choice is shown: ADB-phon, the system installer, ADB of this device or another installer. When off, the remembered choice is used.</string>
+    <string name="inst_ask_hint">Before installing an update or received files a choice is shown: ADB-phon, the system installer, ADB of this device or another installer. When off, the remembered method is used; the package info window before installing is always shown.</string>
     <string name="inst_default_now">Default installer: %1$s</string>
     <string name="inst_none">not chosen</string>
     <string name="inst_cancelled">Installation cancelled</string>
+    <string name="inst_info_installed">Installed: %1$s</string>
+    <string name="inst_info_new">New: %1$s</string>
+    <string name="inst_info_fresh">New installation</string>
+    <string name="inst_info_size">Size: %1$s MB</string>
+    <string name="inst_info_parts">parts: %1$d</string>
+    <string name="inst_sig_ok">Signature matches the installed app</string>
+    <string name="inst_sig_bad">Signature does NOT match the installed app: Android will not install it over</string>
+    <string name="inst_sig_unknown">Signature could not be compared</string>
+    <string name="inst_downgrade">Version is lower than installed: a downgrade works only through ADB or with removal</string>
+    <string name="inst_go">Install</string>
 </resources>
