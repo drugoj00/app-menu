@@ -6,5 +6,7 @@
         <receiver android:name="app.tvapps.DebugHook" android:exported="true">
             <intent-filter><action android:name="app.tvapps.DEBUG_HOME" /></intent-filter>
         </receiver>
+        <!-- только debug: заглушка службы тихой установки ADB-phon для проверки клиентской части (в выпускную сборку не попадает) -->
+        <service android:name="app.tvapps.DbgInstallService" android:exported="true" />
     </application>
 </manifest>
