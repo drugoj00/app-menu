@@ -1103,4 +1103,6 @@
     <string name="req_upd_title">Потрібно оновитися для роботи програми</string>
     <string name="req_upd_text">Вийшла версія %1$s. Цю версію програми потрібно оновити.</string>
     <string name="req_upd_exit">Вийти</string>
+    <string name="self_upd_cancelled">Встановлення не завершено або скасовано. Повторити?</string>
+    <string name="self_upd_timeout">Встановлення не завершилося за відведений час. Повторити?</string>
 </resources>
