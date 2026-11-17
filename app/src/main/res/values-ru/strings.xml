@@ -1114,7 +1114,7 @@
     <string name="inst_remember">Запомнить выбор</string>
     <string name="inst_no_adbphon">ADB-phon 10.2 или новее не установлен</string>
     <string name="inst_old_adbphon">Нужен ADB-phon 10.2 или новее (стоит %1$s)</string>
-    <string name="inst_no_adb">ADB не подключён</string>
+    <string name="inst_no_adb">ADB не подключён: подключи его в настройках или выбери другой способ</string>
     <string name="inst_one_file">Только для одного файла</string>
     <string name="inst_ask_setting">Спрашивать, чем устанавливать</string>
     <string name="inst_ask_hint">Перед установкой обновления и принятых файлов показывается выбор: ADB-phon, системный установщик, ADB этого устройства или другой установщик. Выключено: используется запомненный способ; окно сведений о пакете перед установкой показывается всегда.</string>
