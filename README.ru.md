@@ -16,7 +16,7 @@
 
 **Версия 9.0.** [AppMenu-9.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `7787a10a01c23a221237880b749c342b0b429780f6ef55804c4ba5a6ef683219`
+SHA-256: `40205e230285301e123715b41747425f6c651f29075c0c97fa3c1b255f05b6ca`
 
 ## Что нового в 9.0
 
