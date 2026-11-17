@@ -1117,8 +1117,18 @@
     <string name="inst_no_adb">ADB не подключён</string>
     <string name="inst_one_file">Только для одного файла</string>
     <string name="inst_ask_setting">Спрашивать, чем устанавливать</string>
-    <string name="inst_ask_hint">Перед установкой обновления и принятых файлов показывается выбор: ADB-phon, системный установщик, ADB этого устройства или другой установщик. Выключено: используется запомненный выбор.</string>
+    <string name="inst_ask_hint">Перед установкой обновления и принятых файлов показывается выбор: ADB-phon, системный установщик, ADB этого устройства или другой установщик. Выключено: используется запомненный способ; окно сведений о пакете перед установкой показывается всегда.</string>
     <string name="inst_default_now">Установщик по умолчанию: %1$s</string>
     <string name="inst_none">не выбран</string>
     <string name="inst_cancelled">Установка отменена</string>
+    <string name="inst_info_installed">Установлено: %1$s</string>
+    <string name="inst_info_new">Новая: %1$s</string>
+    <string name="inst_info_fresh">Новая установка</string>
+    <string name="inst_info_size">Размер: %1$s МБ</string>
+    <string name="inst_info_parts">частей: %1$d</string>
+    <string name="inst_sig_ok">Подпись совпадает с установленной</string>
+    <string name="inst_sig_bad">Подпись НЕ совпадает с установленной: Android не поставит поверх</string>
+    <string name="inst_sig_unknown">Подпись сравнить не удалось</string>
+    <string name="inst_downgrade">Версия ниже установленной: понижение возможно только через ADB или с удалением</string>
+    <string name="inst_go">Установить</string>
 </resources>
