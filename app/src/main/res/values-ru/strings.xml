@@ -1109,7 +1109,7 @@
     <string name="inst_for">Устанавливается: %1$s</string>
     <string name="inst_adbphon">ADB-phon</string>
     <string name="inst_system">Системный установщик</string>
-    <string name="inst_adb">Через ADB этого устройства</string>
+    <string name="inst_adb">Через ADB этого устройства (не ADB-phon)</string>
     <string name="inst_others">Другие установщики</string>
     <string name="inst_remember">Запомнить выбор</string>
     <string name="inst_no_adbphon">ADB-phon 10.2 или новее не установлен</string>
@@ -1131,4 +1131,26 @@
     <string name="inst_sig_unknown">Подпись сравнить не удалось</string>
     <string name="inst_downgrade">Версия ниже установленной: понижение возможно только через ADB или с удалением</string>
     <string name="inst_go">Установить</string>
+    <string name="ui_size_title">Размер интерфейса</string>
+    <string name="ui_size_hint">На крупных экранах с низкой плотностью (автомагнитолы, планшеты) программа сама увеличивает интерфейс; этот множитель применяется поверх. Итоговый коэффициент показан ниже.</string>
+    <string name="ui_size_total">Итоговый коэффициент: ×%1$s (авто ×%2$s)</string>
+    <string name="ui_sz_small">Мелкий 0,75</string>
+    <string name="ui_sz_auto">Авто 1,0</string>
+    <string name="ui_sz_big">Крупный 1,25</string>
+    <string name="ui_sz_huge">Очень крупный 1,5</string>
+    <string name="ui_sz_reset">По умолчанию</string>
+    <string name="click_sound_title">Звук нажатия</string>
+    <string name="click_sound_hint">Системный звук касания на плитках, кнопках и строках. Системная настройка «Звук касания» учитывается.</string>
+    <string name="auto_mode_bg">В фоне</string>
+    <string name="auto_mode_screen">На экране</string>
+    <string name="auto_mode_off">Не запускать</string>
+    <string name="silent_no_service">службы тихой установки нет</string>
+    <string name="silent_bad_sig">ключ подписи отличается от ADB-phon</string>
+    <string name="inst_timeout_silent">ADB-phon не ответил за отведённое время</string>
+    <string name="inst_note_fallback">Тихая установка через ADB-phon недоступна (%1$s; нужен ADB-phon 11.0): откроется окно ADB-phon.</string>
+    <string name="bk_del_switch">Сохранять копию приложения при удалении и обновлении</string>
+    <string name="bk_del_hint">Одна настройка на оба действия. Копия APK кладётся в папку: %1$s. Вернуть версию: карточка приложения, «Версии», или «Копии и версии» ниже.</string>
+    <string name="bk_del_row">Сохранить копию (APK) перед удалением</string>
+    <string name="bk_del_toast_on">Копия APK перед удалением сохраняется (настройка «Сохранять копию приложения»)</string>
+    <string name="bk_del_toast_off">Копия APK не сохраняется (выключено в настройках)</string>
 </resources>
