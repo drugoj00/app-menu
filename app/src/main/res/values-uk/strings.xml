@@ -1100,4 +1100,7 @@
     <string name="dock_close_after_h">Увімк.: док ховається після запуску застосунку (з дока або з панелі «Усі застосунки») і повертається кнопкою «Док-панель» або клавішею. Вимк.: док залишається (типово).</string>
     <string name="dock_m_hide_app">Сховати застосунок із меню</string>
     <string name="dock_m_close_menu">Закрити меню</string>
+    <string name="req_upd_title">Потрібно оновитися для роботи програми</string>
+    <string name="req_upd_text">Вийшла версія %1$s. Цю версію програми потрібно оновити.</string>
+    <string name="req_upd_exit">Вийти</string>
 </resources>
