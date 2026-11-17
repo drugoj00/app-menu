@@ -16,7 +16,7 @@
 
 **Версия 8.5.** [AppMenu-8.5.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `c7c77af6c99041e369e6c368c9659b0ee4afddb5dc5415f3e9127d48711c4dd8`
+SHA-256: `9b91fc0c33682f560592842c741a54f99b676b5e425233c3c0e20352459c19c3`
 
 ## Что нового в 8.5
 
