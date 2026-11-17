@@ -1100,4 +1100,7 @@
     <string name="dock_close_after_h">On: the dock hides after an app starts (from the dock or from the All apps panel) and returns with the Dock button or the key. Off: the dock stays (default).</string>
     <string name="dock_m_hide_app">Hide the app from the menu</string>
     <string name="dock_m_close_menu">Close this menu</string>
+    <string name="req_upd_title">Update required to keep the app working</string>
+    <string name="req_upd_text">Version %1$s is out. This version of the app must be updated.</string>
+    <string name="req_upd_exit">Exit</string>
 </resources>
