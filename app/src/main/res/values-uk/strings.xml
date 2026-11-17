@@ -1105,4 +1105,20 @@
     <string name="req_upd_exit">Вийти</string>
     <string name="self_upd_cancelled">Встановлення не завершено або скасовано. Повторити?</string>
     <string name="self_upd_timeout">Встановлення не завершилося за відведений час. Повторити?</string>
+    <string name="inst_title">Встановити через…</string>
+    <string name="inst_for">Встановлюється: %1$s</string>
+    <string name="inst_adbphon">ADB-phon</string>
+    <string name="inst_system">Системний встановлювач</string>
+    <string name="inst_adb">Через ADB цього пристрою</string>
+    <string name="inst_others">Інші встановлювачі</string>
+    <string name="inst_remember">Запам\'ятати вибір</string>
+    <string name="inst_no_adbphon">ADB-phon 10.2 або новіший не встановлено</string>
+    <string name="inst_old_adbphon">Потрібен ADB-phon 10.2 або новіший (стоїть %1$s)</string>
+    <string name="inst_no_adb">ADB не підключено</string>
+    <string name="inst_one_file">Лише для одного файлу</string>
+    <string name="inst_ask_setting">Запитувати, чим встановлювати</string>
+    <string name="inst_ask_hint">Перед встановленням оновлення та прийнятих файлів показується вибір: ADB-phon, системний встановлювач, ADB цього пристрою або інший встановлювач. Вимкнено: використовується запам\'ятований вибір.</string>
+    <string name="inst_default_now">Встановлювач за замовчуванням: %1$s</string>
+    <string name="inst_none">не вибрано</string>
+    <string name="inst_cancelled">Встановлення скасовано</string>
 </resources>
