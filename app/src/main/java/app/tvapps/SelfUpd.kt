@@ -185,6 +185,9 @@ object SelfUpd {
         val want = awaited
         android.util.Log.i("TVApps", "самообновление: возврат, ждём версию '" + want + "', уходили=" + leftApp)
         if (want.isEmpty() || !leftApp) return
+        // сессия установки ещё идёт (установщик работает в фоне): итог не объявляем, проверим при следующем возврате
+        val active = runCatching { ctx.packageManager.packageInstaller.mySessions.any { it.isActive } }.getOrDefault(false)
+        if (active) return
         leftApp = false; watching = false
         val cur = runCatching { ctx.packageManager.getPackageInfo(PKG, 0).versionName }.getOrNull().orEmpty()
         awaited = ""
