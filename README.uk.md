@@ -16,7 +16,7 @@
 
 **Версія 8.1.** [AppMenu-8.1.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `8b89ecfd28e1ea7ad53c1a3946e351ca8a2bcb35ecf5f37c3223a1ed1c0f8eee`
+SHA-256: `abe57aa1752fe6a31501da4e63d2526805aa2238a5327e9d5f8ea3b779acd431`
 
 ## Що нового в 8.1
 
