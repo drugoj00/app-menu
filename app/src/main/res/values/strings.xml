@@ -1105,4 +1105,20 @@
     <string name="req_upd_exit">Exit</string>
     <string name="self_upd_cancelled">Installation was not completed. Try again?</string>
     <string name="self_upd_timeout">Installation did not finish in time. Try again?</string>
+    <string name="inst_title">Install with…</string>
+    <string name="inst_for">Installing: %1$s</string>
+    <string name="inst_adbphon">ADB-phon</string>
+    <string name="inst_system">System installer</string>
+    <string name="inst_adb">Through ADB of this device</string>
+    <string name="inst_others">Other installers</string>
+    <string name="inst_remember">Remember the choice</string>
+    <string name="inst_no_adbphon">ADB-phon 10.2 or newer is not installed</string>
+    <string name="inst_old_adbphon">ADB-phon 10.2 or newer is needed (installed: %1$s)</string>
+    <string name="inst_no_adb">ADB is not connected</string>
+    <string name="inst_one_file">Only for one file</string>
+    <string name="inst_ask_setting">Ask what to install with</string>
+    <string name="inst_ask_hint">Before installing an update or received files a choice is shown: ADB-phon, the system installer, ADB of this device or another installer. When off, the remembered choice is used.</string>
+    <string name="inst_default_now">Default installer: %1$s</string>
+    <string name="inst_none">not chosen</string>
+    <string name="inst_cancelled">Installation cancelled</string>
 </resources>
