@@ -732,6 +732,11 @@
     <string name="dense_hint">Плотная: много значков на тёмных плашках, столбцы и строки считаются по размеру экрана (1280x720: 13 x 4). «Авто» включает её на магнитолах. «Размер» и «столбцы/строки» ниже по-прежнему меняют сетку.</string>
     <string name="dense_off">Обычная</string>
     <string name="dense_on">Плотная</string>
+    <string name="desk_anim_cube">Куб</string>
+    <string name="desk_anim_fade">Растворение</string>
+    <string name="desk_anim_parallax">Параллакс</string>
+    <string name="desk_anim_slide">Сдвиг</string>
+    <string name="desk_anim_zoom">Зум</string>
     <string name="desk_common">Общие</string>
     <string name="desk_default">Стол %1$d</string>
     <string name="desk_empty">Пусто: добавить приложения через карточку → На стол…</string>
@@ -805,6 +810,9 @@
     <string name="ring_default">По умолчанию</string>
     <string name="selected">Выбрано</string>
     <string name="set_dense">Плотность сетки</string>
+    <string name="set_desk_anim">Анимация переходов</string>
+    <string name="set_desk_anim_hint">Плавные переходы между экранами, Домом и столами. Не зависит от системной настройки «Масштаб анимации». Выключено — мгновенно. В лёгком режиме не используется.</string>
+    <string name="set_desk_anim_style">Стиль анимации</string>
     <string name="set_gap">Плотность значков</string>
     <string name="set_grid">Сетка и масштаб значков</string>
     <string name="set_lite">Облегчённый режим (слабое железо)</string>

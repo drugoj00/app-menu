@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="imgp_via_app">Выбрать в приложении…</string>
+    <string name="imgp_via_title">Приложение для выбора картинки</string>
+    <string name="imgp_via_title_video">Приложение для выбора видео</string>
+    <string name="imgp_via_hint">Откроется выбранное приложение (файловый менеджер или галерея); выбранный в нём файл вернётся в меню.</string>
+    <string name="imgp_via_none">Нет приложений, которые умеют выбирать файл такого типа</string>
+    <string name="imgp_via_fail">Не удалось открыть приложение</string>
+    <string name="wg_edge">Оконтовка (обводка)…</string>
+    <string name="wg_edge_title">Оконтовка виджета</string>
+    <string name="upd_hash_info">Ожидалась сумма %1$s…, получена %2$s…; размер файла %3$s Б, в выпуске %4$s Б; источник: %5$s</string>
+    <string name="upd_retry">Повторная загрузка…</string>
+    <string name="net_err_short">загрузка не удалась: получено %1$d Б, ожидалось %2$d Б</string>
+    <string name="net_err_cut">загрузка оборвана: получено %1$d Б</string>
+    <string name="top_icol">Цвет значков строки состояния</string>
+    <string name="top_icol_hint">Цвет значков и надписей верхней строки «Дома»: колокольчик, Bluetooth, сеть, USB, настройки, дата, время и кнопки слева (кроме значка самой программы). Авто: по теме и фону, как раньше. Белый и чёрный: кнопки или края полоски; любой цвет: полоска (пульт: влево и вправо двигают ползунок ровными шагами, ОК: Авто или белый). Тусклое состояние (Bluetooth выключен, USB без накопителя) показывается тем же цветом бледнее, цифра в колокольчике сама становится чёрной или белой. Применяется сразу.</string>
+    <string name="top_ic_black">Чёрный</string>
+    <string name="top_ic_custom">Свой цвет</string>
+</resources>
