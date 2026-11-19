@@ -84,11 +84,57 @@ object Channels {
 
 data class TvIn(val id: String, val label: String, val hdmi: Boolean)
 
+/**
+ * Естественный порядок входов (19.11.2026, замечание st0p0r: «странная нумерация, не по порядку»): система отдаёт список в произвольном порядке
+ * (HDMI 3, HDMI 4, HDMI 1, HDMI 2), здесь он выстраивается: сначала HDMI по номеру (1, 2, 3, 4, 10 после 9), затем AV (композитный), компонентный,
+ * S-Video, SCART, VGA, DVI, DisplayPort и остальные, внутри группы по номеру в названии. Названия без номера идут после нумерованных.
+ */
+internal object TvInputOrder {
+    /** Группа входа по типу TvInputInfo (меньше = выше в списке). Числа типов взяты из TvInputInfo: константы TYPE_* с API 21. */
+    fun rank(type: Int): Int = when (type) {
+        android.media.tv.TvInputInfo.TYPE_HDMI -> 0
+        android.media.tv.TvInputInfo.TYPE_COMPOSITE -> 1
+        android.media.tv.TvInputInfo.TYPE_COMPONENT -> 2
+        android.media.tv.TvInputInfo.TYPE_SVIDEO -> 3
+        android.media.tv.TvInputInfo.TYPE_SCART -> 4
+        android.media.tv.TvInputInfo.TYPE_VGA -> 5
+        android.media.tv.TvInputInfo.TYPE_DVI -> 6
+        android.media.tv.TvInputInfo.TYPE_DISPLAY_PORT -> 7
+        android.media.tv.TvInputInfo.TYPE_TUNER -> 8
+        else -> 9
+    }
+
+    private val numbered = Regex("^(\\D*?)\\s*(\\d+)")
+
+    /** Сравнение двух входов одной группы: нумерованные названия по тексту и числу («HDMI 2» раньше «HDMI 10»), без номера по названию, затем по коду. */
+    fun compare(labelA: String, idA: String, labelB: String, idB: String): Int {
+        val a = numbered.find(labelA.trim())
+        val b = numbered.find(labelB.trim())
+        if (a != null && b != null) {
+            val head = a.groupValues[1].trim().compareTo(b.groupValues[1].trim(), ignoreCase = true)
+            if (head != 0) return head
+            val n = (a.groupValues[2].toIntOrNull() ?: Int.MAX_VALUE).compareTo(b.groupValues[2].toIntOrNull() ?: Int.MAX_VALUE)
+            if (n != 0) return n
+        } else if (a != null) return -1
+        else if (b != null) return 1
+        val t = labelA.compareTo(labelB, ignoreCase = true)
+        return if (t != 0) t else idA.compareTo(idB)
+    }
+
+    /** Полное сравнение: группа по типу, затем [compare]. */
+    fun compareFull(typeA: Int, labelA: String, idA: String, typeB: Int, labelB: String, idB: String): Int {
+        val r = rank(typeA).compareTo(rank(typeB))
+        return if (r != 0) r else compare(labelA, idA, labelB, idB)
+    }
+}
+
 object TvInputs {
     fun list(ctx: Context): List<TvIn> = runCatching {
         val m = ctx.getSystemService(Context.TV_INPUT_SERVICE) as android.media.tv.TvInputManager
         m.tvInputList.filter { it.type == android.media.tv.TvInputInfo.TYPE_HDMI || it.isPassthroughInput }
-            .map { TvIn(it.id, it.loadLabel(ctx)?.toString().orEmpty().ifBlank { it.id }, it.type == android.media.tv.TvInputInfo.TYPE_HDMI) }
+            .map { Triple(it, it.loadLabel(ctx)?.toString().orEmpty().ifBlank { it.id }, it.type) }
+            .sortedWith { a, b -> TvInputOrder.compareFull(a.third, a.second, a.first.id, b.third, b.second, b.first.id) }
+            .map { (info, label, type) -> TvIn(info.id, label, type == android.media.tv.TvInputInfo.TYPE_HDMI) }
     }.getOrDefault(emptyList())
 
     fun open(ctx: Context, id: String): Boolean = runCatching {
@@ -133,6 +179,26 @@ object Banners {
     private val cache = CacheBudget.track(object : LruCache<String, Bitmap>(CacheBudget.bytes(24)) { override fun sizeOf(k: String, v: Bitmap) = v.byteCount })
     private val none = HashSet<String>()
 
+    /**
+     * Рисует баннер в картинку [w] x [h], сохраняя пропорции (вписывание по центру). Раньше `toBitmap(320, 180)` растягивал любой баннер на 16:9
+     * и искажал картинки другого формата; теперь формат баннера сохраняется, а плитка в «Доме» показывает его целиком (HomeRows, ContentScale.Fit).
+     */
+    internal fun renderFit(d: android.graphics.drawable.Drawable, w: Int, h: Int): Bitmap {
+        val iw = d.intrinsicWidth
+        val ih = d.intrinsicHeight
+        val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val c = android.graphics.Canvas(out)
+        if (iw <= 0 || ih <= 0) { d.setBounds(0, 0, w, h); d.draw(c); return out }
+        val k = minOf(w.toFloat() / iw, h.toFloat() / ih)
+        val dw = (iw * k).toInt().coerceIn(1, w)
+        val dh = (ih * k).toInt().coerceIn(1, h)
+        val l = (w - dw) / 2
+        val t = (h - dh) / 2
+        d.setBounds(l, t, l + dw, t + dh)
+        d.draw(c)
+        return out
+    }
+
     fun peek(pkg: String): Bitmap? = cache.get(pkg)
     fun isNone(pkg: String): Boolean = pkg in none
 
@@ -146,7 +212,7 @@ object Banners {
         // «баннер» почти квадратный (по сути значок приложения) растянулся бы и выглядел плохо: считаем, что баннера нет
         val ratio = if (d != null && d.intrinsicWidth > 0 && d.intrinsicHeight > 0) d.intrinsicWidth.toFloat() / d.intrinsicHeight else 1.78f
         val ok = d != null && ratio >= 1.5f
-        val bmp = if (ok) runCatching { d!!.toBitmap(320, 180) }.getOrNull() else null
+        val bmp = if (ok) runCatching { renderFit(d!!, 320, 180) }.getOrNull() else null
         // «нет баннера» запоминается только если его правда нет; сбой чтения (память) не запоминается, следующая попытка повторит
         if (bmp != null) cache.put(e.pkg, bmp) else if (!ok) none += e.pkg
         return bmp

@@ -1,6 +1,5 @@
 package app.tvapps
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.padding
@@ -114,16 +113,18 @@ private fun Modifier.scrollbar(state: ScrollableState, metrics: (Float) -> Tripl
     var edgeFocus by remember { mutableStateOf(false) }
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val step = with(androidx.compose.ui.platform.LocalDensity.current) { 220.dp.toPx() }
-    val widthDp by animateFloatAsState(if (edgeFocus) 14f else if (active) (if (tv) 8f else 6f) else (if (tv) 6f else 4f), label = "barW")
-    val alpha by animateFloatAsState(if (active || edgeFocus) 1f else if (tv) 0.6f else 0.5f, label = "barA")
+    // 18.11.2026: fixedAnimateFloatAsState вместо animateFloatAsState — фиксированный масштаб (Desks.kt)
+    val widthDp by fixedAnimateFloatAsState(if (edgeFocus) 14f else if (active) (if (tv) 8f else 6f) else (if (tv) 6f else 4f), label = "barW")
+    val alpha by fixedAnimateFloatAsState(if (active || edgeFocus) 1f else if (tv) 0.6f else 0.5f, label = "barA")
     this
         // пульт: стрелка вправо, когда дальше двигать фокус некуда, «берёт» полосу; вверх/вниз прокручивают, влево/ОК/Назад отпускают
         .onPreviewKeyEvent { e ->
             if (!edgeFocus) return@onPreviewKeyEvent false
             val down = e.type == androidx.compose.ui.input.key.KeyEventType.KeyDown
             when (e.key) {
-                androidx.compose.ui.input.key.Key.DirectionUp, androidx.compose.ui.input.key.Key.PageUp -> { if (down) scope.launch { runCatching { state.animateScrollBy(-step) } }; true }
-                androidx.compose.ui.input.key.Key.DirectionDown, androidx.compose.ui.input.key.Key.PageDown -> { if (down) scope.launch { runCatching { state.animateScrollBy(step) } }; true }
+                // зафиксированный масштаб (DeskFullMotion): прокрутка пультом не должна зависеть от системной настройки «Масштаб анимации» (18.11.2026)
+                androidx.compose.ui.input.key.Key.DirectionUp, androidx.compose.ui.input.key.Key.PageUp -> { if (down) scope.launch { kotlinx.coroutines.withContext(DeskFullMotion) { runCatching { state.animateScrollBy(-step) } } }; true }
+                androidx.compose.ui.input.key.Key.DirectionDown, androidx.compose.ui.input.key.Key.PageDown -> { if (down) scope.launch { kotlinx.coroutines.withContext(DeskFullMotion) { runCatching { state.animateScrollBy(step) } } }; true }
                 androidx.compose.ui.input.key.Key.DirectionLeft, androidx.compose.ui.input.key.Key.DirectionRight, androidx.compose.ui.input.key.Key.DirectionCenter, androidx.compose.ui.input.key.Key.Enter, androidx.compose.ui.input.key.Key.Back, androidx.compose.ui.input.key.Key.Escape -> { if (down) edgeFocus = false; true }
                 else -> { edgeFocus = false; false }
             }
@@ -153,7 +154,7 @@ private fun Modifier.scrollbar(state: ScrollableState, metrics: (Float) -> Tripl
                     val onThumb = ch.position.y >= th.top && ch.position.y <= th.top + th.height
                     if (!onThumb) {
                         val d = ScrollbarMath.pageDelta(ch.position.y, th, vp)
-                        scope.launch { runCatching { state.animateScrollBy(d) } }
+                        scope.launch { kotlinx.coroutines.withContext(DeskFullMotion) { runCatching { state.animateScrollBy(d) } } }
                     }
                     var lastY = ch.position.y
                     while (true) {

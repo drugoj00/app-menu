@@ -51,6 +51,11 @@ object Cfg {
     var homeRing by mutableIntStateOf(0); private set
     /** Оформление верхней строки «Дома» (по умолчанию как раньше: ничего у прежних пользователей не меняется). Контур значков состояния: "auto" (по яркости фона), "dark", "white", "none". */
     var statusOutline by androidx.compose.runtime.mutableStateOf("auto"); private set
+    /**
+     * 12.0: цвет значков и надписей верхней строки «Дома» (состояния справа и кнопки слева, кроме значка самой программы): положение на полоске 0..1
+     * (0 чёрный, дальше спектр, 1 белый; см. [IconColor]); отрицательное: Авто (как задано темой и фоном, по умолчанию).
+     */
+    var statusIconPos by androidx.compose.runtime.mutableFloatStateOf(-1f); private set
     /** Фон кнопок и поля поиска верхней строки: "solid" (непрозрачный, как в 7.0), "glass" (полупрозрачный, цвет плиток темы), "none" (без фона). */
     var barFill by androidx.compose.runtime.mutableStateOf("solid"); private set
     /** Скругление кнопок и поля поиска верхней строки: "normal", "round" (круглые, капсулой), "square" (малое). */
@@ -144,6 +149,10 @@ object Cfg {
     var memKeepFav by mutableStateOf(true); private set
     /** Приложения, которые очистка памяти не останавливает (выбор владельца; по умолчанию пусто). */
     var memExcl by mutableStateOf<Set<String>>(emptySet()); private set
+    /** Анимация перехода между столами (18.11.2026, владелица): по умолчанию включена; выключенный переход мгновенный, без анимации вообще. */
+    var deskAnim by mutableStateOf(true); private set
+    /** Стиль анимации перехода между столами: один из [DESK_ANIM_STYLES]. */
+    var deskAnimStyle by mutableStateOf("slide"); private set
 
     fun init(ctx: Context) {
         if (::sp.isInitialized) return
@@ -196,6 +205,7 @@ object Cfg {
         // рамки меню и «Дома»: при первом запуске «По умолчанию» (цвет темы), белый выбирается в настройках
         homeRing = sp.getInt("home_ring", 0).coerceIn(0, RING_COLORS.size - 1)
         statusOutline = sp.getString("status_outline", "auto").orEmpty().takeIf { it in listOf("auto", "dark", "white", "none") } ?: "auto"
+        statusIconPos = runCatching { sp.getFloat("status_icon_pos", -1f) }.getOrDefault(-1f).let { if (it < 0f || it.isNaN()) -1f else it.coerceAtMost(1f) }
         barFill = sp.getString("bar_fill", "solid").orEmpty().takeIf { it in listOf("solid", "glass", "none") } ?: "solid"
         // 16.11.2026: «Без фона» у части устройств оказался выставленным сам (кнопки слева без плитки, значки с контуром); один раз возвращаем «Сплошной», дальше выбор остаётся как есть
         if (!sp.getBoolean("bar_fill_mig16", false)) { sp.edit().putBoolean("bar_fill_mig16", true).apply(); if (barFill == "none") { barFill = "solid"; sp.edit().putString("bar_fill", "solid").apply() } }
@@ -227,6 +237,8 @@ object Cfg {
         memAuto = sp.getBoolean("mem_auto", false)
         memKeepFav = sp.getBoolean("mem_keep_fav", true)
         memExcl = sp.getStringSet("mem_excl", emptySet())?.toSet() ?: emptySet()
+        deskAnim = sp.getBoolean("desk_anim", true)
+        deskAnimStyle = sp.getString("desk_anim_style", "slide").orEmpty().takeIf { it in DESK_ANIM_STYLES } ?: "slide"
         Desks.reload(sp, rememberPos)
     }
 
@@ -297,6 +309,7 @@ object Cfg {
     fun changeAccent(v: String) { accent = v; sp.edit().putString("accent", v).apply() }
     fun changeLang(v: String) { lang = v; sp.edit().putString("lang", v).apply() }
     fun changeStatusOutline(v: String) { statusOutline = v; sp.edit().putString("status_outline", v).apply() }
+    fun changeStatusIconPos(v: Float) { statusIconPos = if (v < 0f) -1f else v.coerceIn(0f, 1f); sp.edit().putFloat("status_icon_pos", statusIconPos).apply() }
     fun changeBarFill(v: String) { barFill = v; sp.edit().putString("bar_fill", v).apply() }
     fun changeSelGlow(v: String) { selGlow = v; sp.edit().putString("sel_glow", v).apply() }
     fun changeHomeAllPanel(v: Boolean) { homeAllPanel = v; sp.edit().putBoolean("home_all_panel", v).apply() }
@@ -313,6 +326,8 @@ object Cfg {
     val RING_COLORS = longArrayOf(0L, 0xFFFFFFFFL, 0xFF000000L, 0xFFEF4444L, 0xFFF97316L, 0xFFFACC15L, 0xFF22C55EL, 0xFF06B6D4L, 0xFF3B82F6L, 0xFFA855F7L, 0xFFEC4899L)
     fun changePlates(v: Boolean) { plates = v; sp.edit().putBoolean("plates", v).apply() }
     fun changeTransparentTiles(v: Boolean) { transparentTiles = v; sp.edit().putBoolean("tile_transparent", v).apply() }
+    fun changeDeskAnim(v: Boolean) { deskAnim = v; sp.edit().putBoolean("desk_anim", v).apply() }
+    fun changeDeskAnimStyle(v: String) { if (v !in DESK_ANIM_STYLES) return; deskAnimStyle = v; sp.edit().putString("desk_anim_style", v).apply() }
     fun toggleUpdSource(id: String) {
         updSources = if (id in updSources) updSources - id else updSources + id
         sp.edit().putStringSet("upd_sources", updSources).apply()

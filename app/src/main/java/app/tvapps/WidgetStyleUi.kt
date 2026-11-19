@@ -216,7 +216,7 @@ internal fun WidgetStyleDialog(dlg: Dlg.WidgetStyle, setDlg: (Dlg?) -> Unit) {
     }
     if (keyDlg) TextDialog(stringResource(R.string.wsrc_key), WxSrc.key(ctx), stringResource(R.string.wsrc_key_hint), { WxSrc.setKey(ctx, it); keyDlg = false }, { keyDlg = false })
     val names = presetNames(clock)
-    androidx.compose.ui.window.Dialog(onDismissRequest = { close() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    MotionDialog(onDismissRequest = { close() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         MouseDragInDialog()
         FixedFont { CompositionLocalProvider(LocalTh provides t) { Column(
             Modifier.widthIn(min = 340.dp, max = 640.dp).heightIn(max = maxH)
@@ -239,6 +239,7 @@ internal fun WidgetStyleDialog(dlg: Dlg.WidgetStyle, setDlg: (Dlg?) -> Unit) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 names.forEachIndexed { id, nm -> Chip(stringResource(nm), s.preset == id) { updW { applyPreset(it, id) } } }
             }
+            // 18.11.2026: animateContentSize не принимает свой withContext — полагаемся на AnimScale.forceFull() (Desks.kt)
             Column(Modifier.animateContentSize()) {
                 Row(
                     Modifier.clip(RoundedCornerShape(8.dp)).clickable { hintOpen = !hintOpen }.padding(horizontal = 4.dp, vertical = 2.dp),

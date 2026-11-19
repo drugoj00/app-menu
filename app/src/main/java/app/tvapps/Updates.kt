@@ -229,6 +229,14 @@ object Updates {
         else -> name.contains(extra, true)
     }
 
+    /** Сумма файла из описания выпуска («SHA-256 <64 hex>»): одна сумма берётся как есть; если разных несколько, берётся строка с именем файла, иначе пусто (сверка по описанию не делается). */
+    internal fun pickBodySum(body: String, assetName: String): String {
+        val rx = Regex("(?i)sha-?256[^0-9a-f]{0,8}([0-9a-f]{64})")
+        val all = rx.findAll(body).map { it.groupValues[1].lowercase() }.distinct().toList()
+        if (all.size <= 1) return all.firstOrNull().orEmpty()
+        return body.lines().firstOrNull { assetName.isNotBlank() && it.contains(assetName, true) }?.let { rx.find(it)?.groupValues?.get(1)?.lowercase() }.orEmpty()
+    }
+
     private fun github(ctx: Context, pkg: String, token: String, fromCatalog: Boolean): UpdCand? {
         val repos = ghKnown(ctx, pkg).ifEmpty {
             if (!fromCatalog) emptyList() else sourceRepos(pkg).filter { it.first == "github" }.map { Triple(it.second.substringBefore('/'), it.second.substringAfter('/'), null) }
@@ -254,7 +262,12 @@ object Updates {
             if (apks.isEmpty()) continue
             val sorted = sortByAbi(apks) { it.optString("name") }
             // сумма из описания выпуска: строка «SHA-256 <64 hex>»; берётся, только если в выпуске один APK
-            val sum = if (sorted.size == 1) Regex("(?i)sha-?256[^0-9a-f]{0,8}([0-9a-f]{64})").find(j.optString("body"))?.groupValues?.get(1).orEmpty() else ""
+            // 12.0: если GitHub сам дал сумму файла (поле digest у файла выпуска, «sha256:…»), берётся она: она относится к самому файлу, а не к тексту описания
+            // в описании бывает не одна сумма (например, ещё сертификата подписи): при нескольких разных берётся строка с именем файла, иначе описание не используется
+            val bodySum = if (sorted.size == 1) pickBodySum(j.optString("body"), sorted.first().optString("name")) else ""
+            val digestSum = if (sorted.size == 1) sorted.first().optString("digest").trim().removePrefix("sha256:").takeIf { Regex("(?i)[0-9a-f]{64}").matches(it) }.orEmpty() else ""
+            if (digestSum.isNotEmpty() && bodySum.isNotEmpty() && !digestSum.equals(bodySum, true)) android.util.Log.w("TVApps", "обновление: сумма файла в выпуске ($user/$repo) расходится с суммой в описании: файл ${digestSum.take(8)}, описание ${bodySum.take(8)}")
+            val sum = digestSum.ifEmpty { bodySum }
             // строка «versionCode: N» в описании выпуска: если название версии то же (8.1 и 8.1), но код больше установленного, обновление предлагается (старые клиенты строку не читают)
             val relCode = Regex("""(?im)^[\s>*_•-]*version ?code\s*[:=]\s*[*_`]*\s*(\d{1,9})""").find(j.optString("body"))?.groupValues?.get(1)?.toLongOrNull() ?: 0L
             val cand = UpdCand("github", name, relCode, sorted.take(4).map { it.getString("browser_download_url") }, sorted.first().optLong("size"), note = "$user/$repo", sha256 = sum, body = j.optString("body"))
@@ -495,35 +508,68 @@ object Updates {
         val inst = runCatching { pm.getPackageInfo(app.pkg, sigFlags) }.getOrNull() ?: return@withContext "fail:not installed"
         val instCerts = certs(inst)
         var verdict = "net"
-        for (url in cand.urls) {
+        lastHashInfo = ""
+        // 12.0: одна попытка загрузки и сверки; RETRY — сбой, который лечится повторной загрузкой (недокачка, неверная сумма), NEXT — отказ по этому адресу, дальше следующий адрес
+        suspend fun one(url: String, first: Boolean): String {
             val name = cand.versionName
-            val file = NetSearch.download(ctx, url) { mb -> onStatus(ctx.getString(R.string.net_downloading, name, mb.toInt())) }?.file ?: continue
+            // размер из выпуска сверяется только для файла GitHub, который в выпуске первый (для остальных адресов размер относится к другому файлу)
+            val expectSize = if (cand.source == "github" && url == cand.urls.firstOrNull()) cand.size else 0L
+            val file = NetSearch.download(ctx, url, expectSize) { mb -> onStatus(ctx.getString(R.string.net_downloading, name, mb.toInt())) }?.file
+                ?: return RETRY + "net"
             try {
                 val ai = pm.getPackageArchiveInfo(file.path, sigFlags)
-                if (ai == null || ai.packageName != app.pkg) { verdict = "fail:" + ctx.getString(R.string.ver_not_apk); continue }
-                if (cand.md5.isNotBlank() && !md5(file).equals(cand.md5, true)) { verdict = "hash"; continue }
-                if (cand.sha256.isNotBlank() && !sha256File(file).equals(cand.sha256, true)) { verdict = "hash"; continue }
-                if (!abiOk(file)) { verdict = "abi"; continue }
-                if (Build.VERSION.SDK_INT >= 24 && (ai.applicationInfo?.minSdkVersion ?: 0) > Build.VERSION.SDK_INT) { verdict = "minsdk"; continue }
+                if (ai == null || ai.packageName != app.pkg) return RETRY + "fail:" + ctx.getString(R.string.ver_not_apk)
+                val bad = (cand.md5.isNotBlank() && !md5(file).equals(cand.md5, true)) || (cand.sha256.isNotBlank() && !sha256File(file).equals(cand.sha256, true))
+                if (bad) {
+                    val exp = cand.sha256.ifBlank { cand.md5 }
+                    val got = if (cand.sha256.isNotBlank()) sha256File(file) else md5(file)
+                    val host = runCatching { URL(url).host }.getOrDefault("?") + " (" + cand.source + ")"
+                    lastHashInfo = ctx.getString(R.string.upd_hash_info, exp.take(8), got.take(8), file.length().toString(), if (cand.size > 0) cand.size.toString() else "?", host)
+                    android.util.Log.w("TVApps", "обновление: сумма не совпала pkg=${app.pkg} попытка=${if (first) 1 else 2} ждали=${exp.take(8)} получено=${got.take(8)} размер=${file.length()} в выпуске=${cand.size} адрес=$url")
+                    return RETRY + "hash"
+                }
+                if (!abiOk(file)) return NEXT + "abi"
+                if (Build.VERSION.SDK_INT >= 24 && (ai.applicationInfo?.minSdkVersion ?: 0) > Build.VERSION.SDK_INT) return NEXT + "minsdk"
                 val newCode = versionCodeOf(ai)
-                if (newCode <= app.instCode) { verdict = "uptodate"; continue }
+                if (newCode <= app.instCode) return NEXT + "uptodate"
                 // Android 9 и старше: у файла вне системы сертификаты через GET_SIGNING_CERTIFICATES не читаются, берём прежний способ GET_SIGNATURES
                 val newCerts = certs(ai).ifEmpty { archiveSigs(pm, file.path) }
                 if (instCerts.isEmpty() || newCerts.isEmpty() || newCerts.intersect(instCerts).isEmpty()) {
                     android.util.Log.w("Updates", "sig mismatch pkg=${app.pkg} inst=${instCerts.map { it.take(8) }} new=${newCerts.map { it.take(8) }} file=${file.length()}")
-                    return@withContext "sig"
+                    return "sig"
                 }
                 // обновление самой программы: служба заставки снимается с учёта заранее (иначе после замены файла Android 9 и старше её не подключает до перезагрузки)
                 if (app.pkg == ctx.packageName) SaverGuard.releaseBeforeSelfUpdate(ctx)
                 // копия прежней версии (если включено): к ней можно вернуться через «Версии»
                 if (Cfg.backupOnDelete) runCatching { AppBackups.save(ctx, app.pkg) }
                 // 9.0 (код 45): ставим прямо из скачанного файла, он удаляется в finally (в архив копий кладётся только прежняя версия, и только по переключателю)
-                return@withContext AppBackups.installFiles(ctx, app.pkg, listOf(file), newCode, interactive = !quiet)
+                return AppBackups.installFiles(ctx, app.pkg, listOf(file), newCode, interactive = !quiet)
             } finally {
-                // скачанный файл больше не нужен при любом исходе (успех, отказ, отмена)
+                // скачанный файл больше не нужен при любом исходе (успех, отказ, отмена, повтор)
                 runCatching { file.delete() }
+            }
+        }
+        for (url in cand.urls) {
+            var r = one(url, true)
+            if (r.startsWith(RETRY)) {
+                // одна автоматическая повторная загрузка: файл удалён, скачивается заново и сверяется ещё раз
+                android.util.Log.w("TVApps", "обновление: повторная загрузка (${r.removePrefix(RETRY).take(40)}) $url")
+                onStatus(ctx.getString(R.string.upd_retry))
+                kotlinx.coroutines.delay(1500)
+                r = one(url, false)
+            }
+            when {
+                r.startsWith(RETRY) -> verdict = r.removePrefix(RETRY)
+                r.startsWith(NEXT) -> verdict = r.removePrefix(NEXT)
+                else -> return@withContext r
             }
         }
         verdict
     }
+
+    private const val RETRY = "\u0001retry:"
+    private const val NEXT = "\u0001next:"
+
+    /** Подробность последнего отказа «сумма не совпала»: ожидаемая и полученная сумма (8 знаков), размер файла и размер из выпуска, источник (хост). Пусто, если отказа не было. */
+    @Volatile var lastHashInfo: String = ""
 }

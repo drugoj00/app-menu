@@ -40,7 +40,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.graphics.drawable.toBitmap
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -79,6 +81,42 @@ object FilePick {
     }
 }
 
+/**
+ * Приложения, которые умеют выбирать файл заданного вида (файловые менеджеры, галереи, «Файлы»): для кнопки «Выбрать в приложении…» окна выбора картинки.
+ * 19.11.2026 (просьба st0p0r на 4PDA: «к "Системный выбор" можно добавить опцию выбора своего приложения»): системный выбор на части ТВ бедный, а у человека
+ * стоит свой файловый менеджер; здесь список таких приложений (ACTION_GET_CONTENT и ACTION_PICK), выбранное запускается напрямую, а картинка возвращается в программу.
+ */
+object PickerApps {
+    class App(val pkg: String, val label: String, val intent: android.content.Intent, val icon: ImageBitmap?)
+
+    /** Список приложений для [mime] (image и video): без нас самих и без закрытых окон; по одному на пакет, по алфавиту. Вызывать не из главного потока. */
+    fun list(ctx: android.content.Context, mime: String): List<App> {
+        val pm = ctx.packageManager
+        val out = LinkedHashMap<String, App>()
+        for (action in listOf(android.content.Intent.ACTION_GET_CONTENT, android.content.Intent.ACTION_PICK)) {
+            val base = android.content.Intent(action).setType(mime)
+            if (action == android.content.Intent.ACTION_GET_CONTENT) base.addCategory(android.content.Intent.CATEGORY_OPENABLE)
+            val infos = runCatching { pm.queryIntentActivities(base, 0) }.getOrDefault(emptyList())
+            for (ri in infos) {
+                val ai = ri.activityInfo ?: continue
+                if (!ai.exported || ai.packageName == ctx.packageName || ai.packageName in out) continue
+                val label = runCatching { ri.loadLabel(pm).toString() }.getOrDefault(ai.packageName).ifBlank { ai.packageName }
+                val icon = runCatching { ri.loadIcon(pm).toBitmap(72, 72).asImageBitmap() }.getOrNull()
+                val i = android.content.Intent(base).setComponent(android.content.ComponentName(ai.packageName, ai.name))
+                out[ai.packageName] = App(ai.packageName, label, i, icon)
+            }
+        }
+        return out.values.sortedBy { it.label.lowercase() }
+    }
+
+    /** Адрес выбранного файла из ответа приложения: сначала data, затем первый элемент clipData. */
+    fun uriOf(r: androidx.activity.result.ActivityResult): Uri? {
+        if (r.resultCode != android.app.Activity.RESULT_OK) return null
+        val d = r.data ?: return null
+        return d.data ?: d.clipData?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.uri
+    }
+}
+
 @Composable
 fun FilePickDialog(kind: String, onPick: (Uri) -> Unit, onSystem: () -> Unit, onClose: () -> Unit) {
     val ctx = LocalContext.current
@@ -86,6 +124,14 @@ fun FilePickDialog(kind: String, onPick: (Uri) -> Unit, onSystem: () -> Unit, on
     var files by remember { mutableStateOf<List<File>?>(null) }
     var idx by remember { mutableIntStateOf(0) }
     val fr = remember { FocusRequester() }
+    // «Выбрать в приложении…»: список приложений, затем запуск выбранного; окно остаётся открытым, пока приложение не вернёт файл
+    var viaApps by remember { mutableStateOf<List<PickerApps.App>?>(null) }
+    var viaOpen by remember { mutableStateOf(false) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val viaLauncher = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) { r ->
+        val u = PickerApps.uriOf(r)
+        if (u != null) onPick(u)
+    }
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) { Storage.grant(ctx) }
         files = withContext(Dispatchers.IO) { FilePick.list(kind, ctx) }
@@ -93,6 +139,20 @@ fun FilePickDialog(kind: String, onPick: (Uri) -> Unit, onSystem: () -> Unit, on
     val list = files
     LaunchedEffect(list?.size) { runCatching { fr.requestFocus() } }
     fun step(d: Int) { val n = list?.size ?: 0; if (n > 0) idx = (idx + d + n) % n }
+    if (viaOpen) {
+        val apps = viaApps
+        val opts = when {
+            apps == null -> listOf(Opt(stringResource(R.string.working), "", onClick = {}))
+            apps.isEmpty() -> listOf(Opt(stringResource(R.string.imgp_via_none), "", onClick = { viaOpen = false }))
+            else -> apps.map { a ->
+                Opt(a.label, "", icon = a.icon, onClick = {
+                    viaOpen = false
+                    runCatching { viaLauncher.launch(a.intent) }.onFailure { android.widget.Toast.makeText(ctx, ctx.getString(R.string.imgp_via_fail), android.widget.Toast.LENGTH_SHORT).show() }
+                })
+            }
+        }
+        ListDialog(stringResource(if (kind == "image") R.string.imgp_via_title else R.string.imgp_via_title_video), opts, { viaOpen = false }, hint = stringResource(R.string.imgp_via_hint))
+    }
     HDialog(onDismissRequest = onClose) {
         androidx.compose.foundation.layout.Box(
             Modifier.onPreviewKeyEvent { e ->
@@ -140,6 +200,10 @@ fun FilePickDialog(kind: String, onPick: (Uri) -> Unit, onSystem: () -> Unit, on
                 Chip(stringResource(R.string.imgp_pick), true, Modifier.focusRequester(fr)) { onPick(Uri.fromFile(list[idx.coerceIn(0, list.size - 1)])) }
             }
             Chip(stringResource(R.string.imgp_system), false, if (list.isNullOrEmpty()) Modifier.focusRequester(fr) else Modifier) { onSystem() }
+            Chip(stringResource(R.string.imgp_via_app), false) {
+                viaOpen = true
+                if (viaApps == null) scope.launch { viaApps = withContext(Dispatchers.IO) { PickerApps.list(ctx, if (kind == "image") "image/*" else "video/*") } }
+            }
             Chip(stringResource(R.string.close), false) { onClose() }
         }
         }

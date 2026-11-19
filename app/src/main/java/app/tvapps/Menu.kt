@@ -109,16 +109,33 @@ object Conn {
 
 private fun toast(ctx: android.content.Context, s: String) = Toast.makeText(ctx, s, Toast.LENGTH_SHORT).show()
 
-/** Цвета карточки: светлое матовое стекло с цветной полосой внизу, как у меню значков в One UI. */
+/**
+ * Цвета окна действий приложения (долгое нажатие на значок). 19.11.2026 (замечание st0p0r: «окно опций не вписывается в общий дизайн»): окно следует
+ * выбранной теме программы, как остальные окна. Тёмная и чёрная темы: карточка и полоса из цветов плиток и фона, белый текст, акцент выбранного цвета;
+ * светлая тема: прежнее светлое матовое стекло с цветной полосой (как у меню значков в One UI), акцент выбранного цвета.
+ * Берётся тема без подстройки под картинку фона «Дома» (LocalBaseTh): окно должно быть сплошным и читаться на любом фоне.
+ */
 private object Pop {
-    val card = Color(0xF2EAF1F2)
-    val band = Color(0xFFCFE3E2)
-    val text = Color(0xFF1B1F23)
-    val sub = Color(0xFF5B6770)
-    val accent = Color(0xFF0F766E)
-    val danger = Color(0xFFB91C1C)
-    val focusFill = Color(0x662DD4BF)
-    val focusLine = Color(0xFF0F766E)
+    @Composable private fun th(): TC = LocalBaseTh.current ?: LocalTh.current
+    val dark: Boolean @Composable get() = th().dark
+    val card: Color @Composable get() = th().let { if (it.dark) it.tile.copy(alpha = 0.98f) else Color(0xF2EAF1F2) }
+    val band: Color @Composable get() = th().let { if (it.dark) it.bg else Color(0xFFCFE3E2) }
+    val text: Color @Composable get() = th().let { if (it.dark) it.text else Color(0xFF1B1F23) }
+    val sub: Color @Composable get() = th().let { if (it.dark) it.sub else Color(0xFF5B6770) }
+    val accent: Color @Composable get() = th().accent
+    val danger: Color @Composable get() = if (th().dark) Color(0xFFF87171) else Color(0xFFB91C1C)
+    val dangerFill: Color @Composable get() = if (th().dark) Color(0x33F87171) else Color(0xFFFEE2E2)
+    val focusFill: Color @Composable get() = th().let { if (it.dark) it.tileFocus else accentSwatch(Cfg.accent, true).copy(alpha = 0.40f) }
+    val focusLine: Color @Composable get() = th().accent
+    /** Заливка обычной кнопки подэкрана и выбранной (режим батареи и т. п.), недоступной. */
+    val button: Color @Composable get() = th().let { if (it.dark) it.tile else Color(0xFFDCE9E8) }
+    val buttonSel: Color @Composable get() = th().let { if (it.dark) it.accent.copy(alpha = 0.30f) else Color(0xFFBFE6E1) }
+    val disabledFill: Color @Composable get() = if (th().dark) Color(0x22FFFFFF) else Color(0x22000000)
+    /** Тонкая рамка окна и кнопок в покое: на тёмной теме отделяет их от фона, на светлой не видна. */
+    val outline: Color @Composable get() = th().let { if (it.dark) it.border else Color.Transparent }
+    val outlineW: Dp @Composable get() = if (th().dark) 1.dp else 0.dp
+    /** Звезда «в избранном»: янтарная, на тёмном фоне светлее. */
+    val star: Color @Composable get() = if (th().dark) Color(0xFFFBBF24) else Color(0xFFB45309)
 }
 
 // ---------- значки ----------
@@ -191,7 +208,7 @@ private fun ActionCell(icon: ImageVector, label: String, modifier: Modifier = Mo
 
 /** Широкая кнопка внутри карточки (подэкраны). */
 @Composable
-private fun PopButton(text: String, modifier: Modifier = Modifier, fill: Color = Color(0xFFDCE9E8), textColor: Color = Pop.text, enabled: Boolean = true, onClick: () -> Unit) {
+private fun PopButton(text: String, modifier: Modifier = Modifier, fill: Color = Pop.button, textColor: Color = Pop.text, enabled: Boolean = true, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     val (hm, hover) = rememberHover()
     Box(
@@ -199,8 +216,8 @@ private fun PopButton(text: String, modifier: Modifier = Modifier, fill: Color =
             .then(hm)
             .onFocusChanged { focused = it.isFocused }
             .clip(RoundedCornerShape(14.dp))
-            .background(if (!enabled) Color(0x22000000) else if (focused || hover) Pop.focusFill else fill)
-            .border(if (focused) 2.dp else 0.dp, if (focused) Pop.focusLine else Color.Transparent, RoundedCornerShape(14.dp))
+            .background(if (!enabled) Pop.disabledFill else if (focused || hover) Pop.focusFill else fill)
+            .border(if (focused) 2.dp else Pop.outlineW, if (focused) Pop.focusLine else Pop.outline, RoundedCornerShape(14.dp))
             .clickable(enabled = enabled, onClick = onClick)
             .heightIn(min = cellMinHeight())
             .padding(horizontal = 12.dp, vertical = 6.dp),
@@ -332,7 +349,7 @@ fun AppMenu(e: Entry, hidden: Boolean, onToggleHide: () -> Unit, onSelect: () ->
     }
 
     Popup(popupPositionProvider = provider, onDismissRequest = onClose, properties = PopupProperties(focusable = true)) {
-        HalfUi {
+        HalfUiPop {
         // на телефоне внутри окна размеры идут в половинном масштабе (HalfUi), поэтому доступная ширина в этих единицах вдвое больше
         val cardMax = minOf(if (isNarrow()) 860f else 560f, screenDp().first * (if (isNarrow()) 2f else 1f) - 20f)
         val cardMain = actionCardWidth(cardMax)
@@ -357,7 +374,7 @@ fun AppMenu(e: Entry, hidden: Boolean, onToggleHide: () -> Unit, onSelect: () ->
             if (provider.below) Tail(provider.tailX, up = true, color = Pop.card)
             val cardScroll = rememberScrollState()
             Column(
-                Modifier.clip(RoundedCornerShape(28.dp)).background(Pop.card).heightIn(max = 560.dp).mouseDragScroll(cardScroll).verticalScrollbar(cardScroll).verticalScroll(cardScroll),
+                Modifier.clip(RoundedCornerShape(28.dp)).background(Pop.card).border(Pop.outlineW, Pop.outline, RoundedCornerShape(28.dp)).heightIn(max = 560.dp).mouseDragScroll(cardScroll).verticalScrollbar(cardScroll).verticalScroll(cardScroll),
             ) {
                 // шапка: название по центру и кружок «i» справа, как в One UI
                 Box(Modifier.fillMaxWidth().padding(start = 16.dp, end = 10.dp, top = 12.dp, bottom = 6.dp), contentAlignment = Alignment.Center) {
@@ -426,7 +443,7 @@ fun AppMenu(e: Entry, hidden: Boolean, onToggleHide: () -> Unit, onSelect: () ->
                             val isFav = Cfg.isFavorite(e.pkg)
                             ActionCell(
                                 if (isFav) Icons.Filled.Star else IconStarOutline, stringResource(if (isFav) R.string.fav_remove else R.string.fav_add), Modifier.weight(1f),
-                                tint = if (isFav) Color(0xFFB45309) else Pop.accent, iconSize = 24.dp,
+                                tint = if (isFav) Pop.star else Pop.accent, iconSize = 24.dp,
                             ) { Cfg.toggleFavorite(e.pkg); onClose() }
                             // ручное включение и выключение режима «Несколько столов»: плитка после «В избранное», как остальные
                             ActionCell(IconDesk, stringResource(if (Desks.on) R.string.desk_tile_on else R.string.desk_tile_off), Modifier.weight(1f)) { Desks.enable(!Desks.on); onClose() }
@@ -440,7 +457,7 @@ fun AppMenu(e: Entry, hidden: Boolean, onToggleHide: () -> Unit, onSelect: () ->
                         when (screen) {
                             "confirm_data" -> {
                                 Text(stringResource(R.string.confirm_data, e.label), color = Pop.text, fontSize = 15.sp, modifier = Modifier.padding(horizontal = 6.dp))
-                                PopButton(stringResource(R.string.yes_clear), Modifier.focusRequester(first), fill = Color(0xFFFEE2E2), textColor = Pop.danger) {
+                                PopButton(stringResource(R.string.yes_clear), Modifier.focusRequester(first), fill = Pop.dangerFill, textColor = Pop.danger) {
                                     screen = "main"
                                     withAdb { toast(ctx, if (Actions.clearData(e.pkg)) ctx.getString(R.string.data_cleared) else ctx.getString(R.string.failed)) }
                                 }
@@ -757,7 +774,7 @@ private fun BatteryPanel(e: Entry, first: FocusRequester, onBack: () -> Unit) {
         Actions.Battery.RESTRICTED to R.string.batt_restricted,
     ).forEach { (mode, label) ->
         val mark = if (state == mode) "✓  " else ""
-        PopButton(mark + stringResource(label), fill = if (state == mode) Color(0xFFBFE6E1) else Color(0xFFDCE9E8)) {
+        PopButton(mark + stringResource(label), fill = if (state == mode) Pop.buttonSel else Pop.button) {
             scope.launch {
                 if (!Actions.setBattery(e.pkg, mode)) toast(ctx, ctx.getString(R.string.failed))
                 load()

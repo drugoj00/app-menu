@@ -18,6 +18,7 @@ object NetErr {
     /** Короткая причина по-русски; пусто, если ошибок не было. */
     fun reason(ctx: Context): String {
         val e = last ?: return ""
+        if (e is NetSearch.ShortRead) return if (e.expected > 0) ctx.getString(R.string.net_err_short, e.got, e.expected) else ctx.getString(R.string.net_err_cut, e.got)
         var tls = false
         var dns = false
         var c: Throwable? = e

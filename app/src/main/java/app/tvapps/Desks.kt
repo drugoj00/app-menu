@@ -1,13 +1,111 @@
 package app.tvapps
 
 import android.content.SharedPreferences
+import androidx.compose.animation.core.VectorConverter
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.unit.IntOffset
+
+/** Готовый конвертер IntOffset<->AnimationVector2D (нужен для Animatable(IntOffset,...) в [fixedAnimateIntOffsetAsState]). */
+private val intOffsetVectorConverter = IntOffset.VectorConverter
 
 /** Стол, созданный пользователем: номер (больше 0) и название. */
 data class Desk(val id: Int, val name: String)
+
+/** Стили анимации перехода между столами (настройка «Анимация переходов», 18.11.2026). Порядок — как в выборе настроек. */
+val DESK_ANIM_STYLES = listOf("slide", "zoom", "cube", "parallax", "fade")
+
+/**
+ * Масштаб 1 независимо от системной настройки «Для разработчиков» → «Масштаб анимации» (`animator_duration_scale` и т.п.).
+ * Обычный `tween`/`Animatable.animateTo` слушает её по умолчанию, и при урезанном масштабе (у владелицы везде 0.5/0/0) анимация
+ * переключения столов доигрывает почти мгновенно и читается как «эффекта нет». Используется через `withContext(DeskFullMotion) { ... }`
+ * вокруг вызовов `animateTo` в [DesksUi] / главном экране — тот же приём, что для вкладок «Файлов» в ADB-phon (18.11.2026, FmFullMotion),
+ * трогает только эту анимацию, не весь масштаб устройства.
+ */
+object DeskFullMotion : androidx.compose.ui.MotionDurationScale {
+    override val scaleFactor: Float = 1f
+}
+
+/**
+ * 18.11.2026, владелица (после находки в ADB-phon и правки анимации столов): «я же говорил везде» — ни одна анимация
+ * программы не должна зависеть от урезанного системного масштаба, не только переключение столов. Ручной `Animatable`
+ * (как [DeskFullMotion] выше) можно обернуть `withContext` в месте вызова — так сделано для столов, прокрутки меню,
+ * полосы прокрутки и прокрутки «Дома». Но у декларативных Compose-анимаций (`animate*AsState`, `animateContentSize`,
+ * `Modifier.animateItem`, `rememberInfiniteTransition`) нет параметра для подстановки своего `CoroutineContext` —
+ * единственный официально описанный Google способ переопределить `MotionDurationScale` существует только в тестах
+ * (`effectContext` у `ComposeTestRule`), не в обычном приложении (проверено поиском перед тем, как браться за рефлексию).
+ * [AnimScale.forceFull] — запасной уровень защиты именно для таких мест: принудительно выставляет `ValueAnimator`
+ * масштаб 1 ДЛЯ ЭТОГО ПРОЦЕССА (системная настройка «Для разработчиков» → «Масштаб анимации», то есть Settings.Global,
+ * НЕ меняется — у владелицы и у всех остальных программ остаётся как было). На этом масштабе построен `MotionDurationScale`
+ * у Compose по умолчанию. `setDurationScale` — скрытый API на Android 9-12 (`@UnsupportedAppUsage`, доступен через
+ * рефлексию) и штатный, хоть и не задокументированный под эту задачу, на Android 13+; вызывается с `runCatching` —
+ * если на какой-то прошивке метод недоступен, декларативные анимации на ней просто останутся как раньше (не хуже,
+ * чем до этой правки), а места с ручным `Animatable` (DeskFullMotion) всё равно работают гарантированно, независимо
+ * от того, сработал ли этот запасной уровень.
+ */
+object AnimScale {
+    @Volatile private var applied = false
+    fun forceFull() {
+        if (applied) return
+        applied = true
+        runCatching {
+            val cls = Class.forName("android.animation.ValueAnimator")
+            val m = cls.getMethod("setDurationScale", Float::class.javaPrimitiveType)
+            m.invoke(null, 1f)
+        }
+    }
+}
+
+/** Замена `animateFloatAsState` с фиксированным масштабом (см. [AnimScale] про декларативные анимации и [DeskFullMotion] про приём). */
+@Composable
+fun fixedAnimateFloatAsState(
+    targetValue: Float,
+    animationSpec: androidx.compose.animation.core.AnimationSpec<Float> = androidx.compose.animation.core.spring(),
+    label: String = "fixedFloat",
+): androidx.compose.runtime.State<Float> {
+    val anim = remember { androidx.compose.animation.core.Animatable(targetValue) }
+    LaunchedEffect(targetValue, animationSpec) {
+        kotlinx.coroutines.withContext(DeskFullMotion) { anim.animateTo(targetValue, animationSpec) }
+    }
+    return remember { androidx.compose.runtime.derivedStateOf { anim.value } }
+}
+
+/** Замена `animateIntOffsetAsState` с фиксированным масштабом. */
+@Composable
+fun fixedAnimateIntOffsetAsState(
+    targetValue: androidx.compose.ui.unit.IntOffset,
+    animationSpec: androidx.compose.animation.core.AnimationSpec<androidx.compose.ui.unit.IntOffset> = androidx.compose.animation.core.spring(),
+    label: String = "fixedIntOffset",
+): androidx.compose.runtime.State<androidx.compose.ui.unit.IntOffset> {
+    val anim = remember { androidx.compose.animation.core.Animatable(targetValue, intOffsetVectorConverter) }
+    LaunchedEffect(targetValue, animationSpec) {
+        kotlinx.coroutines.withContext(DeskFullMotion) { anim.animateTo(targetValue, animationSpec) }
+    }
+    return remember { androidx.compose.runtime.derivedStateOf { anim.value } }
+}
+
+/**
+ * Замена `rememberInfiniteTransition` + `animateFloat(from, to, infiniteRepeatable(tween(durationMs), RepeatMode.Reverse))`
+ * для простого бесконечного «туда-обратно» (ровно то, что нужно фону «Дома», HomeBg.kt) — с фиксированным масштабом.
+ */
+@Composable
+fun fixedInfiniteFloatAsState(from: Float, to: Float, durationMs: Int, easing: androidx.compose.animation.core.Easing = androidx.compose.animation.core.LinearEasing): androidx.compose.runtime.State<Float> {
+    val anim = remember { androidx.compose.animation.core.Animatable(from) }
+    LaunchedEffect(from, to, durationMs) {
+        kotlinx.coroutines.withContext(DeskFullMotion) {
+            while (true) {
+                anim.animateTo(to, androidx.compose.animation.core.tween(durationMs, easing = easing))
+                anim.animateTo(from, androidx.compose.animation.core.tween(durationMs, easing = easing))
+            }
+        }
+    }
+    return remember { androidx.compose.runtime.derivedStateOf { anim.value } }
+}
 
 /** Страница меню: номер стола (отрицательный у созданных сами при переполнении), название и приложения в порядке показа. */
 data class DeskPage(val id: Int, val name: String, val pkgs: List<String>, val auto: Boolean)

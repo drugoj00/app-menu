@@ -43,6 +43,15 @@ class NotifService : NotificationListenerService() {
     companion object {
         @Volatile var instance: NotifService? = null
 
+        /**
+         * Число уведомлений для красной цифры внутри колокольчика «Дома» (12.0). Наблюдаемое: меняется при подключении службы, поступлении и снятии уведомления
+         * и при отключении службы (тогда 0); значок читает его прямо в композиции и меняется сразу, а не раз в несколько секунд по тику строки состояния.
+         * Считается тем же фильтром, что список в окне «Уведомления» ([list]): без наших и без «сводок» групп.
+         */
+        val badge = androidx.compose.runtime.mutableIntStateOf(0)
+
+        @Volatile private var lastRebind = 0L
+
         private fun shown(s: StatusBarNotification, self: String) =
             s.packageName != self && (s.notification.flags and Notification.FLAG_GROUP_SUMMARY) == 0 &&
                 (s.notification.extras.getCharSequence(Notification.EXTRA_TITLE) != null || s.notification.extras.getCharSequence(Notification.EXTRA_TEXT) != null)
@@ -58,10 +67,63 @@ class NotifService : NotificationListenerService() {
 
         fun enabledInSettings(ctx: Context): Boolean =
             (Settings.Secure.getString(ctx.contentResolver, "enabled_notification_listeners") ?: "").contains(ctx.packageName)
+
+        @Volatile private var toggles = 0
+
+        /**
+         * Доступ к уведомлениям выдан, а служба не подключена (после обновления программы, перезапуска, остановки процесса система сама её не всегда подключает обратно,
+         * на Android 7 не подключает вовсе, и колокольчик остаётся без числа, хотя в окне «Уведомления» всё видно после его ручной попытки включить доступ).
+         * Что делается: (1) штатная просьба `requestRebind` (API 24+; система выполняет её только для службы, отключённой запросом `requestUnbind`, поэтому обычно её мало);
+         * (2) если за 1,5 секунды служба не подключилась, переключение состояния собственного компонента службы (отключить и вернуть по умолчанию): система получает
+         * сообщение об изменении пакета и заново подключает все включённые службы уведомлений (приём не требует особых прав). Не чаще раза в минуту и не больше трёх
+         * переключений за жизнь процесса (каждое переключение даёт системе повод разослать «пакет изменён», а «Дом» после него перечитывает список приложений);
+         * без выданного доступа ничего не делает.
+         */
+        fun rebindIfNeeded(ctx: Context) {
+            if (instance != null) return
+            val now = android.os.SystemClock.elapsedRealtime()
+            if (lastRebind != 0L && now - lastRebind < 60_000L) return
+            val app = ctx.applicationContext
+            if (!runCatching { enabledInSettings(app) }.getOrDefault(false)) return
+            lastRebind = now
+            if (android.os.Build.VERSION.SDK_INT >= 24) runCatching { android.service.notification.NotificationListenerService.requestRebind(component(app)) }
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                if (instance == null && toggles < 3) runCatching {
+                    toggles++
+                    val pm = app.packageManager
+                    val cn = component(app)
+                    pm.setComponentEnabledSetting(cn, android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED, android.content.pm.PackageManager.DONT_KILL_APP)
+                    pm.setComponentEnabledSetting(cn, android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DEFAULT, android.content.pm.PackageManager.DONT_KILL_APP)
+                    android.util.Log.i("TVApps", "уведомления: доступ выдан, служба не подключена, компонент переключён для повторного подключения (" + toggles + ")")
+                }
+            }, 1500L)
+            android.util.Log.i("TVApps", "уведомления: доступ выдан, служба не подключена, запрошено повторное подключение")
+        }
     }
 
-    override fun onListenerConnected() { instance = this }
-    override fun onListenerDisconnected() { if (instance === this) instance = null }
+    /** Пересчитывает число для колокольчика по текущему списку (главный поток). */
+    private fun refreshBadge() {
+        val n = runCatching { list(this).size }.getOrDefault(0)
+        if (badge.intValue != n) badge.intValue = n
+    }
+
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+    private var badgePending = false
+
+    /**
+     * Пересчёт через 100 мс, один на всю «пачку» событий: список читается у системы целиком, а приложения-«болтуны» (мессенджеры, загрузчики с процентами)
+     * шлют по десятку обновлений в секунду; без склейки каждое событие тянуло бы весь список на слабой приставке. Число меняется в пределах доли секунды.
+     */
+    private fun scheduleBadge() {
+        if (badgePending) return
+        badgePending = true
+        main.postDelayed({ badgePending = false; refreshBadge() }, 100L)
+    }
+
+    override fun onListenerConnected() { instance = this; refreshBadge() }
+    override fun onListenerDisconnected() { if (instance === this) instance = null; main.removeCallbacksAndMessages(null); badgePending = false; badge.intValue = 0 }
+    override fun onNotificationPosted(sbn: StatusBarNotification?) { scheduleBadge() }
+    override fun onNotificationRemoved(sbn: StatusBarNotification?) { scheduleBadge() }
 }
 
 private data class NItem(val key: String, val app: String, val icon: Drawable?, val title: String, val text: String, val time: Long, val sbn: StatusBarNotification)

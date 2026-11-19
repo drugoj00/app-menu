@@ -147,6 +147,29 @@ object SaverBus {
     fun anyAlive(): Boolean = sensors.values.any { it.alive }
 }
 
+// ------------------------------------------------------------------ активное медиа (18.11.2026: заставка не должна прерывать чужое видео/музыку)
+
+/**
+ * Надёжная проверка «играет ли сейчас звук в системе» — не только в нашей программе, а в любой (видео, музыка, торрент-плеер).
+ * 18.11.2026 Евгений: заставка включилась поверх активно игравшего видео (торрент-плеер kinotrek/TorrServer, аппаратный декодер vpu_api)
+ * и оборвала просмотр на середине фильма — хотя `SaverCfg.sound` по умолчанию (0) запрещает показ заставки, пока играет звук.
+ * Причина: старая `AudioManager.isMusicActive()` слушает в основном поток STREAM_MUSIC через MediaPlayer/SoundPool; часть плееров
+ * (особенно с аппаратным декодированием) выводит звук через AudioTrack в обход этого учёта, и проверка их не видит.
+ * С Android 8.0 (API 26) есть системный список `getActivePlaybackConfigurations()`: туда попадает любое активное воспроизведение
+ * в системе независимо от того, как оно устроено внутри. Используем его как основную проверку, а `isMusicActive()` — как запасной
+ * сигнал (и единственный на Android 7.1 и старше, где API 26 нет).
+ */
+object SaverAudio {
+    fun isAnyPlaying(c: Context): Boolean {
+        // каждая проверка отдельно в своём runCatching: отказ новой проверки (например, если какая-то прошивка не даёт её вызвать)
+        // не должен гасить старую запасную — иначе регресс к «не видит вообще ничего» на той самой прошивке, где это важнее всего
+        val am = runCatching { c.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager }.getOrNull() ?: return false
+        val viaConfigs = if (Build.VERSION.SDK_INT >= 26) runCatching { am.activePlaybackConfigurations.isNotEmpty() }.getOrDefault(false) else false
+        val viaMusic = runCatching { am.isMusicActive }.getOrDefault(false)
+        return viaConfigs || viaMusic
+    }
+}
+
 // ------------------------------------------------------------------ разрешения и права
 
 object SaverPerm {

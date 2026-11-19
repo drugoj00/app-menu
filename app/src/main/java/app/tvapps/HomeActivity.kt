@@ -47,6 +47,9 @@ import kotlinx.coroutines.withContext
 internal object AppsMem {
     @Volatile var list: List<Entry> = emptyList()
     @Volatile var stamp = 0L
+    /** Номер последовательности изменений пакетов (PackageManager.getChangedPackages), запомненный после последней полной загрузки списка.
+     * -1 — ещё не было ни одной (быстрая проверка по нему пропускается). См. loadAppsImpl в MainActivity.kt. */
+    @Volatile var pkgSeq = -1
     /** Идёт пакетная установка: события «пакет добавлен» не перечитывают список после каждого файла, один общий пересчёт в конце. */
     @Volatile var holdReload = false
     /** Когда пультом или мышью последний раз нажимали: пока человек двигает курсор, список приложений не подменяется (установка приложений идёт в этот момент). */
@@ -68,7 +71,8 @@ internal object HomeNav {
     @Volatile var fromMenu = false
 }
 
-class HomeActivity : ComponentActivity() {
+class HomeActivity : ComponentActivity(), HasFx {
+    override val fx = ScreenFx()
     private var homeShown = false
     private val resumeTick = mutableIntStateOf(0)
     private val againTick = mutableIntStateOf(0)
@@ -133,7 +137,7 @@ class HomeActivity : ComponentActivity() {
             UiScaleRoot {
             val tc = currentTC()
             MaterialTheme(colorScheme = (if (tc.dark) darkColorScheme() else lightColorScheme()).copy(primary = tc.accent, onPrimary = androidx.compose.ui.graphics.Color.White, secondary = tc.accent, tertiary = tc.accent, primaryContainer = tc.accent.copy(alpha = 0.28f), secondaryContainer = tc.accent.copy(alpha = 0.28f)), typography = AppFont.typography) {
-                CompositionLocalProvider(LocalTh provides tc) { FixedFont { HomeScreen(resumeTick.intValue, againTick.intValue); SelfUpdHost(); ReceiveHost(); HomeDockHost(); SelfUpdBannerHost() } }
+                CompositionLocalProvider(LocalTh provides tc) { FixedFont { androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().screenFx(fx)) { HomeScreen(resumeTick.intValue, againTick.intValue) }; SelfUpdHost(); ReceiveHost(); HomeDockHost(); SelfUpdBannerHost() } }
             }
                     }
         }
@@ -152,11 +156,14 @@ class HomeActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        fx.onResume()
         // язык сменили в настройках, пока «Дом» стоял позади: пересоздаём, чтобы все подписи, даты и погода стали на новом языке
         if (AppLoc.changedSince(langAtStart, sysAtStart)) { recreate(); return }
         homeShown = true
         HomeControl.noteVisible(this, true)
         SysBars.apply(this)
+        // 12.0: доступ к уведомлениям выдан, а служба не подключена (колокольчик остался бы без числа): просим систему подключить её заново
+        NotifService.rebindIfNeeded(this)
         resumeTick.intValue++
         // очередь системных окон (удаление и установка без ADB) продолжается и когда окно установки было открыто на «Доме»
         Pending.next(this)
@@ -164,6 +171,7 @@ class HomeActivity : ComponentActivity() {
 
     override fun onPause() {
         super.onPause()
+        fx.onPause()
         HomeControl.noteVisible(this, false)
     }
 
@@ -176,6 +184,11 @@ class HomeActivity : ComponentActivity() {
         val covered = HomeNav.menuOn || HomeNav.fromMenu || android.os.SystemClock.elapsedRealtime() - HomeNav.menuPausedAt < 1500L
         HomeNav.fromMenu = false
         if (homeShown && !covered) HomeNav.press.intValue++ else againTick.intValue++
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        fx.destroy()
     }
 
     override fun onStop() {
@@ -368,7 +381,7 @@ private fun HomeScreen(tick: Int, again: Int) {
 
     // кнопка микрофона (значок и клавиша пульта): выбор программы распознавания при первом нажатии, дальше она же
     VoiceHost { txt ->
-        ctx.startActivity(Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("from_home", true).putExtra("q", txt))
+        leaveVia(ctx, 1) { ctx.startActivity(Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("from_home", true).putExtra("q", txt)) }
     }
     val startVoice = { Voice.request() }
     val imgPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -388,8 +401,11 @@ private fun HomeScreen(tick: Int, again: Int) {
     }
     val openMenu = {
         if (!Cfg.menuOff) {
+        // «Дом» уезжает влево, меню приезжает справа (при выключенной анимации и в лёгком режиме сразу)
+        leaveVia(ctx, 1) {
         ctx.startActivity(Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("from_home", true))
         (ctx as? android.app.Activity)?.overridePendingTransition(0, 0)
+        }
         }
     }
     // «Домой» на «Доме»: если страница прокручена, в начало; если уже в начале, открывается меню приложений
@@ -419,7 +435,9 @@ private fun HomeScreen(tick: Int, again: Int) {
         if (HomeDock.hasFocus) { HomeDock.focusedPkgs.clear(); runCatching { firstReq.requestFocus() }; if (HomeDock.closeAfter(ctx)) HomeDock.setOn(ctx, false) }      // из дока «Назад» возвращает на «Дом»
         else if (movingItem != null || movingStatus != null) { movingItem = null; movingStatus = null }
         else if (AllPanel.query.isNotEmpty()) AllPanel.query = ""      // в панели «Все приложения»: первое «Назад» сбрасывает поиск, следующее возвращает наверх «Дома»
-        else bgScope.launch { scroll.animateScrollTo(0); runCatching { menuReq.requestFocus() } }
+        else if (RowBack.tryBack()) { }   // курсор в строке не на первой карточке: «Назад» возвращает на первую карточку строки
+        // зафиксированный масштаб (DeskFullMotion): прокрутка «Дома» наверх не должна зависеть от системной настройки «Масштаб анимации» (18.11.2026)
+        else bgScope.launch { kotlinx.coroutines.withContext(DeskFullMotion) { scroll.animateScrollTo(0) }; runCatching { menuReq.requestFocus() } }
     }
     val host = remember {
         object : HostOps {
@@ -449,8 +467,10 @@ private fun HomeScreen(tick: Int, again: Int) {
                             onSearch = { q ->
                                 // панель «Все приложения» включена: поиск ведёт в неё (показывает подходящие, курсор на первой плитке)
                                 if (Cfg.homeAllPanel) AllPanel.search(q) else {
+                                leaveVia(ctx, 1) {
                                 ctx.startActivity(Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("from_home", true).putExtra("q", q).putExtra("open_search", q.isBlank()))
                                 (ctx as? android.app.Activity)?.overridePendingTransition(0, 0)
+                                }
                                 }
                             },
                             onTopLong = { dlg = Dlg.Top },

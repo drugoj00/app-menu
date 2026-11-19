@@ -237,7 +237,7 @@ internal fun HomeBox(
                     else -> false
                 }
             }
-            .onFocusChanged { focused = it.isFocused; if (it.isFocused && memKey != null) TileFocus.last = memKey }
+            .onFocusChanged { focused = it.isFocused; if (memKey != null) { if (it.isFocused) { TileFocus.last = memKey; TileFocus.cur = memKey } else if (TileFocus.cur == memKey) TileFocus.cur = null } }
             // неоновый ореол вокруг выбранного (настройка «Неоновый ореол вокруг выбранного»: Нет, Слабое, Сильное): цвет рамки, расходится наружу за край плитки
             .drawBehind {
                 val g = Cfg.selGlow
@@ -462,7 +462,7 @@ internal fun ListDialog(title: String, opts: List<Opt>, onClose: () -> Unit, hin
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) { delay(50); runCatching { first.requestFocus() } }
     val maxH = (LocalConfiguration.current.screenHeightDp * 0.86f).dp
-    androidx.compose.ui.window.Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    MotionDialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         MouseDragInDialog()
         FixedFont { androidx.compose.runtime.CompositionLocalProvider(LocalTh provides t) { Column(
             Modifier.widthIn(min = 320.dp, max = 540.dp).heightIn(max = maxH)
@@ -474,6 +474,7 @@ internal fun ListDialog(title: String, opts: List<Opt>, onClose: () -> Unit, hin
             if (hint.isNotEmpty()) {
                 var hintOpen by remember { mutableStateOf(false) }
                 var hintFocus by remember { mutableStateOf(false) }
+                // 18.11.2026: animateContentSize не принимает свой withContext (как Modifier.animateItem) — полагаемся на AnimScale.forceFull() (Desks.kt)
                 Column(Modifier.animateContentSize()) {
                     Row(
                         Modifier.onFocusChanged { hintFocus = it.isFocused }.clip(RoundedCornerShape(8.dp))
@@ -511,7 +512,7 @@ internal fun NumberDialog(title: String, initial: Int, range: IntRange?, unit: S
         if (range != null && n !in range) { err = outMsg; return }
         onApply(n)
     }
-    androidx.compose.ui.window.Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    MotionDialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         MouseDragInDialog()
         FixedFont { androidx.compose.runtime.CompositionLocalProvider(LocalTh provides t) { Column(
             Modifier.widthIn(min = 300.dp, max = 420.dp).clip(RoundedCornerShape(20.dp)).background(t.bg)
@@ -547,7 +548,7 @@ internal fun TextDialog(title: String, initial: String, hint: String = "", onDon
     var text by remember { mutableStateOf(initial) }
     val fr = remember { FocusRequester() }
     LaunchedEffect(Unit) { delay(80); runCatching { fr.requestFocus() } }
-    androidx.compose.ui.window.Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    MotionDialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         MouseDragInDialog()
         FixedFont { androidx.compose.runtime.CompositionLocalProvider(LocalTh provides t) { Column(
             Modifier.widthIn(min = 320.dp, max = 520.dp).clip(RoundedCornerShape(20.dp)).background(t.bg)
@@ -626,5 +627,24 @@ private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.tileDrag
 /** Какая плитка «Дома» была под курсором пульта: после закрытия окон курсор возвращается на неё, а не прыгает наверх. */
 internal object TileFocus {
     @Volatile var last: String = ""
+    /** Плитка, на которой курсор сейчас (null, если курсор вне плиток строк). */
+    @Volatile var cur: String? = null
     val reqs = HashMap<String, FocusRequester>()
+}
+
+/**
+ * «Назад» на пульте: курсор внутри строки «Дома», но не на первой карточке, возвращается на первую карточку этой же строки (просьба пользователя 4PDA,
+ * 19.11.2026); если курсор уже на первой, «Назад» работает как прежде. Каждая строка при показе записывает сюда свою первую плитку.
+ */
+internal object RowBack {
+    class Row(val contains: (String) -> Boolean, val firstKey: String, val goFirst: () -> Unit)
+    val rows = HashMap<String, Row>()
+    fun tryBack(): Boolean {
+        val cur = TileFocus.cur ?: return false
+        for (r in rows.values) if (r.contains(cur)) {
+            if (cur == r.firstKey) return false
+            r.goFirst(); return true
+        }
+        return false
+    }
 }

@@ -45,6 +45,9 @@ class WallErr(val kind: String, val code: Int = 0) : Exception(kind)
  * Картинки лежат в кэше программы (до 20 штук), подпись хранится рядом с фоном.
  */
 object WallNet {
+    /** Длина ответа: getContentLengthLong есть только с Android 7.0 (API 24), на Android 6.0 берётся getContentLength. */
+    private fun lengthOf(c: java.net.URLConnection): Long = if (android.os.Build.VERSION.SDK_INT >= 24) c.contentLengthLong else c.contentLength.toLong()
+
     private const val UA = "AppMenu/6.0 (https://github.com/drugoj00/app-menu; Android launcher wallpaper picker)"
     val SOURCES = listOf("commons", "nasa", "openverse", "pexels", "unsplash")
     val CATS = listOf("nature", "space", "city", "abstract")
@@ -266,7 +269,7 @@ object WallNet {
         fun find(tag: String) = urls.firstOrNull { it.contains("~$tag.") }
         val orig = find("orig")
         if (orig != null) {
-            val size = runCatching { open(orig, emptyMap(), "HEAD").let { c -> try { c.contentLengthLong } finally { c.disconnect() } } }.getOrDefault(-1L)
+            val size = runCatching { open(orig, emptyMap(), "HEAD").let { c -> try { lengthOf(c) } finally { c.disconnect() } } }.getOrDefault(-1L)
             if (size in 1..10_000_000L) return orig
         }
         return find("large") ?: find("medium") ?: orig ?: throw WallErr("none")
@@ -377,7 +380,7 @@ object WallNet {
             val c = open(url, emptyMap())
             try {
                 check(c)
-                val len = c.contentLengthLong
+                val len = lengthOf(c)
                 ctype = c.contentType.orEmpty()
                 if (len > 30_000_000L) { android.util.Log.w("TVApps", "обои: файл слишком большой: $len Б, ${p.source}, $ctype, ${url.take(90)}"); throw WallErr("bad") }
                 var total = 0L
@@ -693,7 +696,7 @@ object WallNet {
             val c = open(url, emptyMap())
             try {
                 check(c)
-                if (c.contentLengthLong > VMAX_BYTES) throw WallErr("big")
+                if (lengthOf(c) > VMAX_BYTES) throw WallErr("big")
                 var total = 0L
                 c.inputStream.use { i -> tmp.outputStream().use { o ->
                     val buf = ByteArray(128 * 1024)

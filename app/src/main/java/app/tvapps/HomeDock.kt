@@ -156,7 +156,7 @@ object HomeDock {
     /** Открыть настройки программы сразу на группе «Док». */
     fun openSettings(c: Context, sub: String? = null) {
         SettingsGroups.last = "dock"; SettingsGroups.openSub = sub; SettingsGroups.reqTick++
-        c.startActivity(Intent(c, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("from_home", true).putExtra("screen", "settings"))
+        leaveVia(c, 1) { c.startActivity(Intent(c, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("from_home", true).putExtra("screen", "settings")) }
     }
     fun setAlign(c: Context, v: Int) { sp(c).edit().putInt("dock_align", v).apply(); rev.intValue++ }
 
@@ -221,7 +221,7 @@ fun HomeDockHost() {
     val openAll = {
         HomeDock.allOpenedAt = System.currentTimeMillis()
         if (Cfg.homeAllPanel) AllPanel.search("")
-        else runCatching { ctx.startActivity(Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        else leaveVia(ctx, 1) { runCatching { ctx.startActivity(Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
         Unit
     }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {

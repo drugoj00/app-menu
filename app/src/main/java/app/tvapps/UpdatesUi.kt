@@ -47,7 +47,7 @@ internal fun updResultText(ctx: android.content.Context, r: String): String = wh
     r == "sig" -> ctx.getString(R.string.upd_sig_bad)
     r == "abi" -> ctx.getString(R.string.upd_abi_bad)
     r == "minsdk" -> ctx.getString(R.string.upd_minsdk_bad)
-    r == "hash" -> ctx.getString(R.string.upd_hash_bad)
+    r == "hash" -> ctx.getString(R.string.upd_hash_bad) + Updates.lastHashInfo.let { if (it.isBlank()) "" else "\n$it" }
     r == "uptodate" -> ctx.getString(R.string.upd_uptodate)
     r == "manual" -> ctx.getString(R.string.upd_manual)
     r == "net" -> ctx.getString(R.string.net_failed) + NetErr.reason(ctx).let { if (it.isBlank()) "" else ": " + it }

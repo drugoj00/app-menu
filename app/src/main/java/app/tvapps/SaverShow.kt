@@ -11,7 +11,6 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.animation.core.animateIntOffsetAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -78,7 +77,8 @@ internal fun SaverScreen(ctx: Context, cfg: SaverCfg) {
     LaunchedEffect(modes) { while (true) { delay(12_000); view = nextForecastMode(view, modes) } }
     var drift by remember { mutableStateOf(IntOffset.Zero) }
     LaunchedEffect(cfg.burn) { while (cfg.burn) { delay(60_000); drift = IntOffset(Random.nextInt(-40, 41), Random.nextInt(-30, 31)) } }
-    val moved by animateIntOffsetAsState(drift, tween(4000), label = "drift")
+    // 18.11.2026: fixedAnimateIntOffsetAsState вместо animateIntOffsetAsState — фиксированный масштаб (Desks.kt)
+    val moved by fixedAnimateIntOffsetAsState(drift, tween(4000), label = "drift")
     var night by remember { mutableStateOf(SaverGuard.isNight(cfg)) }
     LaunchedEffect(cfg) { while (true) { night = SaverGuard.isNight(cfg); delay(30_000) } }
     val bg = if (cfg.bg == 0L) Color.Black else Color(cfg.bg.toInt())

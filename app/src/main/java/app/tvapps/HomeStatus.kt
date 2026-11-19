@@ -24,6 +24,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -130,7 +132,9 @@ internal fun statusValue(ctx: Context, s: HStatus, now: Long): SVal = when (s.id
     "usb" -> externalMounted(ctx).let { SVal(HIcons.usb, null, it) }
     "time" -> SVal(null, SimpleDateFormat(clockPattern(s.opt), locale()).format(Date(now)), true)
     "gear" -> SVal(HIcons.gear, null, true)
-    "notif" -> SVal(HIcons.bell, null, NotifService.count(ctx) > 0)
+    // 12.0 (просьба владелицы: «колокольчик всегда серый, нажимаю, а там есть уведомления»): колокольчик всегда цвета остальных значков (как шестерёнка), без тусклого
+    // состояния; число уведомлений рисуется красной цифрой внутри колокольчика и берётся из наблюдаемого NotifService.badge (см. BellWithCount)
+    "notif" -> SVal(HIcons.bell, null, true)
     else -> dateTwoLines(s.opt, now, locale())?.let { SVal(null, null, true, null, it.first, it.second) } ?: SVal(null, SimpleDateFormat(datePattern(s.opt), locale()).format(Date(now)), true)
 }
 
@@ -233,12 +237,12 @@ private fun SearchBar(big: Boolean, onVoice: () -> Unit, onSearch: (String) -> U
         verticalAlignment = Alignment.CenterVertically,
     ) {
         HomeBox(shape = androidx.compose.foundation.shape.CircleShape, onClick = onVoice, onLong = onLong) {
-            Icon(HIcons.mic, null, tint = t.accent, modifier = Modifier.padding((if (big) 12f else 9f).times(sc).dp).size((if (big) 28f else 22f).times(sc).dp))
+            TintIcon(HIcons.mic, t.accent, (if (big) 28f else 22f).times(sc).dp, (if (big) 12f else 9f).times(sc).dp)
         }
         androidx.compose.foundation.text.BasicTextField(
             text, { text = it }, singleLine = true, readOnly = !editing,
-            textStyle = androidx.compose.ui.text.TextStyle(color = t.text, fontSize = fs),
-            cursorBrush = androidx.compose.ui.graphics.SolidColor(t.accent),
+            textStyle = androidx.compose.ui.text.TextStyle(color = barTextTint(t.text), fontSize = fs),
+            cursorBrush = androidx.compose.ui.graphics.SolidColor(barTextTint(t.accent)),
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
             keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { onSearch(text.trim()); text = ""; editing = false }),
             // поле сжимается, когда справа тесно (часы и дата не должны переноситься на вторую строку)
@@ -265,7 +269,7 @@ private fun SearchBar(big: Boolean, onVoice: () -> Unit, onSearch: (String) -> U
                 },
         )
         HomeBox(shape = androidx.compose.foundation.shape.CircleShape, onClick = { onSearch(text.trim()); text = ""; editing = false }, onLong = onLong) {
-            Icon(HIcons.search, null, tint = t.accent, modifier = Modifier.padding((if (big) 12f else 9f).times(sc).dp).size((if (big) 28f else 22f).times(sc).dp))
+            TintIcon(HIcons.search, t.accent, (if (big) 28f else 22f).times(sc).dp, (if (big) 12f else 9f).times(sc).dp)
         }
     }
 }
@@ -379,8 +383,8 @@ internal fun HomeTopBar(
             shape = androidx.compose.foundation.shape.RoundedCornerShape(barR(24.dp)), bg = barBg(t.tile), edge = barEdge(t.accent), onClick = onVoice, onLong = onTopLong,
         ) {
             Row(Modifier.padding(horizontal = (16f * sc).dp, vertical = (8f * sc).dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy((8f * sc).dp)) {
-                Icon(HIcons.mic, null, tint = t.accent, modifier = Modifier.size((if (big) 28f else 22f).times(sc).dp))
-                Text(stringResource(R.string.home_voice), color = t.text, fontSize = (if (big) 19f else 15f).times(sc).sp)
+                TintIcon(HIcons.mic, t.accent, (if (big) 28f else 22f).times(sc).dp, 0.dp)
+                Text(stringResource(R.string.home_voice), color = barTextTint(t.text), fontSize = (if (big) 19f else 15f).times(sc).sp)
             }
         }
         if (!top.search || stack) Spacer(Modifier.weight(1f))
@@ -395,8 +399,10 @@ internal fun HomeTopBar(
                         onClick = { if (movingStatus == s.id) onStatusMoveEnd() else statusClick(ctx, s.id) },
                         onLong = { onStatusLong(s.id) },
                     ) {
-                        val c = if (v.on) t.text else t.hint
-                        if (v.icon != null) OutlinedIcon(v.icon, c, size = (if (big) 36f else 26f).times(sc).dp, pad = (if (big) 13f else 10f).times(sc).dp)
+                        // 12.0: цвет по выбору пользователя («Цвет значков строки состояния», полоска): Авто как раньше; выбранный цвет: тусклое состояние = тот же цвет с пониженной непрозрачностью
+                        val c = IconColor.forced?.let { f -> if (v.on) f else f.copy(alpha = 0.5f) } ?: (if (v.on) t.text else t.hint)
+                        if (v.icon != null && s.id == "notif") BellWithCount(v.icon, c, (if (big) 36f else 26f).times(sc).dp, (if (big) 13f else 10f).times(sc).dp)
+                        else if (v.icon != null) OutlinedIcon(v.icon, c, size = (if (big) 36f else 26f).times(sc).dp, pad = (if (big) 13f else 10f).times(sc).dp)
                         else if (v.l1 != null) Column(Modifier.padding(horizontal = (12f * sc).dp, vertical = (4f * sc).dp)) {
                             // на телефоне и планшете дата вдвое мельче, чем на ТВ
                             // на телефоне шрифт покрупнее, но строки плотно друг к другу
@@ -426,12 +432,18 @@ internal fun HomeTopBar(
  * Белого контура нет: раньше тусклые значки (колокольчик без уведомлений, USB без накопителя; цвет «подсказки» ниже порога яркости 0,5) получали
  * белую окантовку, а яркие чёрную, и значки в одном ряду выглядели по-разному. Тёмные значки (светлая тема на светлом фоне) идут без контура.
  */
-private fun outlineOf(c: androidx.compose.ui.graphics.Color): androidx.compose.ui.graphics.Color {
+private fun outlineOf(c: androidx.compose.ui.graphics.Color, behind: Float? = null): androidx.compose.ui.graphics.Color {
     // выбор пользователя («Контур значков строки состояния»): Тёмный, Белый, Нет или Авто (по яркости фона)
     when (Cfg.statusOutline) {
         "none" -> return androidx.compose.ui.graphics.Color.Transparent
         "dark" -> return androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.85f)
         "white" -> return androidx.compose.ui.graphics.Color.White.copy(alpha = 0.85f)
+    }
+    // 12.0: выбран цвет значков (полоска): тусклый (полупрозрачный) без контура; яркий, теряющийся на фоне под значком, с контуром противоположной яркости
+    if (behind != null) {
+        // тусклый (полупрозрачный) значок: контур вдвое слабее, чтобы он не просвечивал сквозь значок, но тёмный на тёмном (или светлый на светлом) не пропадал
+        if (c.alpha < 1f) return forcedOutline(c.copy(alpha = 1f), behind)?.let { it.copy(alpha = it.alpha * 0.5f) } ?: androidx.compose.ui.graphics.Color.Transparent
+        forcedOutline(c, behind)?.let { return it }
     }
     if (c.luminance() <= 0.2f) return androidx.compose.ui.graphics.Color.Transparent
     // Авто: сила тёмного контура по яркости фона под строкой (просьба пользователя 4PDA: на светлой картинке чёрная обводка не подходит): светлый фон — мягкая
@@ -461,12 +473,83 @@ internal fun barEdge(accent: androidx.compose.ui.graphics.Color): androidx.compo
 
 /** Значок кнопки верхней строки: у вида «Без фона» с контуром (иначе теряется на любой картинке). */
 @Composable
-internal fun BarIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, desc: String?, tint: androidx.compose.ui.graphics.Color, size: androidx.compose.ui.unit.Dp, pad: androidx.compose.ui.unit.Dp) {
+internal fun BarIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, desc: String?, tint0: androidx.compose.ui.graphics.Color, size: androidx.compose.ui.unit.Dp, pad: androidx.compose.ui.unit.Dp) {
+    val tint = barTint(tint0)
+    // 12.0: при выбранном цвете значок, теряющийся на плашке (или на фоне при виде «Без фона»), получает контур противоположной яркости
+    val ol = barForcedOutline(tint)
     if (Cfg.barFill == "none") {
-        // только тёмная тень (белого контура вокруг значков нет ни на какой картинке)
-        val o = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.75f)
+        // только тёмная тень (белого контура вокруг значков нет ни на какой картинке), кроме выбранного цвета, которому может понадобиться светлый контур
+        val o = ol ?: androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.75f)
         OutlinedIcon(icon, tint, size, pad, o)
-    } else Icon(icon, desc, tint = tint, modifier = Modifier.padding(pad).size(size))
+    } else if (ol != null) OutlinedIcon(icon, tint, size, pad, ol)
+    else Icon(icon, desc, tint = tint, modifier = Modifier.padding(pad).size(size))
+}
+
+/**
+ * 12.0: цвет значков и надписей верхней строки по выбору пользователя (настройка «Цвет значков строки состояния»): положение на полоске [Cfg.statusIconPos]
+ * (0 чёрный, спектр от красного до розового, 1 белый); Авто (по умолчанию): цвета темы и фона, как раньше.
+ */
+internal object IconColor {
+    private const val DARK_END = 0.06f
+    private const val LIGHT_START = 0.94f
+    private const val HUE_MAX = 330f
+
+    /** Выбранный цвет или null (Авто). */
+    val forced: androidx.compose.ui.graphics.Color? get() = Cfg.statusIconPos.takeIf { it >= 0f }?.let { at(it) }
+
+    /** Цвет в точке полоски: 0..[DARK_END] от чёрного к красному, дальше оттенки красный → розовый, с [LIGHT_START] к белому. */
+    fun at(pos: Float): androidx.compose.ui.graphics.Color {
+        val p = pos.coerceIn(0f, 1f)
+        return when {
+            p <= DARK_END -> androidx.compose.ui.graphics.lerp(androidx.compose.ui.graphics.Color.Black, androidx.compose.ui.graphics.Color.hsv(0f, 1f, 1f), p / DARK_END)
+            p >= LIGHT_START -> androidx.compose.ui.graphics.lerp(androidx.compose.ui.graphics.Color.hsv(HUE_MAX, 1f, 1f), androidx.compose.ui.graphics.Color.White, (p - LIGHT_START) / (1f - LIGHT_START))
+            else -> androidx.compose.ui.graphics.Color.hsv((p - DARK_END) / (LIGHT_START - DARK_END) * HUE_MAX, 1f, 1f)
+        }
+    }
+
+    /** Воспринимаемая яркость цвета 0..1 (по сжатым значениям, как яркость фона [BgLum]). */
+    fun perc(c: androidx.compose.ui.graphics.Color): Float = 0.299f * c.red + 0.587f * c.green + 0.114f * c.blue
+}
+
+/** Цвет значков верхней строки: выбранный пользователем, иначе def (как задано темой). */
+internal fun barTint(def: androidx.compose.ui.graphics.Color): androidx.compose.ui.graphics.Color = IconColor.forced ?: def
+
+/** Контур значка выбранного цвета, если яркость значка близка к яркости фона под ним (иначе значок теряется): противоположная яркость; null: контур не нужен. */
+private fun forcedOutline(icon: androidx.compose.ui.graphics.Color, behindLum: Float): androidx.compose.ui.graphics.Color? {
+    val il = IconColor.perc(icon)
+    if (kotlin.math.abs(il - behindLum) >= 0.22f) return null
+    return if (il > 0.5f) androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.8f) else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.8f)
+}
+
+/** Яркость под значком кнопки верхней строки: плашка кнопки, а при виде «Без фона» фон «Дома». */
+@Composable
+private fun barBehindLum(): Float {
+    val t = LocalTh.current
+    return if (Cfg.barFill == "none") (BgLum.top ?: IconColor.perc(t.bg)) else IconColor.perc(t.tile)
+}
+
+/** Контур для значка кнопки верхней строки при выбранном цвете (null при «Авто» и когда значок и так виден). */
+@Composable
+private fun barForcedOutline(tint: androidx.compose.ui.graphics.Color): androidx.compose.ui.graphics.Color? =
+    if (IconColor.forced == null) null else forcedOutline(tint, barBehindLum())
+
+/**
+ * Цвет надписи на кнопке (поле поиска, «Голос»): выбранный цвет, если он виден на плашке кнопки, иначе цвет темы (текст в поле нельзя обвести, а цвет,
+ * близкий к цвету плашки, не читается).
+ */
+@Composable
+private fun barTextTint(def: androidx.compose.ui.graphics.Color): androidx.compose.ui.graphics.Color {
+    val f = IconColor.forced ?: return def
+    return if (kotlin.math.abs(IconColor.perc(f) - barBehindLum()) >= 0.22f) f else def
+}
+
+/** Значок внутри кнопки верхней строки (микрофон, лупа): цвет по выбору пользователя, при необходимости с контуром; при «Авто» обычный значок. */
+@Composable
+private fun TintIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, def: androidx.compose.ui.graphics.Color, size: androidx.compose.ui.unit.Dp, pad: androidx.compose.ui.unit.Dp) {
+    val tint = barTint(def)
+    val ol = barForcedOutline(tint)
+    if (ol != null) OutlinedIcon(icon, tint, size, pad, ol)
+    else Icon(icon, null, tint = tint, modifier = Modifier.padding(pad).size(size))
 }
 
 /** Скругление кнопок и поля поиска верхней строки по выбору пользователя. */
@@ -481,10 +564,46 @@ private val OUTLINE_DIRS = listOf(1f to 0f, -1f to 0f, 0f to 1f, 0f to -1f, 0.7f
 /** Значок с контуром: под ним восемь смещённых копий цвета контура. */
 @Composable
 private fun OutlinedIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, tint: androidx.compose.ui.graphics.Color, size: androidx.compose.ui.unit.Dp, pad: androidx.compose.ui.unit.Dp, outline: androidx.compose.ui.graphics.Color? = null) {
-    val o = outline ?: outlineOf(tint)
+    val o = outline ?: outlineOf(tint, if (IconColor.forced != null) (BgLum.top ?: IconColor.perc(LocalTh.current.bg)) else null)
     Box(Modifier.padding(pad)) {
         for ((dx, dy) in OUTLINE_DIRS) Icon(icon, null, tint = o, modifier = Modifier.size(size).offset((dx * 1.4f).dp, (dy * 1.4f).dp))
         Icon(icon, null, tint = tint, modifier = Modifier.size(size))
+    }
+}
+
+/** Размер цифры в колокольчике как доля размера значка и сдвиг центра цифры вниз (доля размера значка). */
+private const val BELL_DIGIT_EM = 0.40f
+private const val BELL_DIGIT_DY = 0.05f
+
+/**
+ * Колокольчик уведомлений (12.0): цвет как у остальных значков строки (как у шестерёнки, тусклого состояния нет); число уведомлений рисуется жирной цифрой
+ * по центру тела колокольчика, прямо на его заливке, без плашки, кружка, контура и тени; цвет цифры контрастный колокольчику (на белом чёрная, на тёмном белая). 0 уведомлений:
+ * цифры нет; 100 и больше показываются как «99». Число читается из наблюдаемого [NotifService.badge] прямо здесь, поэтому меняется сразу при поступлении и снятии
+ * уведомления. Цифра рисуется поверх значка и его контура и не влияет на размеры: ширину значка и расчёт [TopBarPlan] не меняет, фокус и нажатия не перехватывает
+ * (нажатие по колокольчику открывает окно уведомлений, как и раньше). Размер цифры считается от размера значка (он масштабируется с [big] и [sc]);
+ * цвет цифры выбирается по яркости цвета колокольчика (светлый колокольчик: чёрная цифра, тёмный: белая).
+ */
+@Composable
+private fun BellWithCount(icon: androidx.compose.ui.graphics.vector.ImageVector, tint: androidx.compose.ui.graphics.Color, size: androidx.compose.ui.unit.Dp, pad: androidx.compose.ui.unit.Dp) {
+    val n = NotifService.badge.intValue
+    val desc = stringResource(R.string.nt_title) + (if (n > 0) ": $n" else "")
+    Box(Modifier.semantics { contentDescription = desc }) {
+        OutlinedIcon(icon, tint, size, pad)
+        if (n > 0) {
+            // 100 и больше показываются как «99» тем же размером; размер цифр ОДИН при любом числе (слова владелицы: «всегда одинаковое»), подобран так, чтобы две цифры
+            // помещались в тело колокольчика (оно занимает примерно половину ширины значка); масштабируется только вместе со значком
+            val txt = if (n > 99) "99" else n.toString()
+            val em = size * BELL_DIGIT_EM
+            val dn = androidx.compose.ui.platform.LocalDensity.current
+            val fs = with(dn) { em.toSp() }
+            // цвет цифры ОДИН и контрастный колокольчику, без контура, тени и красного (слова владелицы: «на белом чёрная, на чёрном белая, без обводок вообще»);
+            // выбирается по яркости цвета колокольчика, а не по названию темы («Дом» бывает и поверх картинки)
+            val digit = if (IconColor.perc(tint) > 0.55f) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
+            Box(Modifier.matchParentSize(), contentAlignment = Alignment.Center) {
+                // оптический центр тела колокольчика чуть ниже геометрического центра значка (внизу он шире)
+                Text(txt, color = digit, fontSize = fs, lineHeight = fs, fontWeight = FontWeight.Black, maxLines = 1, softWrap = false, modifier = Modifier.offset(y = size * BELL_DIGIT_DY))
+            }
+        }
     }
 }
 
@@ -495,7 +614,7 @@ private fun OutlinedText(
     modifier: Modifier = Modifier, fontWeight: FontWeight? = null, lineHeight: androidx.compose.ui.unit.TextUnit = androidx.compose.ui.unit.TextUnit.Unspecified,
     style: androidx.compose.ui.text.TextStyle = androidx.compose.material3.LocalTextStyle.current,
 ) {
-    val o = outlineOf(color)
+    val o = outlineOf(color, if (IconColor.forced != null) (BgLum.top ?: IconColor.perc(LocalTh.current.bg)) else null)
     val strokePx = with(androidx.compose.ui.platform.LocalDensity.current) { fontSize.toPx() * 0.2f }
     Box(modifier) {
         Text(

@@ -81,6 +81,8 @@ sealed interface Dlg {
     data class CardSource(val rowId: String) : Dlg
     data class Rename(val rowId: String) : Dlg
     data class WidgetD(val rowId: String, val slot: Int) : Dlg
+    /** Оконтовка виджета (12.0): скругление, толщина, показ и цвет обводки в одном окне, пункт стоит сразу под размерами в меню виджета. */
+    data class WidgetEdge(val rowId: String, val slot: Int) : Dlg
     data class WidgetType(val rowId: String, val slot: Int) : Dlg
     data class WidgetCity(val rowId: String, val slot: Int) : Dlg
     /** Вид часов и погоды: part — раздел настроек (пусто: список разделов). */
@@ -269,6 +271,19 @@ private fun AppsRow(
     }
     val state = androidx.compose.foundation.lazy.rememberLazyListState()
     val lastReq = remember { FocusRequester() }
+    // «Назад» на пульте: курсор в этой строке не на первой плитке — вернуть на первую (RowBack)
+    val rowScope = androidx.compose.runtime.rememberCoroutineScope()
+    androidx.compose.runtime.DisposableEffect(row.id, els.first().item.id) {
+        val fk = row.id + "|" + els.first().item.id
+        RowBack.rows[row.id] = RowBack.Row({ it.startsWith(row.id + "|") }, fk) {
+            rowScope.launch {
+                runCatching { state.scrollToItem(0) }
+                runCatching { androidx.compose.runtime.withFrameNanos { }; androidx.compose.runtime.withFrameNanos { } }
+                runCatching { TileFocus.reqs[fk]?.requestFocus() }
+            }
+        }
+        onDispose { if (RowBack.rows[row.id]?.firstKey == fk) RowBack.rows.remove(row.id) }
+    }
     LaunchedEffect(tick) {
         if (HomeFocus.pending && HomeFocus.rowId == row.id) {
             val i = els.indexOfFirst { it.item.id == HomeFocus.key }
@@ -439,8 +454,10 @@ private fun HomeAppTile(
             ) {
                 val bb = bannerBmp
                 when {
-                    custom != null -> Image(custom, null, Modifier.fillMaxSize(), contentScale = if (banner) ContentScale.Crop else ContentScale.Fit)
-                    banner && bb != null -> Image(bb.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                    // 19.11.2026 (замечание st0p0r «баннеры режутся по бокам»): баннер вписывается в плитку целиком, без обрезки и без искажения пропорций
+                    // (раньше Crop: у картинки не 16:9 края уходили за плитку); свободное место заполняет цвет плитки
+                    custom != null -> Image(custom, null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                    banner && bb != null -> Image(bb.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
                     // у приложения нет баннера: на карточке баннера стоит его значок и название
                     banner -> Column(Modifier.fillMaxSize().padding(4.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                         if (iconBmp != null) Image(iconBmp, null, Modifier.size((sizeDp * 0.52f).dp), contentScale = ContentScale.Fit)
@@ -506,6 +523,20 @@ private fun CardsRow(
     }
     val state = androidx.compose.foundation.lazy.rememberLazyListState()
     val lastReq = remember { FocusRequester() }
+    // «Назад» на пульте: курсор в этой строке карточек не на первой — вернуть на первую (RowBack)
+    val rowScope = androidx.compose.runtime.rememberCoroutineScope()
+    val progRef = androidx.compose.runtime.rememberUpdatedState(programs)
+    androidx.compose.runtime.DisposableEffect(row.id, programs.first().kind.toString() + "|" + programs.first().id) {
+        val fk = "p|" + programs.first().kind.toString() + "|" + programs.first().id
+        RowBack.rows[row.id] = RowBack.Row({ k -> progRef.value.any { "p|" + it.kind.toString() + "|" + it.id == k } }, fk) {
+            rowScope.launch {
+                runCatching { state.scrollToItem(0) }
+                runCatching { androidx.compose.runtime.withFrameNanos { }; androidx.compose.runtime.withFrameNanos { } }
+                runCatching { TileFocus.reqs[fk]?.requestFocus() }
+            }
+        }
+        onDispose { if (RowBack.rows[row.id]?.firstKey == fk) RowBack.rows.remove(row.id) }
+    }
     LaunchedEffect(tick) {
         if (HomeFocus.pending && HomeFocus.rowId == row.id) {
             val i = programs.indexOfFirst { it.kind.toString() + "|" + it.id == HomeFocus.key }

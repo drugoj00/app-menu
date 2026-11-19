@@ -9,11 +9,6 @@ import android.view.Surface
 import android.view.TextureView
 import android.widget.ImageView
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -162,8 +157,8 @@ private fun LiveGradient(base: Color) {
         }
         return
     }
-    val t = rememberInfiniteTransition(label = "grad")
-    val f by t.animateFloat(0f, 1f, infiniteRepeatable(tween(14000, easing = LinearEasing), RepeatMode.Reverse), label = "gf")
+    // 18.11.2026: свой бесконечный цикл с фиксированным масштабом вместо rememberInfiniteTransition — см. fixedInfiniteFloatAsState (Desks.kt)
+    val f by fixedInfiniteFloatAsState(0f, 1f, 14000, LinearEasing)
     // свой слой: движение градиента перерисовывает только его, а не весь экран с плитками (на слабых процессорах это давало дёргание)
     Canvas(Modifier.fillMaxSize().graphicsLayer()) {
         drawRect(

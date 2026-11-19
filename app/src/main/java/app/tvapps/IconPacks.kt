@@ -160,7 +160,9 @@ object IconPacks {
                     if (p.eventType == XmlPullParser.START_TAG && p.name == "item") {
                         val comp = p.getAttributeValue(null, "component") ?: continue
                         val dr = p.getAttributeValue(null, "drawable") ?: continue
-                        out.putIfAbsent(norm(comp), dr)
+                        // не putIfAbsent: его нет в Android 6.0 (API 23)
+                        val key = norm(comp)
+                        if (!out.containsKey(key)) out[key] = dr
                     }
                 }
             }

@@ -75,7 +75,7 @@ internal fun HomeDialogs(
     // «Настройки программы»: открывают настройки меню (тема, резервная копия, ADB, переключатели модулей); работают и при выключенном меню
     val openAppSettings = {
         close()
-        ctx.startActivity(android.content.Intent(ctx, MainActivity::class.java).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("from_home", true).putExtra("screen", "settings"))
+        leaveVia(ctx, 1) { ctx.startActivity(android.content.Intent(ctx, MainActivity::class.java).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("from_home", true).putExtra("screen", "settings")) }
     }
     val on = stringResource(R.string.on)
     val off = stringResource(R.string.off)
@@ -95,6 +95,7 @@ internal fun HomeDialogs(
         is Dlg.CatQuery -> HdCatQuery(dlg, e)
         is Dlg.Rename -> HdRename(dlg, e)
         is Dlg.WidgetD -> HdWidgetD(dlg, e)
+        is Dlg.WidgetEdge -> HdWidgetEdge(dlg, e)
         is Dlg.WidgetStyle -> WidgetStyleDialog(dlg, setDlg)
         is Dlg.WidgetType -> HdWidgetType(dlg, e)
         is Dlg.WidgetRestore -> HdWidgetRestore(dlg, e)
@@ -510,6 +511,9 @@ private fun HdWidgetD(dlg: Dlg.WidgetD, e: HdEnv) {
                 val setSz = { i: Int -> val p = sizeP[i.coerceIn(0, 2)]; HomeStore.updateRow(row.id) { r -> r.copy(size = p.first, slots = r.slots.map { s -> s.copy(fs = p.second) }) } }
                 add(Opt(stringResource(R.string.wg_size), if (curSz >= 0) stringResource(sizeN[curSz]) else stringResource(R.string.wg_size_custom),
                     { setSz(if (curSz >= 0) curSz - 1 else nearSz) }, { setSz(if (curSz >= 0) curSz + 1 else nearSz) }, onClick = { setSz(if (curSz >= 0) (curSz + 1) % 3 else nearSz) }))
+                // 12.0 (просьба владелицы с 02.11.2026: «оконтовку виджета не нашла»): отдельный заметный пункт сразу под выбором размера (виден без прокрутки); в значении видно,
+                // включена ли обводка. Те же настройки (скругление, толщина, показ, цвет) остаются и ниже в этом меню, и в настройках строки виджетов
+                add(Opt(stringResource(R.string.wg_edge), if (w.borderW == 0) off else "${w.borderW}, " + stringResource(BORDER_NAMES[wci]), onClick = { setDlg(Dlg.WidgetEdge(row.id, dlg.slot)) }))
                 add(Opt(stringResource(R.string.row_size_widgets), "${row.size}", { HomeStore.updateRow(row.id) { it.copy(size = (it.size - 1).coerceAtLeast(60)) } }, { HomeStore.updateRow(row.id) { it.copy(size = (it.size + 1).coerceAtMost(320)) } }, range = 60..320))
                 add(Opt(stringResource(R.string.wg_size_fine), if (sizeFine) "▴" else "▾", onClick = { sizeFine = !sizeFine }))
                 if (sizeFine) {
@@ -554,6 +558,39 @@ private fun HdWidgetD(dlg: Dlg.WidgetD, e: HdEnv) {
                 add(Opt(stringResource(R.string.d_row_settings)) { setDlg(Dlg.RowD(row.id)) })
             }
             ListDialog(stringResource(R.string.wg_title), opts, close, footer = updatesFooter)
+}
+
+/**
+ * Оконтовка виджета (12.0): скругление углов, толщина, показ и цвет обводки одним окном; «Менять: только этот виджет / все виджеты строки» работает так же,
+ * как в меню виджета (общее состояние wgAll). Назад возвращает в меню виджета.
+ */
+@Composable
+private fun HdWidgetEdge(dlg: Dlg.WidgetEdge, e: HdEnv) {
+    val setDlg = e.setDlg; val close = e.close; val off = e.off
+    var wgAll by e.wgAllS
+    val row = HomeStore.row(dlg.rowId)
+    val w = row?.slots?.getOrNull(dlg.slot)
+    if (row == null || w == null) { close(); return }
+    val upd = { f: (HWidget) -> HWidget -> HomeStore.updateSlot(row.id, dlg.slot, f) }
+    val updLook = { f: (HWidget) -> HWidget -> if (wgAll) HomeStore.updateRow(row.id) { r -> r.copy(slots = r.slots.map(f)) } else upd(f) }
+    LaunchedEffect(dlg.rowId, dlg.slot, wgAll) {
+        if (wgAll) HomeStore.updateRow(row.id) { r -> r.copy(slots = r.slots.map { it.copy(radius = w.radius, borderW = w.borderW, borderC = w.borderC, borderHover = w.borderHover) }) }
+    }
+    val wci = BORDER_COLORS.indexOf(w.borderC).coerceAtLeast(0)
+    val wAccent = LocalTh.current.accent
+    val wsw = remember(wci, wAccent) { colorDot(if (wci == 0) wAccent.toArgb() else BORDER_COLORS[wci].toInt()) }
+    val back = { setDlg(Dlg.WidgetD(row.id, dlg.slot)) }
+    val opts = buildList {
+        if (row.slots.size > 1) add(Opt(stringResource(R.string.wgl_scope), if (wgAll) stringResource(R.string.wgl_all) else stringResource(R.string.wgl_one), onClick = { wgAll = !wgAll }))
+        add(Opt(stringResource(R.string.bd_width), if (w.borderW == 0) off else "${w.borderW}", { val v = (w.borderW - 1).coerceAtLeast(0); updLook { it.copy(borderW = v) } }, { val v = (w.borderW + 1).coerceAtMost(12); updLook { it.copy(borderW = v) } }, range = 0..12))
+        add(Opt(stringResource(R.string.bd_color), stringResource(BORDER_NAMES[wci]),
+            { val v = BORDER_COLORS[(wci + BORDER_COLORS.size - 1) % BORDER_COLORS.size]; updLook { it.copy(borderC = v) } },
+            { val v = BORDER_COLORS[(wci + 1) % BORDER_COLORS.size]; updLook { it.copy(borderC = v) } }, icon = wsw))
+        add(Opt(stringResource(R.string.bd_when), if (w.borderHover) stringResource(R.string.bd_hover) else stringResource(R.string.bd_always), onClick = { val v = !w.borderHover; updLook { it.copy(borderHover = v) } }))
+        add(Opt(stringResource(R.string.look_radius), "${w.radius}", { val v = (w.radius - 1).coerceAtLeast(0); updLook { it.copy(radius = v) } }, { val v = (w.radius + 1).coerceAtMost(60); updLook { it.copy(radius = v) } }, range = 0..60))
+        add(Opt(stringResource(R.string.back_plain)) { back() })
+    }
+    ListDialog(stringResource(R.string.wg_edge_title), opts, { back() })
 }
 
 @Composable
@@ -726,6 +763,9 @@ private fun HdTop(e: HdEnv) {
                 // оформление верхней строки (по умолчанию как прежде; выбор применяется сразу): контур значков состояния, фон и скругление кнопок
                 add(Opt(stringResource(R.string.top_outline), stringResource(when (Cfg.statusOutline) { "dark" -> R.string.top_o_dark; "white" -> R.string.top_o_white; "none" -> R.string.top_o_none; else -> R.string.top_o_auto }),
                     onClick = { Cfg.changeStatusOutline(when (Cfg.statusOutline) { "auto" -> "dark"; "dark" -> "white"; "white" -> "none"; else -> "auto" }) }))
+                // цвет значков строки: Авто, белый, чёрный (любой цвет: Настройки, Дом, Вид «Дома», полоска)
+                add(Opt(stringResource(R.string.top_icol), stringResource(when { Cfg.statusIconPos < 0f -> R.string.top_o_auto; Cfg.statusIconPos >= 0.999f -> R.string.top_o_white; Cfg.statusIconPos <= 0.001f -> R.string.top_ic_black; else -> R.string.top_ic_custom }),
+                    onClick = { Cfg.changeStatusIconPos(when { Cfg.statusIconPos < 0f -> 1f; Cfg.statusIconPos >= 0.999f -> 0f; else -> -1f }) }))
                 add(Opt(stringResource(R.string.top_fill), stringResource(when (Cfg.barFill) { "glass" -> R.string.top_f_glass; "none" -> R.string.top_f_none; else -> R.string.top_f_solid }),
                     onClick = { Cfg.changeBarFill(when (Cfg.barFill) { "solid" -> "glass"; "glass" -> "none"; else -> "solid" }) }))
                 add(Opt(stringResource(R.string.top_shape), stringResource(when (Cfg.barShape) { "round" -> R.string.top_s_round; "square" -> R.string.top_s_square; else -> R.string.top_s_normal }),

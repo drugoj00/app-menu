@@ -10,7 +10,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.VisibilityThreshold
 import androidx.compose.animation.core.spring
 import androidx.compose.ui.graphics.graphicsLayer
@@ -19,6 +18,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.LocalPinnableContainer
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -58,8 +59,6 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -193,7 +192,8 @@ internal object OkGuard {
     }
 }
 
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), HasFx {
+    override val fx = ScreenFx()
     private val resumeTick = mutableIntStateOf(0)
 
     override fun dispatchKeyEvent(ev: android.view.KeyEvent): Boolean {
@@ -276,7 +276,7 @@ class MainActivity : ComponentActivity() {
             MaterialTheme(colorScheme = (if (tc.dark) darkColorScheme() else lightColorScheme()).copy(primary = tc.accent, onPrimary = androidx.compose.ui.graphics.Color.White, secondary = tc.accent, tertiary = tc.accent, primaryContainer = tc.accent.copy(alpha = 0.28f), secondaryContainer = tc.accent.copy(alpha = 0.28f)), typography = AppFont.typography) {
                 val mbg = HomeStore.menuBg
                 CompositionLocalProvider(LocalTh provides adaptTheme(tc, mbg), LocalBaseTh provides tc) {
-                    Box(Modifier.fillMaxSize().background(tc.bg)) {
+                    Box(Modifier.fillMaxSize().screenFx(fx).background(tc.bg)) {
                         HomeBackground(mbg, menu = true)
                         AllApps(resumeTick.intValue, asHome, onFullscreenChanged = { applyFullscreen() })
                     }
@@ -290,6 +290,7 @@ class MainActivity : ComponentActivity() {
     // если есть очередь пакетных удалений или установок без ADB, открывается следующее окно
     override fun onResume() {
         super.onResume()
+        fx.onResume()
         runCatching { HomeControl.restoreAliasAfterPicker(this) }
         onScreen = true
         HomeNav.menuOn = true
@@ -300,6 +301,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         super.onPause()
+        fx.onPause()
         HomeNav.menuOn = false
         HomeNav.menuPausedAt = android.os.SystemClock.elapsedRealtime()
         // положение в меню сохраняется (переживёт выгрузку из памяти); выход кнопкой «Назад» сбрасывает его, если не включено запоминание после выхода
@@ -308,6 +310,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        fx.destroy()
         // меню выключено: после настроек или поиска всё лишнее освобождается
         if (Cfg.menuOff) { LabelCache.clear() }
     }
@@ -346,6 +349,20 @@ internal fun loadApps(ctx: android.content.Context, prev: List<Entry> = emptyLis
 
 private fun loadAppsImpl(ctx: android.content.Context, prev: List<Entry> = emptyList(), reuse: Boolean = false): List<Entry> {
     val pm = ctx.packageManager
+    // 18.11.2026 (находка по образцу ADB-phon: дорогая проверка без кэша на каждый клик): при каждом возврате в меню (resumeTick) список
+    // перечитывался целиком — а это значит getPackageInfo ОТДЕЛЬНЫМ межпроцессным вызовом на КАЖДОЕ из ~130 приложений (reuse экономил только
+    // подготовку значков, но не эти вызовы, нужные просто чтобы проверить, не изменилось ли время обновления). getChangedPackages — один дешёвый
+    // вызов с номером последовательности: если он не изменился с прошлой полной загрузки, точно ни одно приложение не ставилось/не удалялось/
+    // не обновлялось, и можно вернуть прежний список без единого обращения к PackageManager за приложение. Замеры — в ТОДО-файле программы.
+    if (reuse && prev.isNotEmpty() && android.os.Build.VERSION.SDK_INT >= 26 && !IconPacks.ownChanged(ctx)) {
+        val seq = AppsMem.pkgSeq
+        val t0 = android.os.SystemClock.elapsedRealtime()
+        if (seq >= 0 && runCatching { pm.getChangedPackages(seq) }.getOrNull() == null) {
+            android.util.Log.i("TVApps", "перф: список приложений без изменений, быстрая проверка ${android.os.SystemClock.elapsedRealtime() - t0} мс (вместо полного перебора)")
+            return prev
+        }
+    }
+    val tFull0 = android.os.SystemClock.elapsedRealtime()
     val seen = HashSet<String>()
     val out = ArrayList<Entry>()
     // готовые значки прежнего списка: у приложения с тем же временем обновления картинка не готовится заново
@@ -385,6 +402,13 @@ private fun loadAppsImpl(ctx: android.content.Context, prev: List<Entry> = empty
             // Drawable делит с плиткой одну картинку 128 px (раньше держал ещё свою 192 px: около 150 КБ на приложение, десятки МБ памяти на 100+ приложениях)
             out.add(entry.copy(icon = android.graphics.drawable.BitmapDrawable(ctx.resources, small), bmp = small.asImageBitmap()))
         }
+    }
+    android.util.Log.i("TVApps", "перф: полный перебор приложений (${out.size}) ${android.os.SystemClock.elapsedRealtime() - tFull0} мс")
+    // номер последовательности для следующей быстрой проверки (getChangedPackages выше): getChangedPackages(seq) возвращает null, если счётчик
+    // системы ещё не ушёл дальше seq — то есть он и есть текущий, запоминаем именно seq в этом случае (не трогаем «-1», сравнение растёт только вверх)
+    if (android.os.Build.VERSION.SDK_INT >= 26) runCatching {
+        val base = AppsMem.pkgSeq.coerceAtLeast(0)
+        AppsMem.pkgSeq = pm.getChangedPackages(base)?.sequenceNumber ?: base
     }
     return out
 }
@@ -429,6 +453,16 @@ private fun labelSp() = when (Cfg.iconSize) { 3 -> 10; 0 -> 12; 2 -> 16; else ->
 /** Минимальная ширина ячейки на узком экране (телефон) по выбранному размеру значков и масштабу. */
 private fun narrowCell(): Float = ((when (Cfg.iconSize) { 3 -> 48f; 0 -> 62f; 2 -> 96f; else -> 78f }) * Cfg.iconScale / 100f).coerceAtLeast(34f)
 
+/** Длительности фаз анимации перехода между столами (мс): «туда» (старый стол уезжает) и «обратно» (новый приезжает на место). У «куба» и
+ * «параллакса» чуть дольше — так читается их объём; у обычного «сдвига» короче, он был таким и раньше (свайп пальцем). */
+internal fun deskAnimDurations(style: String): Pair<Int, Int> = when (style) {
+    "cube" -> 170 to 190
+    "zoom" -> 150 to 170
+    "fade" -> 140 to 160
+    "parallax" -> 160 to 190
+    else -> 120 to 150   // slide
+}
+
 /** Предельный размер значка в сетке: на низком широком экране (магнитола 1200x600) значки ужимаются так, чтобы строки помещались целиком, без обрезанной снизу. null = без ограничения. */
 private val LocalIconCap = androidx.compose.runtime.compositionLocalOf<Dp?> { null }
 
@@ -440,7 +474,9 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
     var apps by remember { mutableStateOf<List<Entry>>(AppsMem.list) }
     var loadedOnce by remember { mutableStateOf(AppsMem.list.isNotEmpty()) }
     var menuFor by remember { mutableStateOf<Entry?>(null) }
-    var screen by remember { mutableStateOf((ctx as? android.app.Activity)?.intent?.getStringExtra("screen") ?: "main") }
+    // смена экрана (меню ↔ настройки) идёт через общую анимацию переходов (ScreenFx.kt)
+    val screenV = remember { MotionVar<String>((ctx as? android.app.Activity)?.intent?.getStringExtra("screen") ?: "main", { (ctx as? HasFx)?.fx }, { if (it == "main") -1 else 1 }) }
+    var screen: String by screenV
     var searching by remember { mutableStateOf(!(ctx as? android.app.Activity)?.intent?.getStringExtra("q").isNullOrBlank()) }
     // ушли с главного экрана (настройки и др.): при возврате поле поиска получает фокус, но экранная клавиатура сама не открывается (только по ОК или касанию)
     LaunchedEffect(screen) { if (screen != "main") SearchKb.suppressNext = true }
@@ -497,6 +533,9 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
     var dragEdge by remember { mutableStateOf(0) }
     var dragOriginPage by remember { mutableStateOf(0) }
     val deskSlide = remember { androidx.compose.animation.core.Animatable(0f) }
+    // ширина полосы столов в пикселях (сообщает сам Box через onSizeChanged): нужна, чтобы анимированный переход, запущенный не свайпом
+    // (цифра, полоса столов, колесо мыши, край сетки пультом), знал, на сколько пикселей «уехать» за экран
+    var deskBoxW by remember { mutableStateOf(0f) }
     val shiftHeld = remember { booleanArrayOf(false) }
     val rootFocus = remember { FocusRequester() }
     val reqs = remember { HashMap<String, FocusRequester>() }
@@ -618,13 +657,57 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
     LaunchedEffect(pageIds, pagesMode) { if (pagesMode && pageIds.isNotEmpty() && Desks.curId !in pageIds) Desks.switchTo(pageIds[0]) }
     // приложение удалено: его закрепление за столом не нужно
     LaunchedEffect(apps) { if (apps.size > 5) Desks.forget(Desks.pins.keys.filter { !it.startsWith("folder:") && apps.none { a -> a.pkg == it } }) }
-    /** Переключение стола по кругу: фокус из сетки возвращается в сетку (на нужную строку у края, если перешли краем). */
+    /**
+     * Переключение стола по кругу: фокус из сетки возвращается в сетку (на нужную строку у края, если перешли краем).
+     * При включённой «Анимации переходов» (Cfg.deskAnim) стол уезжает за экран выбранным стилем, данные меняются в момент, когда он
+     * уже не виден, затем новый стол приезжает на место; выключенная анимация переключает без всякой задержки и движения (требование
+     * владелицы: мгновенно, а не просто быстро). Анимация идёт с зафиксированным масштабом (DeskFullMotion), независимо от системной
+     * настройки «Масштаб анимации» — так переход виден и у владелицы, и у любого пользователя с урезанным системным масштабом.
+     */
     fun pageSwitch(dir: Int, target: Pair<Int, Boolean>? = null) {
         val ids = pageIdsRef.value
         if (ids.size < 2) return
-        deskTarget = target
-        deskRefocus = gridHasFocus || target != null
-        Desks.switchBy(dir, ids)
+        val refocusNow = gridHasFocus || target != null
+        if (!Cfg.deskAnim) {
+            deskTarget = target; deskRefocus = refocusNow; Desks.switchBy(dir, ids)
+            scope.launch { deskSlide.snapTo(0f) }
+            return
+        }
+        scope.launch {
+            val w = deskBoxW.coerceAtLeast(1f)
+            val sgn = if (dir > 0) -1f else 1f   // как при свайпе пальцем: dir=1 (вперёд) уезжает влево (-w), dir=-1 — вправо (+w)
+            val (outMs, inMs) = deskAnimDurations(Cfg.deskAnimStyle)
+            kotlinx.coroutines.withContext(DeskFullMotion) {
+                deskSlide.animateTo(sgn * w, androidx.compose.animation.core.tween(outMs))
+                deskTarget = target; deskRefocus = refocusNow; Desks.switchBy(dir, ids)
+                deskSlide.snapTo(-sgn * w * 0.5f)
+                deskSlide.animateTo(0f, androidx.compose.animation.core.tween(inMs))
+            }
+        }
+    }
+    /** Переключение на определённый стол (цифра 1-9, полоса столов внизу): направление анимации — к какому краю он относительно текущего. */
+    fun switchDeskTo(id: Int) {
+        if (id == Desks.curId) return
+        val ids = pageIdsRef.value
+        if (!Cfg.deskAnim || ids.size < 2) {
+            Desks.switchTo(id)
+            scope.launch { deskSlide.snapTo(0f) }
+            return
+        }
+        val cur = ids.indexOf(Desks.curId).let { if (it < 0) 0 else it }
+        val tgt = ids.indexOf(id)
+        val dir = if (tgt in 0 until cur) -1 else 1
+        scope.launch {
+            val w = deskBoxW.coerceAtLeast(1f)
+            val sgn = if (dir > 0) -1f else 1f
+            val (outMs, inMs) = deskAnimDurations(Cfg.deskAnimStyle)
+            kotlinx.coroutines.withContext(DeskFullMotion) {
+                deskSlide.animateTo(sgn * w, androidx.compose.animation.core.tween(outMs))
+                Desks.switchTo(id)
+                deskSlide.snapTo(-sgn * w * 0.5f)
+                deskSlide.animateTo(0f, androidx.compose.animation.core.tween(inMs))
+            }
+        }
     }
     val lite = Lite.on
     // сетка сообщает, сколько столбцов и строк она показывает при «Авто»: шаги счётчиков в настройках идут от этих чисел
@@ -744,19 +827,28 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
         val first = vis.firstOrNull() ?: return 1
         return vis.takeWhile { it.offset.y == first.offset.y }.size.coerceAtLeast(1)
     }
+    // «Назад» на пульте: курсор в сетке не в первом столбце своей строки — вернуть на первую плитку строки (просьба пользователя 4PDA, 19.11.2026).
+    // Зарегистрирован позже основного «Назад» и потому срабатывает первым; условия исключают перенос, выбор, поиск, окна и режим списка.
+    val rowBackIdx = if (gridHasFocus && !Cfg.listMode && moving == null && !selectMode && !searching && !deskMenu && menuFor == null && folderOpen == null) {
+        val lst = shownRef.value; val ci = lst.indexOfFirst { it.pkg == lastFocus }; val cn = colsNow()
+        if (ci > 0 && cn > 1 && ci % cn != 0) ci - ci % cn else -1
+    } else -1
+    BackHandler(enabled = rowBackIdx >= 0) { shownRef.value.getOrNull(rowBackIdx)?.pkg?.let { p -> runCatching { reqFor(p).requestFocus() } } }
     /** Плавно показывает плитку, только если она не видна целиком (прежний animateScrollToItem каждый раз выталкивал её к верху экрана: сетка «прыгала»). */
-    suspend fun ensureVisible(index: Int) {
+    // зафиксированный масштаб (DeskFullMotion): плавная автопрокрутка к фокусу на «Доме»/в меню не должна зависеть от системной
+    // настройки «Масштаб анимации» — тот же приём, что у анимации столов выше (18.11.2026).
+    suspend fun ensureVisible(index: Int) = kotlinx.coroutines.withContext(DeskFullMotion) {
         if (Cfg.listMode) {
             val info = listState.layoutInfo
             val it = info.visibleItemsInfo.firstOrNull { x -> x.index == index }
-            if (it == null) { listState.animateScrollToItem(index); return }
+            if (it == null) { listState.animateScrollToItem(index); return@withContext }
             val vh = info.viewportSize.height
             val d = if (it.offset < 0) it.offset.toFloat() else if (it.offset + it.size > vh) (it.offset + it.size - vh).toFloat() else 0f
             if (d != 0f) listState.animateScrollBy(d)
         } else {
             val info = gridState.layoutInfo
             val it = info.visibleItemsInfo.firstOrNull { x -> x.index == index }
-            if (it == null) { gridState.animateScrollToItem(index); return }
+            if (it == null) { gridState.animateScrollToItem(index); return@withContext }
             val vh = info.viewportSize.height
             val d = if (it.offset.y < 0) it.offset.y.toFloat() else if (it.offset.y + it.size.height > vh) (it.offset.y + it.size.height - vh).toFloat() else 0f
             if (d != 0f) gridState.animateScrollBy(d)
@@ -964,7 +1056,7 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
             }
             val ids = pageIdsRef.value
             if (digit == 0 || digit > ids.size) return false
-            if (ids[digit - 1] != Desks.curId) { deskTarget = null; deskRefocus = gridHasFocus; Desks.switchTo(ids[digit - 1]) }
+            if (ids[digit - 1] != Desks.curId) { deskTarget = null; deskRefocus = gridHasFocus; switchDeskTo(ids[digit - 1]) }
             return true
         }
         pageSwitch(dir)
@@ -1151,7 +1243,13 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
         // приложений по запросу нет, а каталоги ищутся: пустую полосу не показываем, карточки занимают весь экран
         Box(
             (if (searchCat && shown.isEmpty()) Modifier else Modifier.weight(if (searchCat) 0.36f else 1f))
-                .graphicsLayer { translationX = deskSlide.value }
+                .onSizeChanged { deskBoxW = it.width.toFloat() }
+                // пять стилей анимации перехода между столами (настройка «Анимация переходов»): один Animatable (deskSlide, в пикселях
+                // от -ширины до +ширины) ведёт все стили — во время живого свайпа пальцем он совпадает с положением пальца, поэтому
+                // стиль виден уже при перетаскивании, а не только после отпускания. «Сдвиг» и «параллакс» двигают сам стол, у «зума» и
+                // «растворения» не двигают, у «куба» лёгкий поворот по Y с перспективой (cameraDistance). Тяжёлых 3D-эффектов нет — все
+                // пять дают нагрузку не больше обычного перехода, чтобы не лагать на слабых приставках.
+                .graphicsLayer { motionStyle(deskSlide.value, size.width.coerceAtLeast(1f), Cfg.deskAnimStyle) }   // общий набор стилей (ScreenFx.kt)
                 .then(if (pagesMode && Desks.cfgOf(curPage).bg != 0L) Modifier.background(Color(Desks.cfgOf(curPage).bg.toInt())) else Modifier)
                 .pointerInput(Unit) {
                     // свайп влево и вправо по сетке: стол сдвигается за пальцем и переключается по кругу; вертикальные жесты и перетаскивание значков не трогаем
@@ -1182,16 +1280,12 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
                             val w = size.width.toFloat()
                             val th = w * 0.2f
                             val dir = if (dx < -th) 1 else if (dx > th) -1 else 0
-                            scope.launch {
-                                if (dir == 0) deskSlide.animateTo(0f, androidx.compose.animation.core.tween(120))
-                                else {
-                                    val sgn = if (dir > 0) -1f else 1f
-                                    deskSlide.animateTo(sgn * w, androidx.compose.animation.core.tween(110))
-                                    pageSwitch(dir)
-                                    deskSlide.snapTo(-sgn * w * 0.4f)
-                                    deskSlide.animateTo(0f, androidx.compose.animation.core.tween(150))
-                                }
-                            }
+                            // жест не дотянул до порога: плавно возвращаем стол пальца на место (не переключение, поэтому не через pageSwitch);
+                            // с зафиксированным масштабом — иначе при урезанном системном масштабе стол у владелицы просто «прыгал» бы обратно
+                            if (dir == 0) scope.launch { kotlinx.coroutines.withContext(DeskFullMotion) { deskSlide.animateTo(0f, androidx.compose.animation.core.tween(120)) } }
+                            // дотянул: ту же анимацию (продолжение уже начатого пальцем сдвига до конца и переключение) делает pageSwitch —
+                            // один источник анимации для свайпа, пульта, цифр, полосы столов и колеса мыши
+                            else pageSwitch(dir)
                         }
                     }
                 }
@@ -1236,6 +1330,8 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
         } else if (Cfg.listMode) {
             androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().onGloballyPositioned { gridLc[0] = it }) {
             LazyColumn(Modifier.fillMaxSize().verticalScrollbar(listState).onFocusChanged { gridHasFocus = it.hasFocus }, state = listState, contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 8.dp, end = 8.dp + ScrollbarMath.RESERVE_DP.dp, top = 8.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                // 18.11.2026: animateItem — встроенная анимация LazyList, своего withContext не принимает (вызов animateTo внутри неё не наш),
+                // переписывать перестановку плиток вручную рискованно (центральный механизм списка/сетки) — полагаемся на AnimScale.forceFull() (Desks.kt)
                 items(shown, key = { it.pkg }) { e -> Box(if (lite) Modifier else Modifier.animateItem(fadeInSpec = null, placementSpec = spring(stiffness = Spring.StiffnessMedium, visibilityThreshold = IntOffset.VisibilityThreshold), fadeOutSpec = null)) { tileFor(e, true) } }
             }
             DragGhostHost({ dragging }, { dragEntry }) { dragXY }
@@ -1332,6 +1428,7 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
                 horizontalArrangement = Arrangement.spacedBy(if (dense != null) 0.dp else tileGap(narrow).dp),
                 verticalArrangement = Arrangement.spacedBy(if (dense != null) with(dn) { dense.gapYPx.toDp() } else tileGap(narrow).dp),
             ) {
+                // 18.11.2026: то же самое, что в LazyColumn выше — полагаемся на AnimScale.forceFull() (Desks.kt)
                 items(shown, key = { it.pkg }) { e -> Box(if (lite) Modifier else Modifier.animateItem(fadeInSpec = null, placementSpec = spring(stiffness = Spring.StiffnessMedium, visibilityThreshold = IntOffset.VisibilityThreshold), fadeOutSpec = null)) { tileFor(e, false) } }
             }
             DragGhostHost({ dragging }, { dragEntry }) { dragXY }
@@ -1341,7 +1438,7 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
         // полоса столов внизу под сеткой (только когда столов больше одного); на телефоне над системной навигацией
         if (pagesMode && pagesList.size > 1) HalfUi {
             DeskStrip(
-                pagesList, curPage, onSelect = { i -> pageIdsRef.value.getOrNull(i)?.let { Desks.switchTo(it) } }, onStep = { pageSwitch(it) }, onFocus = { stripHasFocus = it },
+                pagesList, curPage, onSelect = { i -> pageIdsRef.value.getOrNull(i)?.let { switchDeskTo(it) } }, onStep = { pageSwitch(it) }, onFocus = { stripHasFocus = it },
                 modifier = if (narrow) Modifier.navigationBarsPadding() else Modifier,
             )
         }
@@ -1423,18 +1520,42 @@ private fun SearchBox(value: String, wide: Boolean = true, onChange: (String) ->
         runCatching { fr.requestFocus() }
         if (quiet) { kotlinx.coroutines.delay(120); kb?.hide(); kotlinx.coroutines.delay(300); kb?.hide() }
     }
-    OutlinedTextField(
+    // 19.11.2026 (замечание st0p0r на ТВ TCL: «текст убежал вниз», введённая буква стояла на нижнем краю поля и обрезалась): готовое поле Material
+    // (OutlinedTextField) при высоте 52 dp оставляет под строку текста 20 dp за вычетом своих отступов 16+16 dp; на ТВ с другим шрифтом и масштабом строка
+    // не помещалась, сдвигалась вниз и обрезалась. Здесь свой вид поля: высота не меньше 52 dp и растёт вместе с текстом, строка текста с явной высотой
+    // стоит по центру по вертикали (вместе с курсором), шрифт приложения (на ТВ встроенный Roboto, у него предсказуемые размеры), значок и рамка как были.
+    var focused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(4.dp)
+    val style = androidx.compose.ui.text.TextStyle(
+        color = t.text, fontSize = 15.sp, fontFamily = AppFont.family, lineHeight = 22.sp, letterSpacing = 0.sp,
+        lineHeightStyle = androidx.compose.ui.text.style.LineHeightStyle(
+            alignment = androidx.compose.ui.text.style.LineHeightStyle.Alignment.Center, trim = androidx.compose.ui.text.style.LineHeightStyle.Trim.None,
+        ),
+    )
+    androidx.compose.foundation.text.BasicTextField(
         value, onChange,
-        placeholder = { Text(stringResource(R.string.search_hint), fontSize = 13.sp) },
-        leadingIcon = { Icon(Icons.Outlined.Search, null, tint = t.sub) },
         singleLine = true,
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 15.sp),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedTextColor = t.text, unfocusedTextColor = t.text,
-            focusedBorderColor = t.accent, unfocusedBorderColor = t.border, cursorColor = t.accent,
-        ),
-        modifier = (if (wide) Modifier.height(52.dp).fillMaxWidth(0.3f) else Modifier.height(52.dp).width(360.dp)).focusRequester(fr),
+        textStyle = style,
+        cursorBrush = androidx.compose.ui.graphics.SolidColor(t.accent),
+        modifier = (if (wide) Modifier.fillMaxWidth(0.3f) else Modifier.width(360.dp)).defaultMinSize(minWidth = 280.dp, minHeight = 52.dp)
+            .focusRequester(fr).onFocusChanged { focused = it.isFocused }
+            .border(if (focused) 2.dp else 1.dp, if (focused) t.accent else t.border, shape),
+        decorationBox = { inner ->
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Icon(Icons.Outlined.Search, null, tint = t.sub)
+                Box(Modifier.weight(1f).heightIn(min = 52.dp), contentAlignment = Alignment.CenterStart) {
+                    if (value.isEmpty()) Text(
+                        stringResource(R.string.search_hint), color = t.hint, fontSize = 13.sp, fontFamily = AppFont.family, maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    inner()
+                }
+            }
+        },
     )
 }
 
@@ -1580,7 +1701,8 @@ internal fun AppTile(
     val (hm, hover) = if (lite) NoHover else rememberHover()
     // увеличения при наведении и выборе нет (оно налезало на нижний значок): выделение только рамкой; 1,12 остаётся при слиянии в папку
     val scaleTarget = if (merge) 1.12f else 1f
-    val scale = if (lite) scaleTarget else animateFloatAsState(scaleTarget, label = "scale").value
+    // 18.11.2026: fixedAnimateFloatAsState вместо animateFloatAsState — фиксированный масштаб (Desks.kt)
+    val scale = if (lite) scaleTarget else fixedAnimateFloatAsState(scaleTarget, label = "scale").value
     val bmp = remember(e.pkg, e.icon, e.bmp) { e.bmp ?: e.icon.toBitmap(128, 128).asImageBitmap() }
     val hiddenMark = Cfg.isHidden(e.pkg)
     val tileAlpha = if (ghostActive) 0.28f else if (hiddenMark) 0.5f else 1f
@@ -1767,8 +1889,11 @@ internal fun openHomeInstead(a: android.app.Activity) {
 
 internal fun goHome(ctx: android.content.Context) {
     HomeNav.fromMenu = true
-    runCatching { ctx.startActivity(Intent(ctx, HomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-    (ctx as? android.app.Activity)?.overridePendingTransition(0, 0)
+    // меню уезжает вправо, «Дом» приезжает слева (при выключенной анимации и в лёгком режиме сразу)
+    leaveVia(ctx, -1) {
+        runCatching { ctx.startActivity(Intent(ctx, HomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        (ctx as? android.app.Activity)?.overridePendingTransition(0, 0)
+    }
 }
 
 /** Перезапуск программы: новый запуск назначается через будильник, затем текущий процесс завершается. Любой сбой системных вызовов пишется в журнал TVApps. */

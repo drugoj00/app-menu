@@ -76,6 +76,13 @@ internal class SettingsChipReg {
 
 internal val LocalChipReg = androidx.compose.runtime.compositionLocalOf<SettingsChipReg?> { null }
 internal val LocalSettingsScroll = androidx.compose.runtime.compositionLocalOf<androidx.compose.foundation.ScrollState?> { null }
+/** Положение (в координатах root) верхнего края прокручиваемой колонки настроек — нужно, чтобы [BlockHead] при раскрытии пересчитал
+ * свою позицию в координатах прокрутки и подвёл заголовок к верхнему краю ОКНА программы (18.11.2026, владелица: «если я открываю
+ * пункт, то название вверх окна», тот же принцип, что и для ADB-phon). floatArrayOf(0f) — простой изменяемый держатель без пересоздания. */
+internal val LocalSettingsScrollAnchor = androidx.compose.runtime.compositionLocalOf<FloatArray?> { null }
+/** Y-позиции (root) заголовков групп (узкая раскладка, [GroupHead]) по id — читает [SettingsScreen] в своём LaunchedEffect(grp), чтобы
+ * прокрутить к только что раскрытой группе вместо жёсткого «в начало» (18.11.2026); так нет гонки между этим эффектом и анимацией. */
+internal val LocalGroupHeadTops = androidx.compose.runtime.compositionLocalOf<HashMap<String, Float>?> { null }
 
 @Composable
 internal fun Chip(text: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
@@ -133,6 +140,8 @@ private fun Section(title: String, content: @Composable () -> Unit) {
     val hints = remember { androidx.compose.runtime.mutableStateListOf<String>() }
     var open by remember { mutableStateOf(false) }
     var focused by remember { mutableStateOf(false) }
+    // 18.11.2026: animateContentSize не принимает свой withContext — полагаемся на AnimScale.forceFull() (Desks.kt); компонент общий для
+    // всех пунктов настроек, свою анимацию раскрытия здесь переписывать рискованно (большая часть экрана настроек проходит через Section)
     Column(Modifier.fillMaxWidth().padding(vertical = 8.dp).animateContentSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (hints.isEmpty()) Text(title, color = t.sub, fontSize = 13.sp)
         else Row(
@@ -527,20 +536,43 @@ private fun DockHidePane(ctx: android.content.Context, apps: List<Entry>) {
     }
 }
 
-/** Заголовок блока внутри группы: сворачивается и раскрывается; при поиске всё раскрыто. */
+/**
+ * Заголовок блока внутри группы: сворачивается и раскрывается; при поиске всё раскрыто.
+ * 18.11.2026 (владелица): при раскрытии (не при сворачивании) список сам прокручивается так, чтобы заголовок оказался
+ * у верхнего края окна — иначе раскрытое содержимое уходит ниже видимой области и приходится прокручивать руками.
+ * Фиксированный масштаб (DeskFullMotion) — независимо от системной настройки «Масштаб анимации».
+ */
 @Composable
 private fun BlockHead(id: String, title: String, open: androidx.compose.runtime.snapshots.SnapshotStateList<String>, searching: Boolean) {
     if (searching) return
     val t = LocalTh.current
     var focused by remember { mutableStateOf(false) }
     val isOpen = id in open
+    val scrollSt = LocalSettingsScroll.current
+    val anchor = LocalSettingsScrollAnchor.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val headerTop = remember { floatArrayOf(0f) }
     Row(
         Modifier.fillMaxWidth().padding(top = 10.dp)
+            .onGloballyPositioned { headerTop[0] = it.positionInRoot().y }
             .onFocusChanged { focused = it.isFocused }
             .clip(RoundedCornerShape(10.dp))
             .background(if (isOpen) t.chipSel else t.tile)
             .border(if (focused) 3.dp else 1.dp, if (focused) t.accent else t.border, RoundedCornerShape(10.dp))
-            .clickable(role = androidx.compose.ui.semantics.Role.Button) { if (isOpen) open.remove(id) else open.add(id) }
+            .clickable(role = androidx.compose.ui.semantics.Role.Button) {
+                if (isOpen) open.remove(id)
+                else {
+                    open.add(id)
+                    val sc = scrollSt; val a = anchor
+                    if (sc != null && a != null) {
+                        // anchor — позиция НАЧАЛА всего прокручиваемого содержимого (Modifier.verticalScroll даёт его так, уже со
+                        // сдвигом на текущую прокрутку), а не видимого края окна — поэтому здесь НЕ прибавляется scroll.value,
+                        // иначе текущая прокрутка учтётся дважды (ровно это и было причиной перелёта при первой проверке вживую).
+                        val target = (headerTop[0] - a[0]).toInt().coerceAtLeast(0)
+                        scope.launch { kotlinx.coroutines.withContext(DeskFullMotion) { sc.animateScrollTo(target) } }
+                    }
+                }
+            }
             .heightIn(min = 48.dp).padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween,
     ) {
@@ -648,15 +680,22 @@ private fun GroupsPane(current: String, onTap: (String) -> Unit = {}, onPick: (S
     }
 }
 
-/** Заголовок группы в узкой раскладке (портрет телефона): нажатие раскрывает группу и сворачивает остальные. На широком экране ничего не рисует. */
+/**
+ * Заголовок группы в узкой раскладке (портрет телефона): нажатие раскрывает группу и сворачивает остальные. На широком экране ничего не рисует.
+ * 18.11.2026 (владелица): при раскрытии группа сама прокручивается к верхнему краю окна — см. [BlockHead]. Саму прокрутку делает
+ * LaunchedEffect(grp) в [SettingsScreen] (там же раньше жил сброс «в начало» — гонка с анимацией тут привела бы к рывку); эта функция
+ * только запоминает свою Y-позицию в [LocalGroupHeadTops], чтобы тому эффекту было куда скроллить.
+ */
 @Composable
 private fun GroupHead(id: String, wide: Boolean, current: String, onPick: (String) -> Unit) {
     if (wide) return
     val t = LocalTh.current
     var focused by remember { mutableStateOf(false) }
     val open = id == current
+    val tops = LocalGroupHeadTops.current
     Row(
         Modifier.fillMaxWidth().padding(top = 6.dp)
+            .onGloballyPositioned { tops?.put(id, it.positionInRoot().y) }
             .onFocusChanged { focused = it.isFocused }
             .clip(RoundedCornerShape(10.dp))
             .background(if (open) t.chipSel else t.tile)
@@ -678,7 +717,9 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
     // положение в настройках помнится: раздел, прокрутка и кнопка в фокусе (MenuMemory); при выходе из меню кнопкой «Назад» сбрасывается
     // окна внутри настроек («Скрытые приложения», «Исключения») не запоминают положение: открываются сверху; помнится только основной экран настроек
     MenuMemory.init(ctx)
-    var sub by remember { mutableStateOf("main") }
+    // вложенные окна настроек («О программе», списки) открываются и закрываются через общую анимацию переходов (ScreenFx.kt)
+    val subV = remember { MotionVar<String>("main", { (ctx as? HasFx)?.fx }, { if (it == "main") -1 else 1 }) }
+    var sub: String by subV
     // группы настроек (15.11.2026): на ТВ и приставке (признак TopMode.isTv) слева список групп, справа выбранная; на телефоне (портрет и ландшафт) и магнитоле одна колонка
     // со сворачиваемыми группами (правило 17: правила приставок не действуют на ландшафт телефонов и магнитолы, поэтому не по ширине экрана)
     // правило 17а (слово владелицы 15.11.2026): ландшафт (телефон, магнитола) и ТВ: две половины; портрет: одна колонка
@@ -721,9 +762,22 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
         if (idx != null) runCatching { chipReg.items[idx].req.requestFocus() } else runCatching { first.requestFocus() }
     }
     val grpFirst = remember { booleanArrayOf(true) }
+    val groupHeadTops = remember { HashMap<String, Float>() }
+    val scrollAnchor = remember { floatArrayOf(0f) }
     LaunchedEffect(grp) {
         SettingsGroups.last = grp
-        if (grpFirst[0]) grpFirst[0] = false else runCatching { scroll.scrollTo(0) }
+        // 18.11.2026 (владелица): в узкой раскладке (без сайдбара) раскрытая группа подъезжает к верхнему краю окна, а не сбрасывается
+        // «в начало» (её GroupHead сам сообщает свою Y-позицию через groupHeadTops, см. LocalGroupHeadTops); в широкой раскладке
+        // (сайдбар + содержимое) GroupHead не рисуется вообще, там прежнее поведение — содержимое пане просто начинается сверху.
+        if (grpFirst[0]) grpFirst[0] = false
+        else if (!wide) {
+            // открытие группы ОДНОВРЕМЕННО сворачивает предыдущую открытую — всё выше нужной группы сдвигается, и Y, записанный
+            // GroupHead ДО этого сдвига, устаревает; та же пара кадров, что и в HomeRows.kt, даёт разметке осесть перед чтением
+            runCatching { androidx.compose.runtime.withFrameNanos {}; androidx.compose.runtime.withFrameNanos {} }
+            val top = groupHeadTops[grp]
+            // то же самое: scrollAnchor уже содержит текущую прокрутку (позиция начала содержимого, см. BlockHead), прибавлять scroll.value второй раз не нужно
+            if (top != null) runCatching { kotlinx.coroutines.withContext(DeskFullMotion) { scroll.animateScrollTo((top - scrollAnchor[0]).toInt().coerceAtLeast(0)) } }
+        } else runCatching { scroll.scrollTo(0) }
     }
     LaunchedEffect(scroll) {
         androidx.compose.runtime.snapshotFlow { scroll.value }.collect { v -> if (sub == "main") MenuMemory.setSettingsScroll(v) }
@@ -787,8 +841,16 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
         }
         // ТВ, ландшафт телефона и магнитолы: слева узкий список групп в одну строку, справа содержимое; портрет: одна колонка
         SettingsFrame({ if (wide && sub == "main") GroupsPane(grp, onTap = { query = "" }) { grp = it } }) {
-        androidx.compose.runtime.CompositionLocalProvider(LocalChipReg provides chipReg, LocalSettingsScroll provides scroll, LocalSettingsQuery provides query) {
-        Column(Modifier.fillMaxSize().verticalScrollbar(scroll).verticalScroll(scroll).padding(top = 8.dp, end = ScrollbarMath.RESERVE_DP.dp, start = if (wide && sub == "main") 20.dp else 0.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        androidx.compose.runtime.CompositionLocalProvider(
+            LocalChipReg provides chipReg, LocalSettingsScroll provides scroll, LocalSettingsQuery provides query,
+            LocalSettingsScrollAnchor provides scrollAnchor, LocalGroupHeadTops provides groupHeadTops,
+        ) {
+        Column(
+            Modifier.fillMaxSize().verticalScrollbar(scroll).verticalScroll(scroll)
+                .onGloballyPositioned { scrollAnchor[0] = it.positionInRoot().y }
+                .padding(top = 8.dp, end = ScrollbarMath.RESERVE_DP.dp, start = if (wide && sub == "main") 20.dp else 0.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
             if (sub == "main") Column(Modifier.widthIn(max = 900.dp).fillMaxWidth()) {
                 ActionRow(HIcons.search, stringResource(R.string.set_search), if (query.isBlank()) stringResource(R.string.set_search_hint) else "«" + query + "»") { searchDlg = true }
                 GroupHead("updates", wide || query.isNotBlank(), grp) { grp = it }
@@ -842,6 +904,17 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                         UiSizeSetting()
                     }
                     SwitchRow(stringResource(R.string.click_sound_title), Cfg.clickSound, listOf(stringResource(R.string.click_sound_hint))) { Cfg.changeClickSound(it) }
+                    SwitchRow(stringResource(R.string.set_desk_anim), Cfg.deskAnim, listOf(stringResource(R.string.set_desk_anim_hint))) { Cfg.changeDeskAnim(it) }
+                    if (Cfg.deskAnim) Section(stringResource(R.string.set_desk_anim_style)) {
+                        Options(
+                            listOf(
+                                "slide" to stringResource(R.string.desk_anim_slide), "zoom" to stringResource(R.string.desk_anim_zoom),
+                                "cube" to stringResource(R.string.desk_anim_cube), "parallax" to stringResource(R.string.desk_anim_parallax),
+                                "fade" to stringResource(R.string.desk_anim_fade),
+                            ),
+                            Cfg.deskAnimStyle,
+                        ) { Cfg.changeDeskAnimStyle(it) }
+                    }
                     Section(stringResource(R.string.set_control)) {
                         SectionHint(stringResource(R.string.ctl_help))
                     }
@@ -993,6 +1066,10 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                         SectionHint(stringResource(R.string.top_outline_hint))
                         Options(listOf("auto" to stringResource(R.string.top_o_auto), "dark" to stringResource(R.string.top_o_dark), "white" to stringResource(R.string.top_o_white), "none" to stringResource(R.string.top_o_none)), Cfg.statusOutline) { Cfg.changeStatusOutline(it) }
                     }
+                    Section(stringResource(R.string.top_icol)) {
+                        SectionHint(stringResource(R.string.top_icol_hint))
+                        IconColorRow()
+                    }
                     Section(stringResource(R.string.top_fill)) {
                         SectionHint(stringResource(R.string.top_fill_hint))
                     BarFillPreview()
@@ -1142,7 +1219,7 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                 GroupHead("widgets", wide || query.isNotBlank(), grp) { grp = it }
                 if (grp == "widgets" || query.isNotBlank()) {
                     Section(stringResource(R.string.grp_widgets)) {
-                        ActionRow(HIcons.home, stringResource(R.string.wid_open), stringResource(R.string.wid_open_h)) { ctx.startActivity(Intent(ctx, HomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                        ActionRow(HIcons.home, stringResource(R.string.wid_open), stringResource(R.string.wid_open_h)) { leaveVia(ctx, -1) { ctx.startActivity(Intent(ctx, HomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
                     }
                 }
                 GroupHead("dl", wide || query.isNotBlank(), grp) { grp = it }

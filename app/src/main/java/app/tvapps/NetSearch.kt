@@ -161,36 +161,56 @@ object NetSearch {
             .distinctBy { it.code }.sortedByDescending { it.code }.take(40)
     }
 
-    /** Скачивает файл в папку временных файлов; onProgress получает мегабайты. */
-    suspend fun download(ctx: Context, url: String, onProgress: (Long) -> Unit): ApkFile? = withContext(Dispatchers.IO) {
+    /** Загрузка принята не целиком (обрыв связи или размер не тот, что заявлен сервером либо выпуском). */
+    class ShortRead(val got: Long, val expected: Long) : java.io.IOException("short read $got of $expected")
+
+    /**
+     * Скачивает файл в папку временных файлов; onProgress получает мегабайты.
+     * 12.0: у каждой загрузки свой временный файл (две одновременные загрузки одного адреса больше не пишут в один файл и не стирают друг другу);
+     * число принятых байт сверяется с заголовком Content-Length и с [expectSize] (размер из выпуска, 0 = не проверять); при несовпадении файл удаляется
+     * и загрузка считается неудачной ([ShortRead] в [NetErr]); недокачанный файл не остаётся в кэше.
+     */
+    suspend fun download(ctx: Context, url: String, expectSize: Long = 0, onProgress: (Long) -> Unit): ApkFile? = withContext(Dispatchers.IO) {
+        var out: File? = null
         runCatching {
             val dir = File(ctx.cacheDir, "batch").apply { mkdirs() }
             val name = url.substringAfterLast('/').substringBefore('?').ifBlank { "app.apk" }.let { if (it.lowercase().endsWith(".apk")) it else "$it.apk" }
-            val out = File(dir, "net_" + name.replace(Regex("[^\\w.\\-]"), "_"))
+            val stem = name.substring(0, name.length - 4).replace(Regex("[^\\w.\\-]"), "_")
+            val f = File(dir, "net_" + stem + "_" + java.lang.Long.toString(System.nanoTime() and 0xffffffffL, 36) + ".apk")
+            out = f
             // отладочная сборка: file:-адрес берётся с диска (проверка установки без сети)
             if (BuildConfig.DEBUG && url.startsWith("file:")) {
-                File(java.net.URI(url)).copyTo(out, true)
-                return@runCatching ApkFile(name, Uri.fromFile(out), out.length(), out)
+                File(java.net.URI(url)).copyTo(f, true)
+                return@runCatching ApkFile(name, Uri.fromFile(f), f.length(), f)
             }
             val c = URL(url).openConnection() as HttpURLConnection
-            c.connectTimeout = 15_000
-            c.readTimeout = 40_000
-            c.instanceFollowRedirects = true
-            c.setRequestProperty("User-Agent", UA)
-            if (c.responseCode !in 200..299) error("HTTP ${c.responseCode}")
-            c.inputStream.use { i -> out.outputStream().use { o ->
-                val buf = ByteArray(64 * 1024)
+            try {
+                c.connectTimeout = 15_000
+                c.readTimeout = 40_000
+                c.instanceFollowRedirects = true
+                c.setRequestProperty("User-Agent", UA)
+                if (c.responseCode !in 200..299) error("HTTP ${c.responseCode}")
+                // длина по заголовку (при сжатии ответа система заголовок убирает, тогда сверки по нему нет)
+                val declared = c.getHeaderField("Content-Length")?.trim()?.toLongOrNull() ?: -1L
                 var total = 0L
-                while (true) {
-                    val n = i.read(buf)
-                    if (n < 0) break
-                    o.write(buf, 0, n)
-                    total += n
-                    onProgress(total / 1024 / 1024)
-                }
-            } }
-            c.disconnect()
-            ApkFile(name, Uri.fromFile(out), out.length(), out)
-        }.onFailure { NetErr.set(it) }.getOrNull()
+                try {
+                    c.inputStream.use { i -> f.outputStream().use { o ->
+                        val buf = ByteArray(64 * 1024)
+                        while (true) {
+                            val n = i.read(buf)
+                            if (n < 0) break
+                            o.write(buf, 0, n)
+                            total += n
+                            onProgress(total / 1024 / 1024)
+                        }
+                    } }
+                } catch (e: java.net.ProtocolException) { throw ShortRead(total, if (declared >= 0) declared else expectSize)
+                } catch (e: java.io.EOFException) { throw ShortRead(total, if (declared >= 0) declared else expectSize)
+                } catch (e: java.net.SocketTimeoutException) { throw ShortRead(total, if (declared >= 0) declared else expectSize) }
+                if (declared >= 0 && total != declared) throw ShortRead(total, declared)
+                if (expectSize > 0 && total != expectSize) throw ShortRead(total, expectSize)
+            } finally { runCatching { c.disconnect() } }
+            ApkFile(name, Uri.fromFile(f), f.length(), f)
+        }.onFailure { runCatching { out?.delete() }; NetErr.set(it) }.getOrNull()
     }
 }

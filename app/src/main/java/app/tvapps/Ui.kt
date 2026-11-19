@@ -38,6 +38,9 @@ object UiScale {
 
     fun tvK(base: android.content.Context): Float {
         if (!TopMode.isTv(base)) return 1f
+        // DENSITY_DEVICE_STABLE появилась в Android 7.0 (API 24): на приставках с Android 6.0 обращение к ней роняло программу при каждом запуске
+        // (NoSuchFieldError в первом же кадре); там физическая плотность неизвестна, коэффициент 1 (без увеличения), как у приставок без команды wm density
+        if (android.os.Build.VERSION.SDK_INT < 24) return 1f
         return tvRatio(android.util.DisplayMetrics.DENSITY_DEVICE_STABLE, base.resources.displayMetrics.densityDpi)
     }
 
@@ -208,7 +211,7 @@ fun hintSp(v: Int): androidx.compose.ui.unit.TextUnit {
  */
 @Composable
 fun HDialog(onDismissRequest: () -> Unit, properties: androidx.compose.ui.window.DialogProperties = androidx.compose.ui.window.DialogProperties(), content: @Composable () -> Unit) {
-    androidx.compose.ui.window.Dialog(onDismissRequest = onDismissRequest, properties = properties) { MouseDragInDialog(); CompositionLocalProvider(LocalChipReg provides null) { UiScale.ExtraScale { HalfUi { TvBoost { content() } } } } }
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismissRequest, properties = properties) { MouseDragInDialog(); CompositionLocalProvider(LocalChipReg provides null) { UiScale.ExtraScale { HalfUi { TvBoost { MotionPop { content() } } } } } }
 }
 
 /**
