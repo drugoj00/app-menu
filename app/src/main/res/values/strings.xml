@@ -732,6 +732,11 @@
     <string name="dense_hint">Dense: many icons on dark plates, columns and rows from the screen size (1280x720: 13 x 4). Auto turns it on for car head units. Size and columns/rows below still change it.</string>
     <string name="dense_off">Normal</string>
     <string name="dense_on">Dense</string>
+    <string name="desk_anim_cube">Cube</string>
+    <string name="desk_anim_fade">Fade</string>
+    <string name="desk_anim_parallax">Parallax</string>
+    <string name="desk_anim_slide">Slide</string>
+    <string name="desk_anim_zoom">Zoom</string>
     <string name="desk_common">Common</string>
     <string name="desk_default">Desk %1$d</string>
     <string name="desk_empty">Empty: add apps through the card → To desk…</string>
@@ -805,6 +810,9 @@
     <string name="ring_default">Default</string>
     <string name="selected">Selected</string>
     <string name="set_dense">Grid density</string>
+    <string name="set_desk_anim">Transition animation</string>
+    <string name="set_desk_anim_hint">Smooth transitions between screens, Home and desks: slide, zoom, flip or fade. Does not depend on the system “Animation scale” option. Off: instant. Not used in lite mode.</string>
+    <string name="set_desk_anim_style">Animation style</string>
     <string name="set_gap">Icon density</string>
     <string name="set_grid">Grid and icon scale</string>
     <string name="set_lite">Light mode (weak devices)</string>

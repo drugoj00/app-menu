@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="imgp_via_app">Pick in an app…</string>
+    <string name="imgp_via_title">App to pick the picture</string>
+    <string name="imgp_via_title_video">App to pick the video</string>
+    <string name="imgp_via_hint">The chosen app (file manager or gallery) opens, and the file picked there comes back to the menu.</string>
+    <string name="imgp_via_none">No apps that can pick a file of this type</string>
+    <string name="imgp_via_fail">Could not open the app</string>
+    <string name="wg_edge">Outline (border)…</string>
+    <string name="wg_edge_title">Widget outline</string>
+    <string name="upd_hash_info">Expected sum %1$s…, received %2$s…; file size %3$s B, release says %4$s B; source: %5$s</string>
+    <string name="upd_retry">Downloading again…</string>
+    <string name="net_err_short">download failed: received %1$d B, expected %2$d B</string>
+    <string name="net_err_cut">download interrupted: received %1$d B</string>
+    <string name="top_icol">Status bar icon color</string>
+    <string name="top_icol_hint">Color of the icons and labels in the top bar of Home: bell, Bluetooth, network, USB, settings, date, time and the buttons on the left (except the application icon itself). Auto: follows the theme and background, as before. White and black: the buttons or the ends of the bar; any color: the bar (remote: left and right move the slider in even steps, OK: Auto or white). The dim state (Bluetooth off, USB without a drive) is shown in the same color, paler; the number in the bell turns black or white by itself. Applies at once.</string>
+    <string name="top_ic_black">Black</string>
+    <string name="top_ic_custom">Custom color</string>
+</resources>
