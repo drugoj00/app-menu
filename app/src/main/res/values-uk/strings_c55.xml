@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="imgp_via_app">Вибрати в застосунку…</string>
+    <string name="imgp_via_title">Застосунок для вибору картинки</string>
+    <string name="imgp_via_title_video">Застосунок для вибору відео</string>
+    <string name="imgp_via_hint">Відкриється вибраний застосунок (файловий менеджер або галерея); вибраний у ньому файл повернеться в меню.</string>
+    <string name="imgp_via_none">Немає застосунків, які вміють вибирати файл такого типу</string>
+    <string name="imgp_via_fail">Не вдалося відкрити застосунок</string>
+    <string name="wg_edge">Окантовка (обведення)…</string>
+    <string name="wg_edge_title">Окантовка віджета</string>
+    <string name="upd_hash_info">Очікувалася сума %1$s…, отримано %2$s…; розмір файлу %3$s Б, у випуску %4$s Б; джерело: %5$s</string>
+    <string name="upd_retry">Повторне завантаження…</string>
+    <string name="net_err_short">завантаження не вдалося: отримано %1$d Б, очікувалося %2$d Б</string>
+    <string name="net_err_cut">завантаження обірвано: отримано %1$d Б</string>
+    <string name="top_icol">Колір значків рядка стану</string>
+    <string name="top_icol_hint">Колір значків і написів верхнього рядка «Дому»: дзвіночок, Bluetooth, мережа, USB, налаштування, дата, час і кнопки ліворуч (крім значка самої програми). Авто: за темою і тлом, як раніше. Білий і чорний: кнопки або краї смужки; будь-який колір: смужка (пульт: ліворуч і праворуч рухають повзунок рівними кроками, ОК: Авто або білий). Тьмяний стан (Bluetooth вимкнено, USB без накопичувача) показується тим самим кольором блідіше, цифра в дзвіночку сама стає чорною або білою. Застосовується одразу.</string>
+    <string name="top_ic_black">Чорний</string>
+    <string name="top_ic_custom">Свій колір</string>
+</resources>

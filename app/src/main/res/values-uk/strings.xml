@@ -732,6 +732,11 @@
     <string name="dense_hint">Щільна: багато значків на темних плашках, стовпці й рядки рахуються за розміром екрана (1280x720: 13 x 4). «Авто» вмикає її на магнітолах. «Розмір» і «стовпці/рядки» нижче, як і раніше, змінюють сітку.</string>
     <string name="dense_off">Звичайна</string>
     <string name="dense_on">Щільна</string>
+    <string name="desk_anim_cube">Куб</string>
+    <string name="desk_anim_fade">Розчинення</string>
+    <string name="desk_anim_parallax">Паралакс</string>
+    <string name="desk_anim_slide">Зсув</string>
+    <string name="desk_anim_zoom">Зум</string>
     <string name="desk_common">Загальні</string>
     <string name="desk_default">Стіл %1$d</string>
     <string name="desk_empty">Порожньо: додати застосунки через картку → На стіл…</string>
@@ -805,6 +810,9 @@
     <string name="ring_default">За замовчуванням</string>
     <string name="selected">Вибрано</string>
     <string name="set_dense">Щільність сітки</string>
+    <string name="set_desk_anim">Анімація переходів</string>
+    <string name="set_desk_anim_hint">Плавні переходи між екранами, Домом і столами. Не залежить від системного налаштування «Масштаб анімації». Вимкнено — миттєво. У легкому режимі не використовується.</string>
+    <string name="set_desk_anim_style">Стиль анімації</string>
     <string name="set_gap">Щільність значків</string>
     <string name="set_grid">Сітка та масштаб значків</string>
     <string name="set_lite">Полегшений режим (слабке залізо)</string>
