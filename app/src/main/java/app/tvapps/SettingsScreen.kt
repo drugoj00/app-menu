@@ -367,7 +367,7 @@ internal fun ActionRow(icon: androidx.compose.ui.graphics.vector.ImageVector, ti
     val snd = rememberClickSound()
     val shape = RoundedCornerShape(12.dp)
     Row(
-        modifier.then(if (reg != null) Modifier.fillMaxWidth() else Modifier).widthIn(min = 240.dp, max = 900.dp).heightIn(min = if (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 500) 48.dp else 56.dp)
+        modifier.then(if (reg != null) Modifier.fillMaxWidth() else Modifier).widthIn(min = 240.dp, max = 900.dp).heightIn(min = if ((androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 500 && !isNarrow())) 48.dp else 56.dp)
             .then(hm)
             .then(if (reg != null) Modifier.focusRequester(req).onGloballyPositioned { ypos[0] = it.positionInRoot().y } else Modifier)
             .onFocusChanged { focused = it.isFocused; if (it.isFocused && reg != null) reg.onFocus(title, ypos[0] + (scrollSt?.value ?: 0)) }
@@ -678,12 +678,12 @@ private fun GroupBtn(id: String, selected: Boolean, modifier: Modifier = Modifie
             .border(if (focused) 3.dp else 1.dp, if (focused) t.accent else t.border, RoundedCornerShape(10.dp))
             // касание и мышь: фокус встаёт на кнопку группы (иначе первая стрелка пульта уходила на самую верхнюю группу), результаты поиска сбрасываются
             .clickable(role = androidx.compose.ui.semantics.Role.Tab) { runCatching { req.requestFocus() }; onTap(id); onPick(id) }
-            .padding(horizontal = 24.dp, vertical = if (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 500) 1.dp else if (isNarrow()) 10.dp else 11.dp),
+            .padding(horizontal = 24.dp, vertical = if ((androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 500 && !isNarrow())) 1.dp else if (isNarrow()) 10.dp else 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        androidx.compose.material3.Icon(SettingsGroups.icon(id), null, tint = t.accent, modifier = Modifier.size(if (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 500) 16.dp else 28.dp))
+        androidx.compose.material3.Icon(SettingsGroups.icon(id), null, tint = t.accent, modifier = Modifier.size(if ((androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 500 && !isNarrow())) 16.dp else 28.dp))
         Spacer(Modifier.width(14.dp))
-        Text(stringResource(SettingsGroups.title(id)), color = t.text, fontSize = btnSp(if (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 500) 13 else 18), fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal, maxLines = 1, softWrap = false)
+        Text(stringResource(SettingsGroups.title(id)), color = t.text, fontSize = btnSp(if ((androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 500 && !isNarrow())) 13 else 18), fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal, maxLines = 1, softWrap = false)
     }
 }
 
@@ -698,7 +698,7 @@ private fun SettingsFrame(pane: @Composable () -> Unit, content: @Composable () 
 private fun GroupsPane(current: String, onTap: (String) -> Unit = {}, onPick: (String) -> Unit) {
     Column(
         Modifier.width(androidx.compose.foundation.layout.IntrinsicSize.Max).fillMaxHeight().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(top = 8.dp, end = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(if (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 500) 2.dp else 6.dp),
+        verticalArrangement = Arrangement.spacedBy(if ((androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 500 && !isNarrow())) 2.dp else 6.dp),
     ) {
         SettingsGroups.ids.forEach { id -> GroupBtn(id, id == current, Modifier.fillMaxWidth(), onTap, onPick) }
     }
@@ -947,6 +947,10 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                     Section(stringResource(R.string.ui_size_title)) {
                         SectionHint(stringResource(R.string.ui_size_hint))
                         UiSizeSetting()
+                    }
+                    Section(stringResource(R.string.text_size_title)) {
+                        SectionHint(stringResource(R.string.text_size_hint))
+                        TextSizeSetting()
                     }
                     SwitchRow(stringResource(R.string.click_sound_title), Cfg.clickSound, listOf(stringResource(R.string.click_sound_hint))) { Cfg.changeClickSound(it) }
                     SwitchRow(stringResource(R.string.set_desk_anim), Cfg.deskAnim, listOf(stringResource(R.string.set_desk_anim_hint))) { Cfg.changeDeskAnim(it) }
