@@ -1170,4 +1170,14 @@
     <string name="bk_merged">Копії об’єднано</string>
     <string name="back_start_title">Подвійне «Назад»: на початок списку</string>
     <string name="back_start_hint">На пульті друге натискання «Назад» ставить курсор на першу картку першого рядка після віджетів (у меню: на перший застосунок). Перше натискання працює як раніше.</string>
+    <string name="su_noperm_text">Android не дозволяє цій програмі встановлювати застосунки: для неї вимкнено «Встановлення з невідомих джерел». Натисни «Відкрити налаштування», увімкни «Дозволити встановлення з цього джерела» і повернись: оновлення продовжиться саме.</string>
+    <string name="su_open_settings">Відкрити налаштування</string>
+    <string name="su_continue">Продовжити без дозволу</string>
+    <string name="su_manual">Завантажити файл вручну</string>
+    <string name="su_copy">Скопіювати подробиці</string>
+    <string name="su_copied">Подробиці скопійовано</string>
+    <string name="su_open_file">Відкрити файл</string>
+    <string name="su_file_path">Файл: %1$s</string>
+    <string name="su_fail_reason">Причина: %1$s</string>
+    <string name="su_session_failed">Системний установник відмовив (код %1$d): %2$s. Завантажений файл можна відкрити вручну.</string>
 </resources>
