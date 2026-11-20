@@ -100,6 +100,8 @@ object Cfg {
     var clickSound by mutableStateOf(true); private set
     /** Двойное «Назад» на пульте возвращает на первую карточку (13.0, просьба с 4PDA): по умолчанию включено. */
     var backToStart by mutableStateOf(true); private set
+    /** «Размер текста» (13.0 код 57): множитель шрифта окон Меню, 0,7…2,0; 1 = авто-комфортный; не зависит от «Размера интерфейса» и от сетки. */
+    var textMul by mutableStateOf(1f); private set
     var instSaved by mutableStateOf(""); private set
     /** Как часто проверять, часов: 6, 24 или 72. */
     var autoUpdHours by mutableIntStateOf(24); private set
@@ -199,6 +201,7 @@ object Cfg {
         uiMul = sp.getFloat("ui_mul", 1f).coerceIn(0.5f, 2f)
         clickSound = sp.getBoolean("click_sound", true)
         backToStart = sp.getBoolean("back_to_start", true)
+        textMul = sp.getFloat("text_mul", 1f).coerceIn(0.7f, 2f)
         instSaved = sp.getString("inst_saved", "") ?: ""
         autoUpdHours = sp.getInt("auto_upd_hours", 24).let { if (it == 6 || it == 24 || it == 72) it else 24 }
         autoInstall = sp.getBoolean("auto_install", false)
@@ -340,6 +343,7 @@ object Cfg {
         sp.edit().putStringSet("upd_skip", updSkip).apply()
     }
     fun changeUiMul(v: Float) { uiMul = (Math.round(v.coerceIn(0.5f, 2f) * 20) / 20f); sp.edit().putFloat("ui_mul", uiMul).apply() }
+    fun changeTextMul(v: Float) { textMul = (Math.round(v.coerceIn(0.7f, 2f) * 20) / 20f); sp.edit().putFloat("text_mul", textMul).apply() }
     fun changeBackToStart(v: Boolean) { backToStart = v; sp.edit().putBoolean("back_to_start", v).apply() }
     fun changeClickSound(v: Boolean) { clickSound = v; sp.edit().putBoolean("click_sound", v).apply() }
     fun changeAskInstaller(v: Boolean) { askInstaller = v; sp.edit().putBoolean("inst_ask", v).apply() }
