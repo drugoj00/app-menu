@@ -1170,4 +1170,14 @@
     <string name="bk_merged">Copies merged</string>
     <string name="back_start_title">Double Back: to the start of the list</string>
     <string name="back_start_hint">On the remote, the second press of “Back” puts the cursor on the first card of the first row after the widgets (in the menu: on the first app). The first press works as before.</string>
+    <string name="su_noperm_text">Android does not let this program install apps: “Install unknown apps” is off for it. Press “Open settings”, turn on “Allow from this source” and come back: the update will continue by itself.</string>
+    <string name="su_open_settings">Open settings</string>
+    <string name="su_continue">Continue without permission</string>
+    <string name="su_manual">Download the file manually</string>
+    <string name="su_copy">Copy details</string>
+    <string name="su_copied">Details copied</string>
+    <string name="su_open_file">Open the file</string>
+    <string name="su_file_path">File: %1$s</string>
+    <string name="su_fail_reason">Reason: %1$s</string>
+    <string name="su_session_failed">The system installer refused the install (code %1$d): %2$s. You can open the downloaded file by hand.</string>
 </resources>
