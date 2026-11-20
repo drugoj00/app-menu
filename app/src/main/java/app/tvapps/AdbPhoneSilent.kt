@@ -69,6 +69,10 @@ object AdbPhoneSilent {
                     2 -> {}
                     0 -> done.complete("ok")
                     3 -> done.complete("fail:" + app.getString(R.string.inst_cancelled))
+                    // 13.0 (код 57): причина ответа ADB-phon названа по-русски (раньше показывалось английское «apk signature differs from the caller»)
+                    10 -> done.complete("fail:" + app.getString(R.string.silent_denied, msg))
+                    11 -> done.complete("fail:" + app.getString(R.string.silent_badsig))
+                    12 -> done.complete("fail:" + app.getString(R.string.silent_error, msg))
                     else -> done.complete("fail:" + msg.ifBlank { "ADB-phon: " + (data?.getString("status") ?: code.toString()) })
                 }
             }
