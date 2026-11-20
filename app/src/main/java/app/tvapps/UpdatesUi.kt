@@ -54,10 +54,24 @@ internal fun updResultText(ctx: android.content.Context, r: String): String = wh
     else -> ctx.getString(R.string.ver_failed) + r.removePrefix("fail").let { if (it.length > 1) ": " + it.removePrefix(":") else "" }
 }
 
+/** Что ставится: установлено X (код) → новая Y (код), размер, источник. */
+internal fun updInfoText(ctx: android.content.Context, a: AppUpd, c: UpdCand): String =
+    "${a.instName} (${a.instCode}) → ${c.versionName} (${c.versionCode}) · " + (if (c.size > 0) ctx.getString(R.string.upd_size_mb, "%.1f".format(java.util.Locale.US, c.size / 1048576.0)) + " · " else "") + Updates.sourceName(ctx, c.source)
+
 private fun candTag(ctx: android.content.Context, c: UpdCand, a: AppUpd): String = when {
     Updates.isNewer(c, a.instName, a.instCode) -> ctx.getString(R.string.upd_newer)
     Updates.compareVersions(c.versionName, a.instName) == 0 -> ctx.getString(R.string.upd_same)
     else -> ctx.getString(R.string.upd_older)
+}
+
+/** Строка списка обновлений «сверху вниз»: сведения на всю ширину, кнопки под ними (в узком окне телефона сведения не сжимаются в столбик). */
+@Composable
+private fun UpdRowV(content: @Composable () -> Unit) {
+    val t = LocalTh.current
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(t.tile).padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) { content() }
 }
 
 @Composable
@@ -264,6 +278,13 @@ fun UpdatesAllDialog(onClose: () -> Unit) {
     var sources by remember { mutableStateOf(false) }
     var auto by remember { mutableStateOf(false) }
     var single by remember { mutableStateOf<AppUpd?>(null) }
+    // 13.0 код 57 (правило «никаких тихих установок»): ход и итог по каждому приложению показываются в самом списке
+    val rowStat = remember { androidx.compose.runtime.mutableStateMapOf<String, String>() }
+    val rowPct = remember { androidx.compose.runtime.mutableStateMapOf<String, Int>() }
+    val doneSet = remember { androidx.compose.runtime.mutableStateListOf<String>() }
+    var method by remember { mutableStateOf("") }
+    val resLines = remember { androidx.compose.runtime.mutableStateListOf<String>() }   // итоги уже обработанных в этом запуске: «название: итог»
+    var curApp by remember { mutableStateOf<Pair<AppUpd, UpdCand>?>(null) }   // приложение, которое ставится сейчас: его сведения и ход видны над списком
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
 
@@ -284,6 +305,47 @@ fun UpdatesAllDialog(onClose: () -> Unit) {
         }
     }
 
+    fun setRow(a: AppUpd, c: UpdCand, s: String) {
+        rowStat[a.pkg] = s
+        // определённый ход: проценты установки («NN%») или доля скачанных мегабайт от размера из выпуска
+        val p = Regex("""^\s*(\d{1,3})\s*%""").find(s)?.groupValues?.get(1)?.toIntOrNull()
+            ?: if (c.size > 0 && s.startsWith(ctx.getString(R.string.net_downloading, c.versionName, 0).substringBefore(c.versionName))) Regex("""(\d+)\D*$""").find(s)?.groupValues?.get(1)?.toLongOrNull()?.let { (it * 1048576L * 100 / c.size).toInt() } else null
+        if (p != null) rowPct[a.pkg] = p.coerceIn(0, 100)
+    }
+
+    /** Установка списка в этом окне: viaAdb = способ выбран заранее (ADB/root, «Обновить все»), иначе обычный выбор установщика. Ход и итог по каждому видны в строке. */
+    fun installList(items: List<AppUpd>, viaAdb: Boolean) {
+        if (busy) return
+        if (viaAdb && !Adb.isConnected) { status = ctx.getString(R.string.upd_need_adb_all); return }
+        scope.launch {
+            busy = true
+            var ok = 0
+            statFrac = 0f
+            method = if (viaAdb) InstallerPick.labelOf(ctx, InstallerPick.ADB) else ""
+            resLines.clear()
+            items.forEach { rowStat[it.pkg] = ctx.getString(R.string.upd_row_wait); rowPct.remove(it.pkg) }
+            items.forEachIndexed { i, a ->
+                val c = a.best ?: return@forEachIndexed
+                statFrac = i.toFloat() / items.size
+                status = ctx.getString(R.string.upd_updating, i + 1, items.size, a.label)
+                curApp = a to c
+                InstallerPick.methodSink = { m -> method = m }
+                InstallerPick.progressSink = { s -> setRow(a, c, s) }
+                val r = try { Updates.install(ctx, a, c, quiet = viaAdb) { s -> setRow(a, c, s) } } catch (e: CancellationException) { throw e } catch (e: Throwable) { "fail:" + (e.message ?: "") }
+                InstallerPick.methodSink = null; InstallerPick.progressSink = null
+                if (r == "ok") {
+                    ok++; doneSet.add(a.pkg); rowPct[a.pkg] = 100
+                    rowStat[a.pkg] = ctx.getString(R.string.upd_row_done, c.versionName, c.versionCode.toInt())
+                } else rowStat[a.pkg] = updResultText(ctx, r)
+                resLines.add(a.label + ": " + rowStat[a.pkg])
+            }
+            statFrac = 1f
+            status = ctx.getString(R.string.upd_all_done, ok, items.size)
+            if (ok > 0) list?.let { l -> UpdSched.record(l.map { x -> if (x.pkg in doneSet) x.copy(cands = emptyList()) else x }) }
+            busy = false
+        }
+    }
+
     fun refreshOne(pkg: String) {
         scope.launch {
             val fresh = runCatching { Updates.check(ctx, pkg, force = true) }.getOrNull()
@@ -295,7 +357,17 @@ fun UpdatesAllDialog(onClose: () -> Unit) {
     val withUpd = all.filter { it.best != null }
     val skippedN = withUpd.count { it.pkg in Cfg.updSkip }
     val shown = withUpd.filter { showSkipped || it.pkg !in Cfg.updSkip }
-    val updatable = withUpd.filter { it.pkg !in Cfg.updSkip }
+    val updatable = withUpd.filter { it.pkg !in Cfg.updSkip && it.pkg !in doneSet }
+
+    // обновление по расписанию с «Устанавливать автоматически»: окно открывается и ставит само, но всё видно (программа или уведомление открыли это окно)
+    LaunchedEffect(Unit) { if (UpdOpen.autoStart && list == null) check(false) }   // автоустановка: окно само проверяет и затем ставит на виду
+    LaunchedEffect(list) {
+        if (list != null && UpdOpen.autoStart) {
+            UpdOpen.autoStart = false
+            val todo = list.orEmpty().filter { it.best != null && it.pkg !in Cfg.updSkip }
+            if (todo.isNotEmpty()) { if (!Adb.isConnected) runCatching { autoConnect(ctx) }; installList(todo, true) }
+        }
+    }
 
     if (token) TokenDialog { token = false }
     if (sources) SourcesDialog { sources = false }
@@ -308,63 +380,50 @@ fun UpdatesAllDialog(onClose: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(stringResource(R.string.upd_cell), color = t.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            Text(stringResource(R.string.upd_hint), color = t.hint, fontSize = 12.sp)
-            if (status.isNotEmpty()) Text(status, color = t.accent, fontSize = 14.sp)
-            else if (list != null) Text(if (withUpd.isEmpty()) stringResource(R.string.upd_nothing_new) else stringResource(R.string.upd_found, withUpd.size), color = t.sub, fontSize = 14.sp)
-            statFrac?.let { FlatProgress(it) }
-            FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                ActionRow(HIcons.refresh, stringResource(R.string.upd_check), "", Modifier.focusRequester(first)) { check(list != null) }
-                if (updatable.isNotEmpty()) ActionRow(HIcons.download, stringResource(R.string.upd_update_all, updatable.size)) {
-                    if (busy) return@ActionRow
-                    if (!Adb.isConnected) { status = ctx.getString(R.string.upd_need_adb_all); return@ActionRow }
-                    scope.launch {
-                        busy = true
-                        var ok = 0
-                        statFrac = 0f
-                        updatable.forEachIndexed { i, a ->
-                            val c = a.best ?: return@forEachIndexed
-                            statFrac = i.toFloat() / updatable.size
-                            status = ctx.getString(R.string.upd_updating, i + 1, updatable.size, a.label)
-                            val r = try { Updates.install(ctx, a, c, quiet = true) { s -> status = s } } catch (e: CancellationException) { throw e } catch (e: Throwable) { "fail:" + (e.message ?: "") }
-                            if (r == "ok") { ok++; refreshOne(a.pkg) }
-                        }
-                        statFrac = 1f
-                        status = ctx.getString(R.string.upd_all_done, ok, updatable.size)
-                        busy = false
-                    }
-                }
-                if (skippedN > 0) Chip(stringResource(if (showSkipped) R.string.upd_hide_skipped else R.string.upd_show_skipped, skippedN), false) { showSkipped = !showSkipped }
-                ActionRow(HIcons.list, stringResource(R.string.upd_sources)) { sources = true }
-                Chip(stringResource(R.string.upd_auto) + if (Cfg.autoUpd) " ✓" else "", Cfg.autoUpd) { auto = true }
-                ActionRow(HIcons.gear, stringResource(R.string.upd_token)) { token = true }
-                Chip(stringResource(R.string.close), true) { onClose() }
-            }
             BarLazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                // 13.0 код 57: шапка (ход, итоги, кнопки) лежит внутри прокручиваемого списка: на телефоне, где шапка занимает весь экран, строки обновлений остаются доступны
+                item(key = "head") { Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (list == null) Text(stringResource(R.string.upd_hint), color = t.hint, fontSize = 12.sp)   // длинная подсказка уходит, когда нужно место под список, ход и итоги
+                if (status.isNotEmpty()) Text(status, color = t.accent, fontSize = 14.sp)
+                else if (list != null) Text(if (withUpd.isEmpty()) stringResource(R.string.upd_nothing_new) else stringResource(R.string.upd_found, withUpd.size), color = t.sub, fontSize = 14.sp)
+                if (method.isNotEmpty()) Text(stringResource(R.string.su_method, method), color = t.sub, fontSize = 13.sp)
+                curApp?.let { (a, c) ->
+                    // что ставится сейчас: название, установлено X (код) → новая Y (код), размер; ход этого приложения (определённый) и итог
+                    Text(a.label + ": " + updInfoText(ctx, a, c), color = t.text, fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                    rowStat[a.pkg]?.let { st -> Text(st, color = if (a.pkg in doneSet) t.accent else t.sub, fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis) }
+                    rowPct[a.pkg]?.let { FlatProgress(it / 100f) }
+                }
+                statFrac?.let { FlatProgress(it) }
+                resLines.takeLast(6).forEach { Text(it, color = t.sub, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+                FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ActionRow(HIcons.refresh, stringResource(R.string.upd_check), "", Modifier.focusRequester(first)) { check(list != null) }
+                    if (updatable.isNotEmpty()) ActionRow(HIcons.download, stringResource(R.string.upd_update_all, updatable.size)) { installList(updatable, true) }
+                    if (skippedN > 0) Chip(stringResource(if (showSkipped) R.string.upd_hide_skipped else R.string.upd_show_skipped, skippedN), false) { showSkipped = !showSkipped }
+                    ActionRow(HIcons.list, stringResource(R.string.upd_sources)) { sources = true }
+                    Chip(stringResource(R.string.upd_auto) + if (Cfg.autoUpd) " ✓" else "", Cfg.autoUpd) { auto = true }
+                    ActionRow(HIcons.gear, stringResource(R.string.upd_token)) { token = true }
+                    Chip(stringResource(R.string.close), true) { onClose() }
+                }
+                } }
                 items(shown, key = { it.pkg }) { a ->
                     val c = a.best!!
                     val skipped = a.pkg in Cfg.updSkip
-                    UpdRow {
-                        Column(Modifier.weight(1f)) {
+                    UpdRowV {
+                        Column(Modifier.fillMaxWidth()) {
                             Text(a.label, color = if (skipped) t.hint else t.text, fontSize = 16.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(
-                                "${a.instName} → ${c.versionName} · ${Updates.sourceName(ctx, c.source)}" + if (a.newer.size > 1) " · +${a.newer.size - 1}" else "",
-                                color = t.hint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                        ActionRow(HIcons.download, stringResource(R.string.upd_update)) {
-                            if (busy) return@ActionRow
-                            scope.launch {
-                                busy = true
-                                status = ctx.getString(R.string.ver_working)
-                                val r = try { Updates.install(ctx, a, c) { s -> status = s } } catch (e: CancellationException) { throw e } catch (e: Throwable) { "fail:" + (e.message ?: "") }
-                                status = a.label + ": " + updResultText(ctx, r)
-                                if (r == "ok") refreshOne(a.pkg)
-                                busy = false
+                            // что ставится: установлено X (код) → новая Y (код), размер, источник
+                            Text(updInfoText(ctx, a, c) + if (a.newer.size > 1) " · +${a.newer.size - 1}" else "", color = t.hint, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            rowStat[a.pkg]?.let { st ->
+                                Text(st, color = if (a.pkg in doneSet) t.accent else t.sub, fontSize = 13.sp, maxLines = 4, overflow = TextOverflow.Ellipsis)
+                                rowPct[a.pkg]?.let { FlatProgress(it / 100f) }
                             }
                         }
-                        if (c.body.isNotBlank()) ActionRow(HIcons.list, stringResource(R.string.notes_btn)) { SelfUpd.notes = c }
-                        ActionRow(HIcons.list, stringResource(R.string.upd_details)) { single = a }
-                        Chip(stringResource(if (skipped) R.string.upd_unskip else R.string.upd_skip), skipped) { Cfg.toggleUpdSkip(a.pkg) }
+                        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            if (a.pkg !in doneSet) ActionRow(HIcons.download, stringResource(R.string.upd_update)) { installList(listOf(a), false) }
+                            if (c.body.isNotBlank()) ActionRow(HIcons.list, stringResource(R.string.notes_btn)) { SelfUpd.notes = c }
+                            ActionRow(HIcons.list, stringResource(R.string.upd_details)) { single = a }
+                            Chip(stringResource(if (skipped) R.string.upd_unskip else R.string.upd_skip), skipped) { Cfg.toggleUpdSkip(a.pkg) }
+                        }
                     }
                 }
             }
