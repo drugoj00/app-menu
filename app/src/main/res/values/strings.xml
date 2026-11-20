@@ -74,7 +74,7 @@
     <string name="upd_minsdk_bad">The update needs a newer Android</string>
     <string name="upd_hash_bad">Checksum mismatch: file not installed</string>
     <string name="upd_uptodate">The downloaded file is not newer than the installed app</string>
-    <string name="upd_need_adb_all">“Update all” needs root or ADB (installs without prompts)</string>
+    <string name="upd_need_adb_all">“Update all” needs root or ADB; the list below shows progress and the result for each app</string>
     <string name="upd_errors">Source errors: %1$s</string>
     <string name="upd_src_appgallery">AppGallery (Huawei)</string>
     <string name="upd_src_rustore">RuStore</string>
@@ -88,7 +88,7 @@
     <string name="upd_every_24">Once a day</string>
     <string name="upd_every_72">Every 3 days</string>
     <string name="upd_auto_install">Install automatically</string>
-    <string name="upd_auto_install_hint">Only with root or ADB. The signature is checked, skipped apps are left alone. Off: only a notification.</string>
+    <string name="upd_auto_install_hint">Needs root or ADB. Nothing is installed in the background: the Updates window opens when the program is opened and installs with a visible list, progress and result for each app. The signature is checked, skipped apps are left alone. Off: only a notification.</string>
     <string name="upd_notif_channel">App updates</string>
     <string name="upd_notif_found">Updates available: %1$d</string>
     <string name="upd_notif_installed">Updated apps: %1$d</string>
@@ -1180,4 +1180,19 @@
     <string name="su_file_path">File: %1$s</string>
     <string name="su_fail_reason">Reason: %1$s</string>
     <string name="su_session_failed">The system installer refused the install (code %1$d): %2$s. You can open the downloaded file by hand.</string>
+    <string name="silent_denied">ADB-phon refused the request: %1$s</string>
+    <string name="silent_badsig">ADB-phon: the signature of the file does not match the signature of the installed program</string>
+    <string name="silent_error">ADB-phon could not install: %1$s</string>
+    <string name="su_info">%1$s: installed %2$s (%3$d) → new %4$s (%5$d), size %6$s MB</string>
+    <string name="su_method">Install method: %1$s</string>
+    <string name="su_installed">Installed: App Menu %1$s (%2$d).</string>
+    <string name="text_size_title">Text size</string>
+    <string name="text_size_hint">Only the text of the program windows (settings, dialogs, menus). It does not change “Interface size”, the icon grid or icon labels. Auto is a comfortable size for the screen.</string>
+    <string name="ts_small">Small 0.85</string>
+    <string name="ts_auto">Auto 1.0</string>
+    <string name="ts_big">Large 1.25</string>
+    <string name="ts_huge">Very large 1.5</string>
+    <string name="upd_row_wait">Waiting</string>
+    <string name="upd_row_done">Installed: %1$s (%2$d)</string>
+    <string name="upd_size_mb">%1$s MB</string>
 </resources>
