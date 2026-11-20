@@ -11,6 +11,28 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+/** «Размер текста» (13.0 код 57): множитель шрифта окон Меню отдельно от «Размера интерфейса» и сетки: Мелкий 0,85 · Авто 1,0 · Крупный 1,25 · Очень крупный 1,5, плюс «−/+» шагом 0,05. */
+@Composable
+internal fun TextSizeSetting() {
+    val mul = Cfg.textMul
+    fun f(v: Float) = String.format(java.util.Locale.getDefault(), "%.2f", v)
+    fun near(a: Float, b: Float) = kotlin.math.abs(a - b) < 0.011f
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Chip(stringResource(R.string.ts_small), near(mul, 0.85f)) { Cfg.changeTextMul(0.85f) }
+            Chip(stringResource(R.string.ts_auto), near(mul, 1f)) { Cfg.changeTextMul(1f) }
+            Chip(stringResource(R.string.ts_big), near(mul, 1.25f)) { Cfg.changeTextMul(1.25f) }
+            Chip(stringResource(R.string.ts_huge), near(mul, 1.5f)) { Cfg.changeTextMul(1.5f) }
+        }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Chip("−", false) { Cfg.changeTextMul(mul - 0.05f) }
+            Chip("×" + f(mul), false) { }
+            Chip("+", false) { Cfg.changeTextMul(mul + 0.05f) }
+            Chip("↺ " + stringResource(R.string.ui_sz_reset), false) { Cfg.changeTextMul(1f) }
+        }
+    }
+}
+
 /** Правило 28: «Размер интерфейса» — ручной множитель поверх автомасштаба: Мелкий 0,75 · Авто 1,0 · Крупный 1,25 · Очень крупный 1,5, плюс «−/+» шагом 0,05 и «По умолчанию»; показан итоговый коэффициент. */
 @Composable
 internal fun UiSizeSetting() {
