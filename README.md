@@ -14,16 +14,16 @@ App Menu replaces the stock app list with a big grid made for a remote and for t
 
 ## Download
 
-**Version 9.0.** [AppMenu-9.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
+**Version 13.0.** [AppMenu-13.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `bbbf106ca905c06c8dfd2c6760b900ddcddda6d4e277487e26014a4e9879e711`
+SHA-256: `a877b67b18b79beb85052408cd99821881cc97c34329990e343e4564982c3b13`
 
-## What's new in 9.0
+## What's new in 13.0
 
-- Interface auto-scale for car radios and an “Interface size” setting
-- Installer choice and a package info window; quiet install through ADB-phon
-- Autostart of apps in the background: a mode for each app
-- A switch for the backup copy on delete, bug fixes
+- Interface size no longer changes the grid and icons
+- Larger interface by default in portrait
+- Remote: pressing Back twice returns to the first card
+- Fixed: Back on the remote sometimes did not return to the first card of the row
 
 ## Features
 
@@ -59,7 +59,7 @@ SHA-256: `bbbf106ca905c06c8dfd2c6760b900ddcddda6d4e277487e26014a4e9879e711`
 
 ## Quick start
 
-1. Download AppMenu-9.0.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
+1. Download AppMenu-13.0.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
 2. Open it: apps are launched with OK or a tap, a long press (or holding OK, or the Menu key) opens the action card. To use it instead of the stock menu turn on “Launcher mode” in Settings.
 3. To act on other apps connect ADB: Settings → “Connect ADB”. Android 9 and older TV boxes with network ADB connect by themselves. Android 11+: turn on the “App Menu” service in Accessibility once, press “Connect automatically”. Android 10 and older: run adb tcpip 5555 once from a computer (repeat after a reboot). With root none of this is needed: allow root for the app once and it connects by itself.
 
