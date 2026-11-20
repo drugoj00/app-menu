@@ -23,6 +23,9 @@ import java.util.Locale
 
 /** Просьба открыть окно «Обновления» (из уведомления): главный экран подхватывает и сбрасывает. */
 object UpdOpen {
+    /** 13.0 код 57: окно «Обновления» открыто по «Устанавливать автоматически»: после проверки оно само запускает установку (на виду). */
+    @Volatile var autoStart = false
+    @Volatile var autoShown = false
     var requested by mutableStateOf(false)
     const val EXTRA = "open_updates"
 }
@@ -113,21 +116,12 @@ object UpdSched {
         val res = Updates.checkAll(ctx, force = false) { _, _ -> }
         val upd = res.filter { it.best != null && it.pkg !in Cfg.updSkip }
         log(ctx, "проверено ${res.size}, обновления: ${upd.size}" + if (upd.isNotEmpty()) " (" + upd.joinToString(", ") { it.label + " " + it.instName + "→" + it.best!!.versionName } + ")" else "")
-        val done = ArrayList<AppUpd>()
-        if (Cfg.autoInstall && upd.isNotEmpty()) {
-            if (!Adb.isConnected) runCatching { autoConnect(ctx) }
-            if (!Adb.isConnected) log(ctx, "автоустановка пропущена: нет root/ADB")
-            else for (a in upd) {
-                val c = a.best ?: continue
-                val r = runCatching { Updates.install(ctx, a, c, quiet = true) { } }.getOrElse { "fail:" + (it.message ?: "") }
-                log(ctx, "установка ${a.label} ${a.instName}→${c.versionName} [${c.source}]: $r")
-                if (r == "ok") done.add(a)
-            }
-        }
-        val left = upd.filter { a -> done.none { it.pkg == a.pkg } }
+        // 13.0 код 57 (правило «никаких тихих установок»): в фоне ничего не устанавливается. Найденное показывается уведомлением; установка идёт только в видимом окне
+        // «Обновления» (по нажатию; с «Устанавливать автоматически» окно открывается при открытии программы и ставит само, всё на виду: список, ход, итог по каждому).
+        if (Cfg.autoInstall && upd.isNotEmpty()) log(ctx, "автоустановка: фоном не ставится; окно с ходом откроется при открытии программы")
+        val left = upd
         val key = left.sortedBy { it.pkg }.joinToString(",") { it.pkg + ":" + it.best!!.versionName }
         Cfg.setUpdFound(left.size, key)
-        if (done.isNotEmpty()) notify(ctx, ctx.getString(R.string.upd_notif_installed, done.size), done.joinToString(", ") { it.label })
         if (left.isNotEmpty() && key != Cfg.updNotifiedKey()) {
             notify(ctx, ctx.getString(R.string.upd_notif_found, left.size), left.take(8).joinToString("\n") { it.label + ": " + it.instName + " → " + it.best!!.versionName } + if (left.size > 8) "\n…" else "")
             Cfg.setUpdNotifiedKey(key)
