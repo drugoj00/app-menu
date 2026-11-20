@@ -57,7 +57,8 @@ object SelfUpd {
         data class Found(val upd: AppUpd, val cand: UpdCand) : St
         data class Latest(val version: String) : St
         data object Failed : St
-        data class Installing(val status: String) : St
+        /** Окно «Установка» (13.0, код 57): что ставится ([info]), способ ([method]), ход ([status], [pct] 0..100 или -1 пока ход неизвестен). */
+        data class Installing(val status: String, val pct: Int = -1, val info: String = "", val method: String = "") : St
         data class Result(val text: String) : St
         /** Установка не завершена (отмена во внешнем установщике, таймаут): «Повторить / Закрыть». */
         data class Cancelled(val f: Found, val text: String) : St
@@ -272,15 +273,45 @@ object SelfUpd {
     /** Закрыть окно «Установка…» (кнопка «Закрыть» и «Назад»): установка в фоне может закончиться позже, тогда результат не показывается. */
     fun closeInstalling() { token++; if (state is St.Installing) state = null }
 
+    @Volatile private var curInfo = ""
+    @Volatile private var curMethod = ""
+    private fun inst(status: String): St.Installing {
+        val pct = Regex("""^\s*(\d{1,3})\s*%""").find(status)?.groupValues?.get(1)?.toIntOrNull()?.coerceIn(0, 100) ?: -1
+        return St.Installing(status, pct, curInfo, curMethod)
+    }
+
+    // итог обновления самой программы: после замены файла процесс перезапускается, поэтому цель записывается заранее, а новый процесс при запуске показывает итог
+    private const val PEND = "selfupd_target"
+    fun markTarget(ctx: Context, f: St.Found) {
+        ctx.getSharedPreferences("tvapps", Context.MODE_PRIVATE).edit().putString(PEND, f.cand.versionName + "|" + f.cand.versionCode + "|" + System.currentTimeMillis()).apply()
+    }
+
+    /** При запуске: если обновление было начато и версия выросла, показывается «Установлено: …»; старая незавершённая отметка (больше суток) молча стирается. */
+    fun showResultAfterRestart(ctx: Context) {
+        val sp = ctx.getSharedPreferences("tvapps", Context.MODE_PRIVATE)
+        val v = sp.getString(PEND, null) ?: return
+        val p = v.split("|")
+        val name = p.getOrNull(0).orEmpty(); val code = p.getOrNull(1)?.toLongOrNull() ?: 0L; val at = p.getOrNull(2)?.toLongOrNull() ?: 0L
+        val inst = runCatching { ctx.packageManager.getPackageInfo(PKG, 0) }.getOrNull() ?: return
+        val icode = if (android.os.Build.VERSION.SDK_INT >= 28) inst.longVersionCode else @Suppress("DEPRECATION") inst.versionCode.toLong()
+        val done = icode >= code && (code > 0 || Updates.compareVersions(inst.versionName.orEmpty(), name) >= 0)
+        if (done) {
+            sp.edit().remove(PEND).apply()
+            if (state == null) state = St.Result(ctx.getString(R.string.su_installed, inst.versionName.orEmpty(), icode))
+        } else if (System.currentTimeMillis() - at > 24 * 3600_000L) sp.edit().remove(PEND).apply()
+    }
+
     fun install(ctx: Context, scope: CoroutineScope, f: St.Found, ignorePerm: Boolean = false) {
         Cfg.setSelfUpdDismissed(f.cand.versionName)
-        // 13.0: без разрешения «неизвестные источники» системный установщик Android показывает «блокирует установку» и ничего не ставит, а программа считала это отменой;
-        // теперь причина названа заранее (ADB уже подключён: разрешение не нужно)
-        if (!ignorePerm && !canInstall(ctx) && !runCatching { Adb.isConnected }.getOrDefault(false)) { state = St.NoPerm(f, ctx.getString(R.string.su_noperm_text)); return }
         val my = ++token
         awaited = ""; leftApp = false; watching = true
-        state = St.Installing("")
         val app = ctx.applicationContext
+        // что ставится: название, установлено X (код) → новая Y (код), размер (окно «Установка», 13.0 код 57)
+        curInfo = app.getString(R.string.su_info, f.upd.label.ifBlank { app.getString(R.string.self_upd_title) }, f.upd.instName, f.upd.instCode, f.cand.versionName, f.cand.versionCode,
+            if (f.cand.size > 0) "%.1f".format(java.util.Locale.US, f.cand.size / 1048576.0) else "?")
+        curMethod = ""
+        markTarget(app, f)
+        state = inst("")
         // страховка: если через 5 минут окно всё ещё «Установка…», оно превращается в «Не удалось: повторить / закрыть»
         appScope.launch {
             kotlinx.coroutines.delay(INSTALL_TIMEOUT_MS)
@@ -288,10 +319,14 @@ object SelfUpd {
         }
         appScope.launch {
             val res = try {
-                InstallerPick.progressSink = { t -> if (token == my) state = St.Installing(t) }
-                Updates.install(app, f.upd, f.cand) { s -> if (token == my) state = St.Installing(s) }
+                InstallerPick.progressSink = { t -> if (token == my) state = inst(t) }
+                InstallerPick.methodSink = { m -> curMethod = m; if (token == my && state is St.Installing) state = inst((state as St.Installing).status) }
+                Updates.install(app, f.upd, f.cand) { s -> if (token == my) state = inst(s) }
             } catch (e: CancellationException) { throw e } catch (e: Throwable) { "fail:" + (e.message ?: "") } finally { InstallerPick.progressSink = null }
-            if (res == "system") {
+            if (res == "noperm") {
+                // системный способ без разрешения «Установка из неизвестных источников» (ADB и ADB-phon его не требуют): названа причина и дана кнопка настроек
+                if (token == my) state = St.NoPerm(f, app.getString(R.string.su_noperm_text))
+            } else if (res == "system") {
                 // файл передан внешнему установщику (системному, App Manager и др.): окно закрывается сразу, итог проверяется тихо по версии при возврате
                 awaited = f.cand.versionName; awaitedFound = f
                 if (token == my) state = null
@@ -307,7 +342,7 @@ object SelfUpd {
 @Composable
 fun SelfUpdHost() {
     val ctx = LocalContext.current
-    LaunchedEffect(Unit) { SelfUpd.clearStale(); SelfUpd.checkRequired(ctx.applicationContext); SelfUpd.autoCheck(ctx.applicationContext) }
+    LaunchedEffect(Unit) { SelfUpd.clearStale(); SelfUpd.showResultAfterRestart(ctx.applicationContext); SelfUpd.checkRequired(ctx.applicationContext); SelfUpd.autoCheck(ctx.applicationContext) }
     val owner = androidx.compose.ui.platform.LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(owner) {
         val ob = androidx.lifecycle.LifecycleEventObserver { _, e ->
@@ -505,7 +540,6 @@ private fun SelfUpdDialog(st: SelfUpd.St) {
                     Text(st.text, color = t.text, fontSize = 15.sp)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         ActionRow(HIcons.gear, stringResource(R.string.su_open_settings), "", Modifier.focusRequester(first)) { SelfUpd.openInstallPermission(ctx.applicationContext, st.f) }
-                        ActionRow(HIcons.download, stringResource(R.string.su_continue)) { SelfUpd.install(ctx, scope, st.f, ignorePerm = true) }
                         if (SelfUpd.savedFile(ctx) != null) ActionRow(HIcons.open, stringResource(R.string.su_open_file), stringResource(R.string.su_file_path, SelfUpd.savedFile(ctx)?.path.orEmpty())) { SelfUpd.openSavedFile(ctx) }
                         ActionRow(HIcons.open, stringResource(R.string.su_manual)) { openUrl(ctx, SelfUpd.manualUrl(st.f)) }
                         ActionRow(HIcons.list, stringResource(R.string.su_copy)) { SelfUpd.copyDetails(ctx, st.f) }
@@ -513,6 +547,12 @@ private fun SelfUpdDialog(st: SelfUpd.St) {
                     }
                 }
                 is SelfUpd.St.Installing -> {
+                    if (st.info.isNotBlank()) Text(st.info, color = t.text, fontSize = 14.sp)
+                    if (st.method.isNotBlank()) Text(stringResource(R.string.su_method, st.method), color = t.sub, fontSize = 13.sp)
+                    // определённая полоска хода (не бегущая): только когда ход известен (ADB-phon сообщает проценты)
+                    if (st.pct >= 0) androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth().heightIn(min = 10.dp, max = 10.dp).clip(RoundedCornerShape(5.dp)).background(t.chipSel)) {
+                        androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth(st.pct / 100f).heightIn(min = 10.dp, max = 10.dp).background(t.accent))
+                    }
                     Text(st.status.ifBlank { stringResource(R.string.self_upd_installing) }, color = t.accent, fontSize = 14.sp)
                     Text(stringResource(R.string.self_upd_wait), color = t.hint, fontSize = 12.sp)
                     Chip(stringResource(R.string.close), true, Modifier.focusRequester(first)) { SelfUpd.closeInstalling() }
