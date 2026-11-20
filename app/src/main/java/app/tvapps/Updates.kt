@@ -237,6 +237,32 @@ object Updates {
         return body.lines().firstOrNull { assetName.isNotBlank() && it.contains(assetName, true) }?.let { rx.find(it)?.groupValues?.get(1)?.lowercase() }.orEmpty()
     }
 
+    /**
+     * Запасной путь без API (13.0): https://github.com/<user>/<repo>/releases.atom (версия, описание), затем releases/expanded_assets/<тег> (имена файлов).
+     * Возвращает объект в формате ответа API (tag_name, body, assets[name, size, browser_download_url]); размер неизвестен (0), сумма берётся из описания.
+     */
+    private fun ghLatestViaFeed(user: String, repo: String): JSONObject? {
+        val feed = getOrNull("https://github.com/$user/$repo/releases.atom") ?: return null
+        val entry = Regex("(?s)<entry>(.*?)</entry>").find(feed)?.groupValues?.get(1) ?: return null
+        val link = Regex("""<link[^>]*href="[^"]*/releases/tag/([^"]+)"""").find(entry)?.groupValues?.get(1) ?: return null
+        val tag = java.net.URLDecoder.decode(link, "UTF-8")
+        val contentRaw = Regex("(?s)<content[^>]*>(.*?)</content>").find(entry)?.groupValues?.get(1).orEmpty()
+        fun unesc(t: String) = t.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&#39;", "'").replace("&amp;", "&")
+        val html = unesc(contentRaw)
+        val md = html.replace(Regex("(?i)<strong>(.*?)</strong>"), "**$1**").replace(Regex("(?i)<h[1-6][^>]*>"), "### ").replace(Regex("(?i)</h[1-6]>"), "\n")
+            .replace(Regex("(?i)<li[^>]*>"), "- ").replace(Regex("(?i)</li>|</p>|<br\\s*/?>"), "\n").replace(Regex("<[^>]+>"), "").let(::unesc)
+            .replace(Regex("\n{3,}"), "\n\n").trim()
+        val page = getOrNull("https://github.com/$user/$repo/releases/expanded_assets/${java.net.URLEncoder.encode(tag, "UTF-8").replace("+", "%20")}") ?: return null
+        val names = Regex("""href="(/$user/$repo/releases/download/[^"]+)"""").findAll(page).map { it.groupValues[1] }.distinct().toList()
+        val assets = JSONArray()
+        for (path in names) {
+            val nm = java.net.URLDecoder.decode(path.substringAfterLast('/'), "UTF-8")
+            assets.put(JSONObject().put("name", nm).put("size", 0).put("browser_download_url", "https://github.com$path"))
+        }
+        if (assets.length() == 0) return null
+        return JSONObject().put("tag_name", tag).put("body", md).put("assets", assets).put("prerelease", false).put("draft", false)
+    }
+
     private fun github(ctx: Context, pkg: String, token: String, fromCatalog: Boolean): UpdCand? {
         val repos = ghKnown(ctx, pkg).ifEmpty {
             if (!fromCatalog) emptyList() else sourceRepos(pkg).filter { it.first == "github" }.map { Triple(it.second.substringBefore('/'), it.second.substringAfter('/'), null) }
@@ -245,7 +271,12 @@ object Updates {
         for ((user, repo, extra) in repos) {
             // с фильтром по названию файла нужен не «latest», а список выпусков
             val j = if (extra == null) {
-                JSONObject(getOrNull("https://api.github.com/repos/$user/$repo/releases/latest", token) ?: continue)
+                // 13.0: публичный API GitHub (60 запросов в час на адрес) при отказе (403/429/сбой) заменяется лентой выпусков и страницей файлов без API
+                try { JSONObject(getOrNull("https://api.github.com/repos/$user/$repo/releases/latest", token) ?: continue) }
+                catch (e: Exception) {
+                    android.util.Log.w("TVApps", "обновление: API GitHub ($user/$repo): ${e.message}; запасной путь через ленту выпусков")
+                    ghLatestViaFeed(user, repo) ?: throw e
+                }
             } else {
                 val arr = JSONArray(getOrNull("https://api.github.com/repos/$user/$repo/releases?per_page=20", token) ?: continue)
                 (0 until arr.length()).map { arr.getJSONObject(it) }.firstOrNull { r ->
@@ -540,6 +571,8 @@ object Updates {
                 }
                 // обновление самой программы: служба заставки снимается с учёта заранее (иначе после замены файла Android 9 и старше её не подключает до перезагрузки)
                 if (app.pkg == ctx.packageName) SaverGuard.releaseBeforeSelfUpdate(ctx)
+                // 13.0: копия файла самообновления остаётся в кэше до следующей загрузки: из окна ошибки её можно открыть вручную (SelfUpd.openSavedFile)
+                if (app.pkg == ctx.packageName) runCatching { file.copyTo(File(File(ctx.cacheDir, "batch").apply { mkdirs() }, "self_update.apk"), true) }
                 // копия прежней версии (если включено): к ней можно вернуться через «Версии»
                 if (Cfg.backupOnDelete) runCatching { AppBackups.save(ctx, app.pkg) }
                 // 9.0 (код 45): ставим прямо из скачанного файла, он удаляется в finally (в архив копий кладётся только прежняя версия, и только по переключателю)

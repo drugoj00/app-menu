@@ -61,6 +61,76 @@ object SelfUpd {
         data class Result(val text: String) : St
         /** Установка не завершена (отмена во внешнем установщике, таймаут): «Повторить / Закрыть». */
         data class Cancelled(val f: Found, val text: String) : St
+        /** Android не разрешает этой программе устанавливать (нет «Установки из неизвестных источников»): кнопка настроек, продолжение другим способом, ручная загрузка. [waiting]: настройки открыты, при возврате установка продолжится сама. */
+        data class NoPerm(val f: Found, val text: String, val waiting: Boolean = false) : St
+    }
+
+    /** Причина последней неудачной проверки (для окна «Не удалось проверить» и для «Скопировать подробности»). */
+    @Volatile var failReason: String = ""
+
+    /** Разрешена ли этой программе установка приложений (Android 8+: «Установка из неизвестных источников» для программы); до Android 8 разрешение общее. */
+    fun canInstall(ctx: Context): Boolean =
+        if (android.os.Build.VERSION.SDK_INT >= 26) runCatching { ctx.packageManager.canRequestPackageInstalls() }.getOrDefault(true)
+        // Android 7.1 и старше (старые автомагнитолы): общее переключение «Неизвестные источники» в безопасности
+        else runCatching { @Suppress("DEPRECATION") android.provider.Settings.Secure.getInt(ctx.contentResolver, android.provider.Settings.Secure.INSTALL_NON_MARKET_APPS, 0) == 1 }.getOrDefault(true)
+
+    /** Открывает системную страницу разрешения «Установка из неизвестных источников» для этой программы (если страницы нет, общие настройки приложения). */
+    fun openInstallPermission(ctx: Context, f: St.Found) {
+        // Android 8+: страница «Установка из неизвестных источников» именно для этой программы; Android 7.1 и старше: общие настройки безопасности
+        val i = (if (android.os.Build.VERSION.SDK_INT >= 26) android.content.Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, android.net.Uri.parse("package:" + ctx.packageName))
+        else android.content.Intent(android.provider.Settings.ACTION_SECURITY_SETTINGS)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        val ok = runCatching { ctx.startActivity(i); true }.getOrDefault(false)
+        if (!ok) runCatching {
+            ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:" + ctx.packageName)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
+        state = St.NoPerm(f, ctx.getString(R.string.su_noperm_text), waiting = true)
+    }
+
+    /** Подробности для сообщения об ошибке: версия, Android, устройство, разрешение, ADB, последняя сетевая ошибка, адрес файла. */
+    fun details(ctx: Context, f: St.Found?): String = buildString {
+        val inst = runCatching { ctx.packageManager.getPackageInfo(PKG, 0) }.getOrNull()
+        appendLine("App Menu " + (inst?.versionName ?: "?") + " (" + (if (inst != null) (if (android.os.Build.VERSION.SDK_INT >= 28) inst.longVersionCode else @Suppress("DEPRECATION") inst.versionCode.toLong()) else 0) + ")")
+        appendLine("Android " + android.os.Build.VERSION.RELEASE + " (SDK " + android.os.Build.VERSION.SDK_INT + "), " + android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL)
+        appendLine("install permission: " + canInstall(ctx) + ", ADB: " + runCatching { Adb.isConnected }.getOrDefault(false))
+        if (f != null) { appendLine("new: " + f.cand.versionName + " (" + f.cand.versionCode + ")"); f.cand.urls.firstOrNull()?.let { appendLine("url: $it") } }
+        if (failReason.isNotBlank()) appendLine("check: $failReason")
+        NetErr.last?.let { appendLine("net: " + it.javaClass.simpleName + ": " + it.message) }
+        if (Updates.lastHashInfo.isNotBlank()) appendLine("hash: " + Updates.lastHashInfo)
+        appendLine("file: " + java.io.File(ctx.cacheDir, "batch/self_update.apk").let { if (it.isFile) it.path + " (" + it.length() + ")" else "-" })
+    }
+
+    fun copyDetails(ctx: Context, f: St.Found?) {
+        runCatching {
+            val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("App Menu", details(ctx, f)))
+            android.widget.Toast.makeText(ctx, ctx.getString(R.string.su_copied), android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** Адрес для ручной загрузки: файл выпуска или страница выпусков. */
+    fun manualUrl(f: St.Found?): String = f?.cand?.urls?.firstOrNull() ?: RELEASES
+
+    /** Скачанный файл обновления (копия остаётся до следующей загрузки): для «Открыть файл». */
+    fun savedFile(ctx: Context): java.io.File? = java.io.File(ctx.cacheDir, "batch/self_update.apk").takeIf { it.isFile && it.length() > 0 }
+
+    /** Открывает скачанный APK системным окном выбора (ACTION_VIEW + FileProvider): запасной путь, если установка из программы не запускается. */
+    fun openSavedFile(ctx: Context): Boolean {
+        val f = savedFile(ctx) ?: return false
+        return runCatching {
+            val uri = androidx.core.content.FileProvider.getUriForFile(ctx, ctx.packageName + ".files", f)
+            val i = android.content.Intent(android.content.Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive")
+                .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            ctx.startActivity(android.content.Intent.createChooser(i, ctx.getString(R.string.su_open_file)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+            true
+        }.getOrDefault(false)
+    }
+
+    /** Отказ системной сессии установки (получает приёмник SessionInstaller) для обновления самой программы. */
+    fun sessionFailed(ctx: Context, status: Int, msg: String) {
+        val f = awaitedFound ?: return
+        awaited = ""; leftApp = false; watching = false
+        state = if (status == android.content.pm.PackageInstaller.STATUS_FAILURE_BLOCKED || !canInstall(ctx)) St.NoPerm(f, ctx.getString(R.string.su_noperm_text))
+        else St.Cancelled(f, ctx.getString(R.string.su_session_failed, status, msg))
     }
 
     /** Состояние окна (общее для «Меню» и «Дома»: один процесс); null — окно закрыто. */
@@ -96,7 +166,7 @@ object SelfUpd {
         val v = lines.firstOrNull()?.trim().orEmpty().ifBlank { return null }
         val inst = runCatching { ctx.packageManager.getPackageInfo(PKG, 0) }.getOrNull()
         val tcode = lines.drop(1).firstOrNull { it.startsWith("code=") }?.removePrefix("code=")?.trim()?.toLongOrNull() ?: 0L
-        val cand = UpdCand("github", v, tcode, listOf(lines.drop(1).firstOrNull { it.startsWith("url=") }?.removePrefix("url=")?.trim() ?: "https://127.0.0.1/none.apk"), 1048576, note = "test", body = lines.drop(1).filter { !it.startsWith("url=") && !it.startsWith("code=") }.joinToString("\n"))
+        val cand = UpdCand("github", v, tcode, listOf(lines.drop(1).firstOrNull { it.startsWith("url=") }?.removePrefix("url=")?.trim() ?: "https://127.0.0.1/none.apk"), lines.drop(1).firstOrNull { it.startsWith("size=") }?.removePrefix("size=")?.trim()?.toLongOrNull() ?: 1048576, note = "test", body = lines.drop(1).filter { !it.startsWith("url=") && !it.startsWith("code=") }.joinToString("\n"))
         return AppUpd(PKG, "", inst?.versionName ?: "0", if (tcode > 0 && inst != null) (if (android.os.Build.VERSION.SDK_INT >= 28) inst.longVersionCode else @Suppress("DEPRECATION") inst.versionCode.toLong()) else 0, listOf(cand), emptyList())
     }
 
@@ -130,12 +200,13 @@ object SelfUpd {
         scope.launch(Dispatchers.Default) {
             try {
                 val (r, best) = fetch(ctx)
+                failReason = if (r.errors.isNotEmpty()) (NetErr.reason(ctx).ifBlank { "" } + " " + r.errors.joinToString("; ")).trim() else ""
                 state = when {
                     best != null -> St.Found(r, best)
                     r.cands.isEmpty() && r.errors.isNotEmpty() -> St.Failed
                     else -> St.Latest(r.instName)
                 }
-            } catch (e: CancellationException) { throw e } catch (e: Throwable) { state = St.Failed } finally { busy = false }
+            } catch (e: CancellationException) { throw e } catch (e: Throwable) { failReason = e.javaClass.simpleName + ": " + e.message; state = St.Failed } finally { busy = false }
         }
     }
 
@@ -182,6 +253,8 @@ object SelfUpd {
 
     /** Возврат из внешнего установщика: версия выросла — «Готово»; нет — «Установка не завершена: повторить / закрыть». */
     fun onBack(ctx: Context) {
+        // вернулись из настроек разрешения: если разрешение выдано, установка продолжается сама
+        (state as? St.NoPerm)?.let { np -> if (np.waiting && canInstall(ctx)) { state = null; install(ctx, appScope, np.f); return } }
         val want = awaited
         android.util.Log.i("TVApps", "самообновление: возврат, ждём версию '" + want + "', уходили=" + leftApp)
         if (want.isEmpty() || !leftApp) return
@@ -193,14 +266,17 @@ object SelfUpd {
         awaited = ""
         val f = awaitedFound
         state = if (cur.isNotEmpty() && Updates.compareVersions(cur, want) >= 0) St.Result(ctx.getString(R.string.ver_done))
-        else if (f != null) St.Cancelled(f, ctx.getString(R.string.self_upd_cancelled)) else null
+        else if (f != null) (if (!canInstall(ctx)) St.NoPerm(f, ctx.getString(R.string.su_noperm_text)) else St.Cancelled(f, ctx.getString(R.string.self_upd_cancelled))) else null
     }
 
     /** Закрыть окно «Установка…» (кнопка «Закрыть» и «Назад»): установка в фоне может закончиться позже, тогда результат не показывается. */
     fun closeInstalling() { token++; if (state is St.Installing) state = null }
 
-    fun install(ctx: Context, scope: CoroutineScope, f: St.Found) {
+    fun install(ctx: Context, scope: CoroutineScope, f: St.Found, ignorePerm: Boolean = false) {
         Cfg.setSelfUpdDismissed(f.cand.versionName)
+        // 13.0: без разрешения «неизвестные источники» системный установщик Android показывает «блокирует установку» и ничего не ставит, а программа считала это отменой;
+        // теперь причина названа заранее (ADB уже подключён: разрешение не нужно)
+        if (!ignorePerm && !canInstall(ctx) && !runCatching { Adb.isConnected }.getOrDefault(false)) { state = St.NoPerm(f, ctx.getString(R.string.su_noperm_text)); return }
         val my = ++token
         awaited = ""; leftApp = false; watching = true
         state = St.Installing("")
@@ -393,8 +469,9 @@ private fun SelfUpdDialog(st: SelfUpd.St) {
     val first = remember { FocusRequester() }
     LaunchedEffect(st::class) { runCatching { first.requestFocus() } }
     HDialog(onDismissRequest = { if (st is SelfUpd.St.Installing) SelfUpd.closeInstalling() else SelfUpd.dismiss() }) {
+        // 13.0: при крупном интерфейсе и шрифте окно выше экрана: прокручивается, кнопки внизу («Скопировать», «Закрыть») не пропадают
         Column(
-            Modifier.clip(RoundedCornerShape(20.dp)).background(t.tile).border(1.dp, t.border, RoundedCornerShape(20.dp)).padding(20.dp).fillMaxWidth(),
+            Modifier.heightIn(max = (screenDp().second * 0.92f).dp).verticalScroll(androidx.compose.foundation.rememberScrollState()).clip(RoundedCornerShape(20.dp)).background(t.tile).border(1.dp, t.border, RoundedCornerShape(20.dp)).padding(20.dp).fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(stringResource(R.string.self_upd_title), color = t.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -416,8 +493,22 @@ private fun SelfUpdDialog(st: SelfUpd.St) {
                 }
                 SelfUpd.St.Failed -> {
                     Text(stringResource(R.string.self_upd_failed), color = t.text, fontSize = 15.sp)
+                    if (SelfUpd.failReason.isNotBlank()) Text(stringResource(R.string.su_fail_reason, SelfUpd.failReason.take(220)), color = t.hint, fontSize = 12.sp)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         ActionRow(HIcons.refresh, stringResource(R.string.self_upd_retry), "", Modifier.focusRequester(first)) { SelfUpd.checkNow(ctx, scope) }
+                        ActionRow(HIcons.open, stringResource(R.string.su_manual)) { openUrl(ctx, SelfUpd.manualUrl(null)) }
+                        ActionRow(HIcons.list, stringResource(R.string.su_copy)) { SelfUpd.copyDetails(ctx, null) }
+                        Chip(stringResource(R.string.close), false) { SelfUpd.dismiss() }
+                    }
+                }
+                is SelfUpd.St.NoPerm -> {
+                    Text(st.text, color = t.text, fontSize = 15.sp)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ActionRow(HIcons.gear, stringResource(R.string.su_open_settings), "", Modifier.focusRequester(first)) { SelfUpd.openInstallPermission(ctx.applicationContext, st.f) }
+                        ActionRow(HIcons.download, stringResource(R.string.su_continue)) { SelfUpd.install(ctx, scope, st.f, ignorePerm = true) }
+                        if (SelfUpd.savedFile(ctx) != null) ActionRow(HIcons.open, stringResource(R.string.su_open_file), stringResource(R.string.su_file_path, SelfUpd.savedFile(ctx)?.path.orEmpty())) { SelfUpd.openSavedFile(ctx) }
+                        ActionRow(HIcons.open, stringResource(R.string.su_manual)) { openUrl(ctx, SelfUpd.manualUrl(st.f)) }
+                        ActionRow(HIcons.list, stringResource(R.string.su_copy)) { SelfUpd.copyDetails(ctx, st.f) }
                         Chip(stringResource(R.string.close), false) { SelfUpd.dismiss() }
                     }
                 }
@@ -430,6 +521,9 @@ private fun SelfUpdDialog(st: SelfUpd.St) {
                     Text(st.text, color = t.text, fontSize = 15.sp)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         ActionRow(HIcons.refresh, stringResource(R.string.self_upd_retry), "", Modifier.focusRequester(first)) { SelfUpd.install(ctx, scope, st.f) }
+                        if (SelfUpd.savedFile(ctx) != null) ActionRow(HIcons.open, stringResource(R.string.su_open_file), stringResource(R.string.su_file_path, SelfUpd.savedFile(ctx)?.path.orEmpty())) { SelfUpd.openSavedFile(ctx) }
+                        ActionRow(HIcons.open, stringResource(R.string.su_manual)) { openUrl(ctx, SelfUpd.manualUrl(st.f)) }
+                        ActionRow(HIcons.list, stringResource(R.string.su_copy)) { SelfUpd.copyDetails(ctx, st.f) }
                         Chip(stringResource(R.string.close), false) { SelfUpd.dismiss() }
                     }
                 }

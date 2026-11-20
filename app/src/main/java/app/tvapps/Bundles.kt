@@ -351,6 +351,7 @@ object SessionInstaller {
                             Toast.makeText(c, c.getString(R.string.bundle_done), Toast.LENGTH_LONG).show()
                             AppsMem.stamp = 0L; Cfg.bumpList()
                         } else {
+                            if (info != null && info.pkg == c.packageName) runCatching { SelfUpd.sessionFailed(c, status, msg) }
                             if (info != null) {
                                 InstallLog.add(c, InstallRes(info.name, info.pkg, false, msg.ifBlank { "status $status" }))
                                 Thread { runCatching { info.onFail() } }.start()
