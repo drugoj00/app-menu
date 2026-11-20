@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <application>
+    <application android:usesCleartextTraffic="true">
+        <!-- только debug: проверка загрузки обновлений с локального сервера (http без шифрования разрешён только здесь) -->
+        <receiver android:name="app.tvapps.DebugUpdHook" android:exported="true">
+            <intent-filter><action android:name="app.tvapps.DEBUG_UPD" /></intent-filter>
+        </receiver>
         <!-- только debug: запуск экрана «Дом» командой оболочки, без подмены главного экрана -->
         <activity-alias android:name="app.tvapps.HomeDebug" android:targetActivity="app.tvapps.HomeActivity" android:exported="true" />
         <receiver android:name="app.tvapps.DebugHook" android:exported="true">
