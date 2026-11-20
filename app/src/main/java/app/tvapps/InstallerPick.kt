@@ -157,6 +157,9 @@ object InstallerPick {
     /** Ход тихой установки для окна «Установка…» вызывающего (задаётся им на время установки). */
     @Volatile var progressSink: ((String) -> Unit)? = null
 
+    /** Название выбранного способа установки для окна «Установка» (13.0, код 57): окно показывает, чем именно ставится. */
+    @Volatile var methodSink: ((String) -> Unit)? = null
+
     /**
      * Установка выбранным способом. Порядок (9.0): выбор установщика уже сделан → ОКНО СВЕДЕНИЙ О ПАКЕТЕ для ВСЕХ способов (до любого запуска установщика) → «Установить» → установка.
      * Другие приложения до окна сведений не открываются. «ADB-phon»: тихая передача файла службе ADB-phon без его экрана; если службы нет, откат на окно ADB-phon (в окне сведений об этом сказано).
@@ -170,6 +173,7 @@ object InstallerPick {
             val note = if (id == ADBPHON && !silent.first) app.getString(R.string.inst_note_fallback, silent.second) else ""
             if (!InstallInfo.confirm(app, files, label, note)) return "fail:" + app.getString(R.string.inst_cancelled)
         }
+        methodSink?.invoke(labelOf(app, id))
         return when {
             id == ADB -> {
                 if (!Adb.isConnected) return "need_adb"
@@ -177,6 +181,7 @@ object InstallerPick {
                 val r = Adb.installFiles(files, "-r")
                 if (r.contains("Success", true)) "ok" else "fail:" + r.take(140)
             }
+            id == SYSTEM && pkg == app.packageName && !SelfUpd.canInstall(app) -> "noperm"
             id == SYSTEM -> try {
                 withContext(Dispatchers.IO) { Installers.sessionInstall(app, files, {}, label) }
                 "system"
