@@ -16,7 +16,7 @@
 
 **Версия 13.0.** [AppMenu-13.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `a877b67b18b79beb85052408cd99821881cc97c34329990e343e4564982c3b13`
+SHA-256: `16e174147c7077d0d31e3a93b3a40e9858a8f6525257b871283d7527b6f6a592`
 
 ## Что нового в 13.0
 
