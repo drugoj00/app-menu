@@ -469,7 +469,9 @@ object Updates {
         val sem = Semaphore(4)
         var done = 0
         onProgress(0, pkgs.size)
-        coroutineScope {
+        val extra = testUpdates(ctx)
+        if (extra.isNotEmpty()) return@withContext extra.sortedBy { it.label.lowercase() }   // отладка: только тестовые, настоящие приложения не трогаются
+        (coroutineScope {
             pkgs.map { p ->
                 async {
                     val r = sem.withPermit { runCatching { check(ctx, p, force) }.getOrNull() }
@@ -477,7 +479,23 @@ object Updates {
                     r
                 }
             }.map { it.await() }.filterNotNull()
-        }.sortedBy { it.label.lowercase() }
+        }.filter { r -> extra.none { it.pkg == r.pkg } } + extra).sortedBy { it.label.lowercase() }
+    }
+
+    /** ТОЛЬКО в отладочной сборке: files/test_updates.txt, строки «пакет|версия|код|адрес|размер» дают тестовые обновления для проверки окна «Обновить все». В выпускной сборке пусто. */
+    private fun testUpdates(ctx: Context): List<AppUpd> {
+        if (!BuildConfig.DEBUG) return emptyList()
+        val f = File(ctx.filesDir, "test_updates.txt")
+        if (!f.isFile) return emptyList()
+        val pm = ctx.packageManager
+        return f.readLines().mapNotNull { ln ->
+            val p = ln.split("|")
+            if (p.size < 5) return@mapNotNull null
+            val pi = runCatching { pm.getPackageInfo(p[0].trim(), 0) }.getOrNull() ?: return@mapNotNull null
+            val code = if (Build.VERSION.SDK_INT >= 28) pi.longVersionCode else @Suppress("DEPRECATION") pi.versionCode.toLong()
+            val label = runCatching { pm.getApplicationLabel(pi.applicationInfo!!).toString() }.getOrDefault(p[0])
+            AppUpd(p[0].trim(), label, pi.versionName.orEmpty(), code, listOf(UpdCand("github", p[1].trim(), p[2].trim().toLong(), listOf(p[3].trim()), p[4].trim().toLong(), note = "test")), emptyList())
+        }
     }
 
     // ---------------------------------------------------------------- проверки файла и установка
