@@ -1140,10 +1140,10 @@
     <string name="inst_downgrade">Version is lower than installed: a downgrade works only through ADB or with removal</string>
     <string name="inst_go">Install</string>
     <string name="ui_size_title">Interface size</string>
-    <string name="ui_size_hint">On large screens with low density (car radios, tablets) the program scales itself up automatically; this multiplier is applied on top. The final factor is shown below.</string>
+    <string name="ui_size_hint">Changes only the interface: fonts, buttons, settings, panels and menus. The icon grid and icons do not change: their size, rows and columns are set in Menu > Grid and icons. On large low-density screens (car radios, tablets) the program also scales itself up automatically; this multiplier is applied to the interface on top.</string>
     <string name="ui_size_total">Final factor: ×%1$s (auto ×%2$s)</string>
     <string name="ui_sz_small">Small 0.75</string>
-    <string name="ui_sz_auto">Auto 1.0</string>
+    <string name="ui_sz_auto">Medium 1.0</string>
     <string name="ui_sz_big">Large 1.25</string>
     <string name="ui_sz_huge">Very large 1.5</string>
     <string name="ui_sz_reset">Default</string>
@@ -1168,4 +1168,6 @@
     <string name="clean_do">Clear</string>
     <string name="clean_done">Freed: %1$s</string>
     <string name="bk_merged">Copies merged</string>
+    <string name="back_start_title">Double Back: to the start of the list</string>
+    <string name="back_start_hint">On the remote, the second press of “Back” puts the cursor on the first card of the first row after the widgets (in the menu: on the first app). The first press works as before.</string>
 </resources>
