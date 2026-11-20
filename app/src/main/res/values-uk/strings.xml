@@ -74,7 +74,7 @@
     <string name="upd_minsdk_bad">Оновлення потребує новішого Android</string>
     <string name="upd_hash_bad">Контрольна сума не збіглася: файл не встановлено</string>
     <string name="upd_uptodate">Завантажений файл не новіший за встановлений</string>
-    <string name="upd_need_adb_all">«Оновити все» працює з root або ADB (встановлення без запитань)</string>
+    <string name="upd_need_adb_all">«Оновити всі» працює з root або ADB; у списку видно хід та підсумок для кожного застосунку</string>
     <string name="upd_errors">Помилки джерел: %1$s</string>
     <string name="upd_src_appgallery">AppGallery (Huawei)</string>
     <string name="upd_src_rustore">RuStore</string>
@@ -88,7 +88,7 @@
     <string name="upd_every_24">Раз на добу</string>
     <string name="upd_every_72">Раз на 3 доби</string>
     <string name="upd_auto_install">Встановлювати автоматично</string>
-    <string name="upd_auto_install_hint">Лише з root або ADB. Підпис перевіряється, пропущені застосунки не чіпаються. Вимкнено: лише сповіщення.</string>
+    <string name="upd_auto_install_hint">Потрібен root або ADB. У фоні нічого не встановлюється: під час відкриття програми вікно «Оновлення» саме почне встановлення, і видно список, хід та підсумок для кожного застосунку. Підпис перевіряється, пропущені застосунки не чіпаються. Вимкнено: лише сповіщення.</string>
     <string name="upd_notif_channel">Оновлення застосунків</string>
     <string name="upd_notif_found">Доступно оновлень: %1$d</string>
     <string name="upd_notif_installed">Оновлено застосунків: %1$d</string>
@@ -1180,4 +1180,19 @@
     <string name="su_file_path">Файл: %1$s</string>
     <string name="su_fail_reason">Причина: %1$s</string>
     <string name="su_session_failed">Системний установник відмовив (код %1$d): %2$s. Завантажений файл можна відкрити вручну.</string>
+    <string name="silent_denied">ADB-phon відхилив запит: %1$s</string>
+    <string name="silent_badsig">ADB-phon: підпис файлу не збігся з підписом встановленої програми</string>
+    <string name="silent_error">ADB-phon не зміг встановити: %1$s</string>
+    <string name="su_info">%1$s: встановлено %2$s (%3$d) → нова %4$s (%5$d), розмір %6$s МБ</string>
+    <string name="su_method">Спосіб встановлення: %1$s</string>
+    <string name="su_installed">Встановлено: Меню застосунків %1$s (%2$d).</string>
+    <string name="text_size_title">Розмір тексту</string>
+    <string name="text_size_hint">Лише текст вікон програми (налаштування, діалоги, меню). Не змінює «Розмір інтерфейсу», сітку та підписи значків. «Авто» — зручний розмір для екрана.</string>
+    <string name="ts_small">Дрібний 0,85</string>
+    <string name="ts_auto">Авто 1,0</string>
+    <string name="ts_big">Великий 1,25</string>
+    <string name="ts_huge">Дуже великий 1,5</string>
+    <string name="upd_row_wait">Очікує</string>
+    <string name="upd_row_done">Встановлено: %1$s (%2$d)</string>
+    <string name="upd_size_mb">%1$s МБ</string>
 </resources>
