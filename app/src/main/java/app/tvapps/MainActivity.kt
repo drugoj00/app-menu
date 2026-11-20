@@ -505,7 +505,11 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
         }
     }
     // нажатие на уведомление «Доступно обновлений»: сразу открываем окно «Обновления»
-    LaunchedEffect(UpdOpen.requested) { if (UpdOpen.requested) { screen = "main"; updatesAll = true; UpdOpen.requested = false } }
+    LaunchedEffect(UpdOpen.requested) { if (UpdOpen.requested) { screen = "main"; if (Cfg.autoInstall) UpdOpen.autoStart = true; updatesAll = true; UpdOpen.requested = false } }
+    // «Устанавливать автоматически»: при открытии программы (один раз за процесс), если расписание нашло обновления, окно «Обновления» открывается и ставит само; всё на виду
+    LaunchedEffect(Unit) {
+        if (Cfg.autoInstall && Cfg.autoUpd && Cfg.updFound > 0 && !UpdOpen.autoShown) { UpdOpen.autoShown = true; UpdOpen.autoStart = true; updatesAll = true }
+    }
     SelfUpdHost()
     ReceiveHost()
     // перетаскивание: над какой плиткой палец (и в центре ли) и готова ли папка принять значок
