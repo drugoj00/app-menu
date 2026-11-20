@@ -78,7 +78,8 @@ object UiScale {
     fun ExtraScale(content: @Composable () -> Unit) {
         val ctx = LocalContext.current
         val k = totalK(ctx, Cfg.uiMul)
-        if (k in 0.99f..1.01f) { content(); return }
+        val tm = Cfg.textMul
+        if (k in 0.99f..1.01f && tm in 0.99f..1.01f) { content(); return }
         val d = LocalDensity.current
         val cfg = LocalConfiguration.current
         val cfgK = remember(cfg, k) {
@@ -88,7 +89,8 @@ object UiScale {
                 // smallestScreenWidthDp не делится: он выбирает «телефонный» или «широкий» вид окон; увеличение текста не должно превращать магнитолу в телефон (кнопки вдвое мельче)
             }
         }
-        CompositionLocalProvider(LocalDensity provides Density(d.density * k, d.fontScale), LocalConfiguration provides cfgK) { content() }
+        // «Размер текста» (13.0 код 57): множитель только для шрифта (sp), не для размеров в dp; независим от «Размера интерфейса»; подписи под значками сетки его не получают (GridUnscale)
+        CompositionLocalProvider(LocalDensity provides Density(d.density * k, d.fontScale * tm), LocalConfiguration provides cfgK) { content() }
     }
 
     /**
@@ -103,7 +105,8 @@ object UiScale {
         val auto = autoK(ctx)
         val total = totalK(ctx, Cfg.uiMul)
         val r = if (auto > 0f) total / auto else 1f   // доля, которую внёс именно ручной множитель (с учётом границ 0,5…2,5)
-        if (r in 0.99f..1.01f) { content(); return }
+        val tm = Cfg.textMul
+        if (r in 0.99f..1.01f && tm in 0.99f..1.01f) { content(); return }
         val d = LocalDensity.current
         val cfg = LocalConfiguration.current
         val cfgR = remember(cfg, r) {
@@ -112,7 +115,7 @@ object UiScale {
                 it.screenHeightDp = (cfg.screenHeightDp * r).toInt()
             }
         }
-        CompositionLocalProvider(LocalDensity provides Density(d.density / r, d.fontScale), LocalConfiguration provides cfgR) { content() }
+        CompositionLocalProvider(LocalDensity provides Density(d.density / r, d.fontScale / tm), LocalConfiguration provides cfgR) { content() }
     }
 
     @Composable
@@ -186,7 +189,7 @@ fun btnSp(v: Int): androidx.compose.ui.unit.TextUnit = if (isNarrow()) (v / (pho
  * в ландшафте прежние 2,25. Надписи на кнопках ([btnSp]) компенсируют разницу, поэтому их размер не зависит от этого выбора.
  */
 @Composable
-fun phoneTextBoost(): Float = if (LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) 1.8f else TEXT_BOOST
+fun phoneTextBoost(): Float = 1.8f   // 13.0 код 57: одинаково в портрете и ландшафте (раньше в ландшафте 2,25 при k=1: текст выходил мелким)
 
 /** Телефон (в портрете и в ландшафте): меньшая сторона экрана меньше 600 dp; у приставок и телевизоров она больше. */
 @Composable
@@ -223,7 +226,7 @@ fun HalfUi(content: @Composable () -> Unit) {
 const val PHONE_PORTRAIT_K = 1.4f
 
 @Composable
-fun phoneBaseK(): Float = if (LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) PHONE_PORTRAIT_K else 1f
+fun phoneBaseK(): Float = PHONE_PORTRAIT_K   // 13.0 код 57: тот же размер в ландшафте (владелица: в ландшафте текст мелкий)
 
 /** Размеры экрана в dp текущей плотности (внутри HalfUi они вдвое больше, чем в настройках системы). */
 @Composable
