@@ -241,8 +241,9 @@ object TopMode {
     fun get(ctx: Context): Int = ctx.getSharedPreferences("tvapps", Context.MODE_PRIVATE).getInt(KEY, 0)
     fun set(ctx: Context, v: Int) { ctx.getSharedPreferences("tvapps", Context.MODE_PRIVATE).edit().putInt(KEY, v).apply(); TopUi.tick.intValue++ }
     fun isTv(ctx: Context): Boolean =
-        (ctx.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_TYPE_MASK) == android.content.res.Configuration.UI_MODE_TYPE_TELEVISION ||
-            ctx.packageManager.hasSystemFeature("android.software.leanback")
+        // отладочная сборка: файл files/dbg_notv выдаёт эмулятор ТВ за телефон (проверка портрета без телефона); в выпуске BuildConfig.DEBUG = false
+        !(BuildConfig.DEBUG && java.io.File(ctx.filesDir, "dbg_notv").exists()) && ((ctx.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_TYPE_MASK) == android.content.res.Configuration.UI_MODE_TYPE_TELEVISION ||
+            ctx.packageManager.hasSystemFeature("android.software.leanback"))
     fun visible(ctx: Context): Boolean = when (get(ctx)) { 1 -> true; 2 -> false; else -> isTv(ctx) }
 }
 

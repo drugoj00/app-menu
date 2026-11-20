@@ -75,9 +75,8 @@ object MenuMemory {
         firstIndex = sp.getInt("mm_sidx", 0)
         firstOffset = sp.getInt("mm_soff", 0)
         settingsSub = "main"   // подэкраны настроек (скрытые, исключения) заново открываются сверху, не с прежнего места
-        settingsScroll = sp.getInt("mm_set_scroll", 0)
-        settingsFocusText = sp.getString("mm_set_ftext", null)
-        settingsFocusY = sp.getFloat("mm_set_fy", 0f)
+        // 20.11.2026: прокрутка и кнопка в фокусе в настройках помнятся только до закрытия программы (процесса): после нового запуска всё свёрнуто и сверху
+        settingsScroll = 0; settingsFocusText = null; settingsFocusY = 0f
         // столы: после закрытия программы положение не запоминается, если не включено «Запоминать положение после выхода»
         if (Desks.on && !Cfg.rememberPos) restore(null)
         return this
@@ -99,6 +98,8 @@ object MenuMemory {
     fun setSettingsSub(sub: String) { settingsSub = MenuMemoryLogic.settingsSub(sub) }
     fun setSettingsScroll(v: Int) { settingsScroll = v.coerceAtLeast(0) }
     fun setSettingsFocus(text: String, y: Float) { settingsFocusText = text; settingsFocusY = y }
+    /** Новый вход в настройки (20.11.2026): все разделы свёрнуты, поэтому прежняя прокрутка и кнопка в фокусе не нужны. */
+    fun clearSettingsPos() { settingsScroll = 0; settingsFocusText = null; settingsFocusY = 0f }
 
     fun save(ctx: Context) {
         ctx.getSharedPreferences("tvapps", Context.MODE_PRIVATE).edit()
@@ -109,7 +110,8 @@ object MenuMemory {
     /** Выход из меню: следующее открытие начинается с начала. */
     fun clear(ctx: Context) {
         focusPkg = null; focusIndex = 0; firstPkg = null; firstIndex = 0; firstOffset = 0
-        settingsSub = "main"; settingsScroll = 0; settingsFocusText = null; settingsFocusY = 0f
+        // положение в настройках («Назад» из меню его не сбрасывает, 20.11.2026) живёт до закрытия процесса
+        settingsSub = "main"
         save(ctx)
     }
 }

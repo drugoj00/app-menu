@@ -186,6 +186,12 @@ internal fun HomeRowsView(
         value = if (needInputs) withContext(Dispatchers.IO) { TvInputs.list(ctx) } else emptyList()
     }
     val movingReq = remember { FocusRequester() }
+    // «Назад» ещё раз (13.0): первая строка после виджетов (виджетов нет: первая строка); пустые и неизвестные строки пропускаются в RowBack.goStart
+    run {
+        val w = layout.rows.indexOfFirst { it.kind == "widgets" }
+        val after = if (w >= 0) layout.rows.drop(w + 1).filter { it.kind != "widgets" } else emptyList()
+        RowBack.startOrder = (after + layout.rows.filter { it.kind != "widgets" }).map { it.id }.distinct()
+    }
     Column(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(layout.rowGap.dp)) {
         layout.rows.forEachIndexed { idx, row ->
             androidx.compose.runtime.key(row.id) {
@@ -277,7 +283,8 @@ private fun AppsRow(
         val fk = row.id + "|" + els.first().item.id
         RowBack.rows[row.id] = RowBack.Row({ it.startsWith(row.id + "|") }, fk) {
             rowScope.launch {
-                runCatching { state.scrollToItem(0) }
+                // 13.0: прокрутка только если строка сдвинута и не дольше 0,4 с: на слабой приставке scrollToItem изредка не возвращался, и «Назад» молча не работало
+                if (state.firstVisibleItemIndex > 0 || state.firstVisibleItemScrollOffset > 0) runCatching { kotlinx.coroutines.withTimeoutOrNull(400) { state.scrollToItem(0) } }
                 runCatching { androidx.compose.runtime.withFrameNanos { }; androidx.compose.runtime.withFrameNanos { } }
                 runCatching { TileFocus.reqs[fk]?.requestFocus() }
             }
@@ -530,7 +537,8 @@ private fun CardsRow(
         val fk = "p|" + programs.first().kind.toString() + "|" + programs.first().id
         RowBack.rows[row.id] = RowBack.Row({ k -> progRef.value.any { "p|" + it.kind.toString() + "|" + it.id == k } }, fk) {
             rowScope.launch {
-                runCatching { state.scrollToItem(0) }
+                // 13.0: прокрутка только если строка сдвинута и не дольше 0,4 с: на слабой приставке scrollToItem изредка не возвращался, и «Назад» молча не работало
+                if (state.firstVisibleItemIndex > 0 || state.firstVisibleItemScrollOffset > 0) runCatching { kotlinx.coroutines.withTimeoutOrNull(400) { state.scrollToItem(0) } }
                 runCatching { androidx.compose.runtime.withFrameNanos { }; androidx.compose.runtime.withFrameNanos { } }
                 runCatching { TileFocus.reqs[fk]?.requestFocus() }
             }

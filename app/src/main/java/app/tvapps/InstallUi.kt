@@ -240,6 +240,8 @@ fun InstallDialog(files: List<ApkFile>, onClose: () -> Unit) {
                     if (busy) stringResource(R.string.install_progress, progress.first + 1, progress.second, cur) else stringResource(R.string.install_summary, ok, bad),
                     color = if (busy) t.accent else t.text, fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis,
                 )
+                // определённая полоска: заполняется по мере установки (готовых файлов из всех), в конце просто заполнена
+                FlatProgress(if (busy) (if (progress.second > 0) progress.first.toFloat() / progress.second else 0f) else 1f)
                 val sc = rememberScrollState()
                 Column(Modifier.heightIn(max = 340.dp).pageKeys(sc, scope).verticalScrollbar(sc).verticalScroll(sc).padding(end = ScrollbarMath.RESERVE_DP.dp)) { res.forEach { FocusItem { ResRow(it) } } }
             }

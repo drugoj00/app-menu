@@ -833,6 +833,19 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
         val lst = shownRef.value; val ci = lst.indexOfFirst { it.pkg == lastFocus }; val cn = colsNow()
         if (ci > 0 && cn > 1 && ci % cn != 0) ci - ci % cn else -1
     } else -1
+    // 13.0 (просьба с 4PDA): следующее «Назад» (курсор уже на первой плитке своей строки или режим списка) ставит курсор на первую плитку списка и прокручивает к ней;
+    // на самой первой плитке «Назад» работает как прежде. Зарегистрирован до «возврата в строку» и потому уступает ему.
+    val startPkg = shownRef.value.firstOrNull()?.pkg
+    val backStartOn = Cfg.backToStart && gridHasFocus && moving == null && !selectMode && !searching && !deskMenu && menuFor == null && folderOpen == null &&
+        startPkg != null && lastFocus != null && lastFocus != startPkg && rowBackIdx < 0
+    BackHandler(enabled = backStartOn) {
+        val p = startPkg
+        if (p != null) scope.launch {
+            runCatching { if (Cfg.listMode) listState.scrollToItem(0) else gridState.scrollToItem(0) }
+            runCatching { androidx.compose.runtime.withFrameNanos { }; androidx.compose.runtime.withFrameNanos { } }
+            runCatching { reqFor(p).requestFocus() }
+        }
+    }
     BackHandler(enabled = rowBackIdx >= 0) { shownRef.value.getOrNull(rowBackIdx)?.pkg?.let { p -> runCatching { reqFor(p).requestFocus() } } }
     /** Плавно показывает плитку, только если она не видна целиком (прежний animateScrollToItem каждый раз выталкивал её к верху экрана: сетка «прыгала»). */
     // зафиксированный масштаб (DeskFullMotion): плавная автопрокрутка к фокусу на «Доме»/в меню не должна зависеть от системной
@@ -1327,7 +1340,7 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
         if (shown.isEmpty()) {
             if (!searchCat && (loadedOnce || query.isNotBlank())) Text(stringResource(if (pagesMode && allShown.isNotEmpty()) R.string.desk_empty else R.string.nothing_found), color = t.sub, fontSize = 16.sp, modifier = Modifier.padding(top = 24.dp))
             else if (!searchCat) Text(stringResource(R.string.loading_apps), color = t.sub, fontSize = 16.sp, modifier = Modifier.padding(top = 24.dp))
-        } else if (Cfg.listMode) {
+        } else if (Cfg.listMode) UiScale.GridUnscale {
             androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().onGloballyPositioned { gridLc[0] = it }) {
             LazyColumn(Modifier.fillMaxSize().verticalScrollbar(listState).onFocusChanged { gridHasFocus = it.hasFocus }, state = listState, contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 8.dp, end = 8.dp + ScrollbarMath.RESERVE_DP.dp, top = 8.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 // 18.11.2026: animateItem — встроенная анимация LazyList, своего withContext не принимает (вызов animateTo внутри неё не наш),
@@ -1336,7 +1349,7 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
             }
             DragGhostHost({ dragging }, { dragEntry }) { dragXY }
             }
-        } else androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().onGloballyPositioned { gridLc[0] = it }) {
+        } else UiScale.GridUnscale { androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().onGloballyPositioned { gridLc[0] = it }) {
             // Правила сетки (все настройки работают вместе и не отменяют друг друга):
             //  • «Размер значков» и «Масштаб» задают размер значка (размер x масштаб) и ширину ячейки при авто-столбцах;
             //  • «Столбцы» задают число столбцов, значок при этом не шире своей ячейки;
@@ -1433,7 +1446,7 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
             }
             DragGhostHost({ dragging }, { dragEntry }) { dragXY }
             }
-        }
+        } }
         }
         // полоса столов внизу под сеткой (только когда столов больше одного); на телефоне над системной навигацией
         if (pagesMode && pagesList.size > 1) HalfUi {

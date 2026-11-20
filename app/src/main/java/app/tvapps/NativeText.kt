@@ -86,7 +86,8 @@ fun Text(
     val col = color.takeIf { it != Color.Unspecified } ?: style.color.takeIf { it != Color.Unspecified } ?: LocalContentColor.current
     val fsPx = with(density) { fs.toPx() }
     val lsPx = if (ls == TextUnit.Unspecified) 0f else with(density) { ls.toPx() }
-    val lhPx = if (lh == TextUnit.Unspecified) -1f else with(density) { lh.toPx() }
+    // межстрочный интервал в em (HalfUi задаёт 1,45 em) считается от размера шрифта; toPx() понимает только sp
+    val lhPx = if (lh == TextUnit.Unspecified) -1f else if (lh.isEm) lh.value * fsPx else with(density) { lh.toPx() }
     val holder = remember { TextHolder() }
     val alignment = when (align) {
         TextAlign.Center -> Layout.Alignment.ALIGN_CENTER

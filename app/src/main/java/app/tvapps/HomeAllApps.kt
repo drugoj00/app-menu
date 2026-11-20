@@ -114,7 +114,8 @@ internal fun AllAppsPanel(apps: List<Entry>, height: Dp, openApp: (Entry) -> Uni
             // размер плиток как в меню: значок и столбцы берутся из настроек программы
             val icon = ((when (Cfg.iconSize) { 3 -> 34f; 0 -> 52f; 2 -> 96f; else -> 72f }) * Cfg.iconScale / 100f).coerceAtLeast(30f)
             val cellW = (icon + 34f).coerceAtLeast(76f)
-            LazyVerticalGrid(
+            // 20.11.2026: «размер интерфейса» не меняет значки: настройки сетки (размер, масштаб, столбцы) действуют независимо
+            UiScale.GridUnscale { LazyVerticalGrid(
                 columns = if (Cfg.columns > 0) GridCells.Fixed(Cfg.columns) else GridCells.Adaptive(cellW.dp),
                 state = grid,
                 modifier = Modifier.fillMaxWidth().weight(1f).verticalScrollbar(grid),
@@ -125,7 +126,7 @@ internal fun AllAppsPanel(apps: List<Entry>, height: Dp, openApp: (Entry) -> Uni
                 items(shown, key = { it.pkg }) { e ->
                     PanelTile(e, icon, if (e === shown.first()) firstReq else null, openApp, onDlg)
                 }
-            }
+            } }
         }
     }
 }

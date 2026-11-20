@@ -8,6 +8,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.em
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
 
 /**
  * Масштаб интерфейса для экранов, где система занижает плотность: автомагнитолы показывают 160 dpi при реальных ~270 ppi (экран 121 x 68 мм при 1280 x 720),
@@ -88,6 +91,30 @@ object UiScale {
         CompositionLocalProvider(LocalDensity provides Density(d.density * k, d.fontScale), LocalConfiguration provides cfgK) { content() }
     }
 
+    /**
+     * 20.11.2026 (владелица): «размер интерфейса» меняет ТОЛЬКО интерфейс (шрифты, кнопки, настройки, панели, меню), а сетка значков и сами значки
+     * имеют свои настройки (строки, столбцы, размер значков, масштаб, подписи) и от размера интерфейса не меняются. Ручной множитель [Cfg.uiMul]
+     * применяется на корне ([ExtraScale]), поэтому область сетки возвращает плотность обратно: размеры в dp внутри снова такие, как до множителя.
+     * Автомасштаб магнитол/планшетов ([autoK]) сюда не входит: он про экран, а не про выбор владелицы, и остаётся в силе и для сетки.
+     */
+    @Composable
+    fun GridUnscale(content: @Composable () -> Unit) {
+        val ctx = LocalContext.current
+        val auto = autoK(ctx)
+        val total = totalK(ctx, Cfg.uiMul)
+        val r = if (auto > 0f) total / auto else 1f   // доля, которую внёс именно ручной множитель (с учётом границ 0,5…2,5)
+        if (r in 0.99f..1.01f) { content(); return }
+        val d = LocalDensity.current
+        val cfg = LocalConfiguration.current
+        val cfgR = remember(cfg, r) {
+            android.content.res.Configuration(cfg).also {
+                it.screenWidthDp = (cfg.screenWidthDp * r).toInt()
+                it.screenHeightDp = (cfg.screenHeightDp * r).toInt()
+            }
+        }
+        CompositionLocalProvider(LocalDensity provides Density(d.density / r, d.fontScale), LocalConfiguration provides cfgR) { content() }
+    }
+
     @Composable
     fun Root(content: @Composable () -> Unit) = ExtraScale { Inner(content) }
 
@@ -152,7 +179,14 @@ const val TEXT_BOOST = 2.25f
 
 /** Размер шрифта надписей на кнопках: на телефоне остаётся прежним, чтобы кнопки не росли вместе с остальным текстом. */
 @Composable
-fun btnSp(v: Int): androidx.compose.ui.unit.TextUnit = if (isNarrow()) (v / (TEXT_BOOST / 1.5f)).sp else v.sp
+fun btnSp(v: Int): androidx.compose.ui.unit.TextUnit = if (isNarrow()) (v / (phoneTextBoost() / 1.5f)).sp else v.sp
+
+/**
+ * Надбавка к тексту в окнах телефона: в портрете 1,8 (при базовом размере 1,4 обычный текст выходит около 16 sp, а не 20: заголовки не крупнее кнопок),
+ * в ландшафте прежние 2,25. Надписи на кнопках ([btnSp]) компенсируют разницу, поэтому их размер не зависит от этого выбора.
+ */
+@Composable
+fun phoneTextBoost(): Float = if (LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) 1.8f else TEXT_BOOST
 
 /** Телефон (в портрете и в ландшафте): меньшая сторона экрана меньше 600 dp; у приставок и телевизоров она больше. */
 @Composable
@@ -169,10 +203,27 @@ fun HalfUi(content: @Composable () -> Unit) {
     else {
         // один и тот же объект, пока плотность не изменилась: LocalDensity статический, и новый (не равный) объект при каждой перекомпозиции
         // заставлял заново собирать всё содержимое под ним
-        val ld = remember(d.density, d.fontScale) { LinearDensity(d.density * 0.5f, d.fontScale * TEXT_BOOST) }
-        CompositionLocalProvider(LocalDensity provides ld) { content() }
+        val k = phoneBaseK()
+        val tb = phoneTextBoost()
+        val ld = remember(d.density, d.fontScale, k, tb) { LinearDensity(d.density * 0.5f * k, d.fontScale * tb) }
+        // межстрочный интервал стиля по умолчанию (24 sp, жёстко) в окнах телефона вдвое выше самого текста: заголовки в две строки разъезжались.
+        // Относительный интервал (1,45 размера шрифта) держит строки рядом при любом размере интерфейса и шрифта
+        val ts = androidx.compose.material3.LocalTextStyle.current
+        CompositionLocalProvider(LocalDensity provides ld) {
+            androidx.compose.material3.ProvideTextStyle(ts.copy(lineHeight = 1.45.em)) { content() }
+        }
     }
 }
+
+/**
+ * Базовый размер интерфейса телефона (20.11.2026, владелица: «в портрете всё маленькое»): в портрете элементы и текст на 40% крупнее прежнего
+ * (кнопка ≈ 40 dp, основной текст ≈ 16 sp: как в стандартных настройках Android); в ландшафте телефона высота мала, там размер прежний.
+ * Ручной «Размер интерфейса» (мелкий/средний/крупный/очень крупный) умножает это поверх и сетки значков не касается.
+ */
+const val PHONE_PORTRAIT_K = 1.4f
+
+@Composable
+fun phoneBaseK(): Float = if (LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) PHONE_PORTRAIT_K else 1f
 
 /** Размеры экрана в dp текущей плотности (внутри HalfUi они вдвое больше, чем в настройках системы). */
 @Composable
@@ -281,3 +332,8 @@ object Typo {
         )
     }
 }
+
+/** Ширина окна-диалога: на телефоне почти во всю ширину экрана, но не больше [max] (при крупном интерфейсе минимальная ширина в dp иначе не помещалась); на широком экране прежняя. */
+@Composable
+fun dlgWidth(min: androidx.compose.ui.unit.Dp, max: androidx.compose.ui.unit.Dp): androidx.compose.ui.Modifier =
+    if (isNarrow()) androidx.compose.ui.Modifier.fillMaxWidth(0.94f).widthIn(max = max) else androidx.compose.ui.Modifier.widthIn(min = min, max = max)

@@ -122,7 +122,7 @@ internal fun FixedFont(content: @Composable () -> Unit) {
     val narrow = LocalConfiguration.current.smallestScreenWidthDp < 600
     // на телефоне элементы мельче (0,6), надписи чуть меньше обычных: на экране помещается больше строк
     androidx.compose.runtime.CompositionLocalProvider(
-        androidx.compose.ui.platform.LocalDensity provides (if (narrow) androidx.compose.ui.unit.Density(d.density * 0.6f, 1.4f) else androidx.compose.ui.unit.Density(d.density, if (TopMode.isTv(androidx.compose.ui.platform.LocalContext.current)) TV_TEXT_BOOST else 1f)),
+        androidx.compose.ui.platform.LocalDensity provides (if (narrow) androidx.compose.ui.unit.Density(d.density * 0.6f * LocalDialogBoost.current, 1.4f) else androidx.compose.ui.unit.Density(d.density, if (TopMode.isTv(androidx.compose.ui.platform.LocalContext.current)) TV_TEXT_BOOST else 1f)),
         LocalTvBoost provides (!narrow && TopMode.isTv(androidx.compose.ui.platform.LocalContext.current)),
     ) { content() }
 }
@@ -465,7 +465,7 @@ internal fun ListDialog(title: String, opts: List<Opt>, onClose: () -> Unit, hin
     MotionDialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         MouseDragInDialog()
         FixedFont { androidx.compose.runtime.CompositionLocalProvider(LocalTh provides t) { Column(
-            Modifier.widthIn(min = 320.dp, max = 540.dp).heightIn(max = maxH)
+            dlgWidth(320.dp, 540.dp).heightIn(max = maxH)
                 .then(if (onRawKey != null) Modifier.onPreviewKeyEvent { onRawKey(it.nativeKeyEvent) } else Modifier)
                 .clip(RoundedCornerShape(20.dp)).background(t.bg).border(1.dp, t.border, RoundedCornerShape(20.dp)).padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -515,7 +515,7 @@ internal fun NumberDialog(title: String, initial: Int, range: IntRange?, unit: S
     MotionDialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         MouseDragInDialog()
         FixedFont { androidx.compose.runtime.CompositionLocalProvider(LocalTh provides t) { Column(
-            Modifier.widthIn(min = 300.dp, max = 420.dp).clip(RoundedCornerShape(20.dp)).background(t.bg)
+            dlgWidth(300.dp, 420.dp).clip(RoundedCornerShape(20.dp)).background(t.bg)
                 .border(1.dp, t.border, RoundedCornerShape(20.dp)).padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
@@ -551,7 +551,7 @@ internal fun TextDialog(title: String, initial: String, hint: String = "", onDon
     MotionDialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         MouseDragInDialog()
         FixedFont { androidx.compose.runtime.CompositionLocalProvider(LocalTh provides t) { Column(
-            Modifier.widthIn(min = 320.dp, max = 520.dp).clip(RoundedCornerShape(20.dp)).background(t.bg)
+            dlgWidth(320.dp, 520.dp).clip(RoundedCornerShape(20.dp)).background(t.bg)
                 .border(1.dp, t.border, RoundedCornerShape(20.dp)).padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
@@ -639,6 +639,22 @@ internal object TileFocus {
 internal object RowBack {
     class Row(val contains: (String) -> Boolean, val firstKey: String, val goFirst: () -> Unit)
     val rows = HashMap<String, Row>()
+    /** Порядок строк-кандидатов для «в начало» (13.0): первая строка после виджетов, далее остальные; задаёт HomeRowsView. */
+    @Volatile var startOrder: List<String> = emptyList()
+
+    /**
+     * Второе «Назад» (13.0, просьба с 4PDA): курсор на плитке, но не на первой карточке первой строки после виджетов (нет виджетов: первой строки) —
+     * перевести его туда; true, если переведён. Курсор вне плиток строк или уже там: false, «Назад» работает как прежде.
+     */
+    fun goStart(): Boolean {
+        val cur = TileFocus.cur ?: return false
+        for (id in startOrder) {
+            val r = rows[id] ?: continue
+            if (cur == r.firstKey) return false
+            r.goFirst(); return true
+        }
+        return false
+    }
     fun tryBack(): Boolean {
         val cur = TileFocus.cur ?: return false
         for (r in rows.values) if (r.contains(cur)) {

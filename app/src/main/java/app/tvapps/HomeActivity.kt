@@ -436,6 +436,8 @@ private fun HomeScreen(tick: Int, again: Int) {
         else if (movingItem != null || movingStatus != null) { movingItem = null; movingStatus = null }
         else if (AllPanel.query.isNotEmpty()) AllPanel.query = ""      // в панели «Все приложения»: первое «Назад» сбрасывает поиск, следующее возвращает наверх «Дома»
         else if (RowBack.tryBack()) { }   // курсор в строке не на первой карточке: «Назад» возвращает на первую карточку строки
+        // 13.0 (просьба с 4PDA): следующее «Назад» (карточка строки уже первая) ставит курсор на первую карточку первой строки после виджетов
+        else if (Cfg.backToStart && RowBack.goStart()) { }
         // зафиксированный масштаб (DeskFullMotion): прокрутка «Дома» наверх не должна зависеть от системной настройки «Масштаб анимации» (18.11.2026)
         else bgScope.launch { kotlinx.coroutines.withContext(DeskFullMotion) { scroll.animateScrollTo(0) }; runCatching { menuReq.requestFocus() } }
     }

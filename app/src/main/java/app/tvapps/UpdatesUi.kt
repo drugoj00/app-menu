@@ -257,6 +257,7 @@ fun UpdatesAllDialog(onClose: () -> Unit) {
     val scope = rememberCoroutineScope()
     var list by remember { mutableStateOf<List<AppUpd>?>(null) }
     var status by remember { mutableStateOf("") }
+    var statFrac by remember { mutableStateOf<Float?>(null) }   // полоска хода: проверка и «обновить всё» (определённая, без бегущей)
     var busy by remember { mutableStateOf(false) }
     var showSkipped by remember { mutableStateOf(false) }
     var token by remember { mutableStateOf(false) }
@@ -271,8 +272,10 @@ fun UpdatesAllDialog(onClose: () -> Unit) {
         scope.launch {
             busy = true
             try {
-                list = Updates.checkAll(ctx, force) { d, n -> status = ctx.getString(R.string.upd_progress, d, n) }
+                statFrac = 0f
+                list = Updates.checkAll(ctx, force) { d, n -> status = ctx.getString(R.string.upd_progress, d, n); statFrac = if (n > 0) d.toFloat() / n else 0f }
                 list?.let { UpdSched.record(it) }   // число для шапки
+                statFrac = 1f
                 status = ""
             } catch (e: CancellationException) { throw e } catch (e: Throwable) {
                 status = ctx.getString(R.string.ver_failed) + ": " + (e.message ?: "")
@@ -308,6 +311,7 @@ fun UpdatesAllDialog(onClose: () -> Unit) {
             Text(stringResource(R.string.upd_hint), color = t.hint, fontSize = 12.sp)
             if (status.isNotEmpty()) Text(status, color = t.accent, fontSize = 14.sp)
             else if (list != null) Text(if (withUpd.isEmpty()) stringResource(R.string.upd_nothing_new) else stringResource(R.string.upd_found, withUpd.size), color = t.sub, fontSize = 14.sp)
+            statFrac?.let { FlatProgress(it) }
             FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 ActionRow(HIcons.refresh, stringResource(R.string.upd_check), "", Modifier.focusRequester(first)) { check(list != null) }
                 if (updatable.isNotEmpty()) ActionRow(HIcons.download, stringResource(R.string.upd_update_all, updatable.size)) {
@@ -316,12 +320,15 @@ fun UpdatesAllDialog(onClose: () -> Unit) {
                     scope.launch {
                         busy = true
                         var ok = 0
+                        statFrac = 0f
                         updatable.forEachIndexed { i, a ->
                             val c = a.best ?: return@forEachIndexed
+                            statFrac = i.toFloat() / updatable.size
                             status = ctx.getString(R.string.upd_updating, i + 1, updatable.size, a.label)
                             val r = try { Updates.install(ctx, a, c, quiet = true) { s -> status = s } } catch (e: CancellationException) { throw e } catch (e: Throwable) { "fail:" + (e.message ?: "") }
                             if (r == "ok") { ok++; refreshOne(a.pkg) }
                         }
+                        statFrac = 1f
                         status = ctx.getString(R.string.upd_all_done, ok, updatable.size)
                         busy = false
                     }

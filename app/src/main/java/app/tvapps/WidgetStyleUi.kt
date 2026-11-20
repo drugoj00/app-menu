@@ -219,7 +219,7 @@ internal fun WidgetStyleDialog(dlg: Dlg.WidgetStyle, setDlg: (Dlg?) -> Unit) {
     MotionDialog(onDismissRequest = { close() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         MouseDragInDialog()
         FixedFont { CompositionLocalProvider(LocalTh provides t) { Column(
-            Modifier.widthIn(min = 340.dp, max = 640.dp).heightIn(max = maxH)
+            dlgWidth(340.dp, 640.dp).heightIn(max = maxH)
                 .clip(RoundedCornerShape(20.dp)).background(t.bg).border(1.dp, t.border, RoundedCornerShape(20.dp)).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {

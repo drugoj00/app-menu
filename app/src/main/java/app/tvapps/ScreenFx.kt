@@ -209,8 +209,17 @@ fun MotionPop(content: @Composable () -> Unit) {
 /** Окно Compose с анимацией появления (то же, что Dialog из библиотеки, но содержимое появляется в выбранном стиле). */
 @Composable
 fun MotionDialog(onDismissRequest: () -> Unit, properties: androidx.compose.ui.window.DialogProperties = androidx.compose.ui.window.DialogProperties(), content: @Composable () -> Unit) {
-    androidx.compose.ui.window.Dialog(onDismissRequest = onDismissRequest, properties = properties) { MotionPop(content) }
+    // 20.11.2026: окно получает свою плотность, поэтому «Размер интерфейса» (ExtraScale) применяется здесь же; в портрете телефона окна крупнее (LocalDialogBoost)
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismissRequest, properties = properties) {
+        UiScale.ExtraScale {
+            val boost = if (isNarrow() && androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) 1.2f else 1f
+            androidx.compose.runtime.CompositionLocalProvider(LocalDialogBoost provides boost) { MotionPop(content) }
+        }
+    }
 }
+
+/** Во сколько раз окна «Дома» (FixedFont) крупнее обычного на телефоне в портрете; вне окон 1. */
+internal val LocalDialogBoost = androidx.compose.runtime.compositionLocalOf { 1f }
 
 /** Содержимое всплывающего меню: уменьшение на телефоне (HalfUi) и появление в выбранном стиле. */
 @Composable
