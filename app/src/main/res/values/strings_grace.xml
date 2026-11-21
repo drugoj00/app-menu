@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sv_grace">Pause after sound</string>
+    <string name="sv_grace_sub">Wait after the last sound, so pauses between clips and tracks do not start the screensaver</string>
+    <string name="sv_grace_off">Off</string>
+    <string name="sv_sec" formatted="false">%1$d s</string>
+</resources>
