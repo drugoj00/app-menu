@@ -16,14 +16,14 @@ App Menu replaces the stock app list with a big grid made for a remote and for t
 
 **Version 15.0.** [AppMenu-15.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `7ac0e9c128896ecd94f85530122aaf7c12f5da3f601e8c6ff135b623ff748bd6`
+SHA-256: `af7bd8ed944d4e6df666f36c1ed2ee30e2e866134cc4e36565ced4679acdd327`
 
 ## What's new in 15.0
 
 - Clear hint when root is not granted: how to grant it and a button to open the root manager app
 - Warning before clearing an app cache
 - Tiles: clear settings for icon size and selection zoom, with a preview
-- Screensaver no longer starts in the gaps between clips and tracks
+- Screensaver no longer starts in the gaps between clips and tracks; the pause after sound is adjustable
 
 ## Features
 
