@@ -20,8 +20,12 @@ import androidx.compose.ui.unit.dp
  * Зазор между подложками соседних ячеек задают GridMetrics (плотная сетка) и поля плитки (обычная): не меньше GridMetrics.minGapDp.
  */
 @Composable
-internal fun IconPlate(plate: Dp, icon: Dp, iconOff: Dp, bmp: ImageBitmap, modifier: Modifier = Modifier) {
+internal fun IconPlate(plate: Dp, icon: Dp, iconOff: Dp, bmp: ImageBitmap, modifier: Modifier = Modifier, fill: Int = Cfg.iconFill) {
     val t = LocalTh.current
+    // 15.0: «Значок на плитке» (настройка, 75% = прежний вид): доля значка в подложке, не больше самой подложки
+    val k = fill / 75f
+    val icon = (icon * k).let { if (it > plate) plate else it }
+    val iconOff = (iconOff * k).let { if (it > plate) plate else it }
     if (!Cfg.plates) {
         Box(modifier.size(plate), contentAlignment = Alignment.Center) { Image(bmp, null, Modifier.size(iconOff)) }
         return

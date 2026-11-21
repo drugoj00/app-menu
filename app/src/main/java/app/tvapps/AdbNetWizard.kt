@@ -73,7 +73,7 @@ object AdbNet {
     /** Поднимает adbd на порту 5555 через root. Возвращает true, если порт после этого отвечает. */
     suspend fun raiseRoot(ctx: Context): Boolean = withContext(Dispatchers.IO) {
         val had = Adb.isRoot
-        if (!had && !Adb.tryRoot()) return@withContext false
+        if (!had && !Adb.tryRoot(RootHelp.AUTO)) return@withContext false
         runCatching { Adb.shell("setprop service.adb.tcp.port 5555; setprop persist.adb.tcp.port 5555; stop adbd; sleep 1; start adbd", 25_000) }
         delay(2500)
         val ok = reach(localIp())

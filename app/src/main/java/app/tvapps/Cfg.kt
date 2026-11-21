@@ -149,6 +149,11 @@ object Cfg {
     @Volatile var autoRows = 0
     /** Очистка памяти при нажатии «Домой» (по умолчанию выключена). */
     var memAuto by mutableStateOf(false); private set
+    /** 15.0: спрашивать подтверждение перед очисткой кэша приложения (по умолчанию да; галочка «Больше не спрашивать» выключает). */
+    var askClearCache by mutableStateOf(true); private set
+    /** 15.0: доля значка в плитке, % (75 = как было), и увеличение плитки при выделении, % (0 = нет, как было). */
+    var iconFill by mutableIntStateOf(75); private set
+    var focusZoom by mutableIntStateOf(0); private set
     /** Очистка памяти не останавливает избранные приложения. */
     var memKeepFav by mutableStateOf(true); private set
     /** Приложения, которые очистка памяти не останавливает (выбор владельца; по умолчанию пусто). */
@@ -241,6 +246,9 @@ object Cfg {
         // ключи рядов над списком (убраны в 4.0) удаляются
         if (sp.contains("home_rows") || sp.contains("tip_fav_31") || sp.contains("hint")) sp.edit().remove("home_rows").remove("tip_fav_31").remove("hint").apply()
         memAuto = sp.getBoolean("mem_auto", false)
+        askClearCache = sp.getBoolean("ask_clear_cache", true)
+        iconFill = sp.getInt("icon_fill", 75).coerceIn(50, 100)
+        focusZoom = sp.getInt("focus_zoom", 0).coerceIn(0, 30)
         memKeepFav = sp.getBoolean("mem_keep_fav", true)
         memExcl = sp.getStringSet("mem_excl", emptySet())?.toSet() ?: emptySet()
         deskAnim = sp.getBoolean("desk_anim", true)
@@ -300,6 +308,9 @@ object Cfg {
         favorites = if (pkg in favorites) favorites - pkg else favorites + pkg
         sp.edit().putString("favorites", favorites.joinToString(",")).apply()
     }
+    fun changeIconFill(v: Int) { val c = v.coerceIn(50, 100); if (c == iconFill) return; iconFill = c; sp.edit().putInt("icon_fill", c).apply() }
+    fun changeFocusZoom(v: Int) { val c = v.coerceIn(0, 30); if (c == focusZoom) return; focusZoom = c; sp.edit().putInt("focus_zoom", c).apply() }
+    fun changeAskClearCache(v: Boolean) { askClearCache = v; sp.edit().putBoolean("ask_clear_cache", v).apply() }
     fun changeMemAuto(v: Boolean) { memAuto = v; sp.edit().putBoolean("mem_auto", v).apply() }
     fun changeMemKeepFav(v: Boolean) { memKeepFav = v; sp.edit().putBoolean("mem_keep_fav", v).apply() }
     fun toggleMemExcl(pkg: String) {

@@ -77,6 +77,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -1717,13 +1718,15 @@ internal fun AppTile(
     val lite = Lite.on
     val (hm, hover) = if (lite) NoHover else rememberHover()
     // увеличения при наведении и выборе нет (оно налезало на нижний значок): выделение только рамкой; 1,12 остаётся при слиянии в папку
-    val scaleTarget = if (merge) 1.12f else 1f
+    // 15.0: настройка «Увеличение при выделении» (по умолчанию 0: как раньше, выделение только рамкой)
+    val zoomed = !merge && Cfg.focusZoom > 0 && (focused || hover)
+    val scaleTarget = if (merge) 1.12f else if (zoomed) 1f + Cfg.focusZoom / 100f else 1f
     // 18.11.2026: fixedAnimateFloatAsState вместо animateFloatAsState — фиксированный масштаб (Desks.kt)
     val scale = if (lite) scaleTarget else fixedAnimateFloatAsState(scaleTarget, label = "scale").value
     val bmp = remember(e.pkg, e.icon, e.bmp) { e.bmp ?: e.icon.toBitmap(128, 128).asImageBitmap() }
     val hiddenMark = Cfg.isHidden(e.pkg)
     val tileAlpha = if (ghostActive) 0.28f else if (hiddenMark) 0.5f else 1f
-    Box {
+    Box(if (zoomed) Modifier.zIndex(1f) else Modifier) {
         val base = Modifier
             // один слой вместо двух (scale и alpha были отдельными слоями); без слоя, если плитка в покое
             .then(if (scale != 1f || tileAlpha != 1f) Modifier.graphicsLayer { scaleX = scale; scaleY = scale; alpha = tileAlpha } else Modifier)
@@ -1783,6 +1786,7 @@ internal fun AppTile(
                 if (isSelected) t.chipSel else if (focused || hover || merge) t.tileFocus else if (Cfg.plates || Cfg.transparentTiles || (dense != null && !listRow)) Color.Transparent else t.tile,
                 RoundedCornerShape(14.dp),
             )
+            .clip(RoundedCornerShape(14.dp))   // волна и подсветка нажатия по скруглённой форме плитки (раньше углы выходили квадратом за рамку)
             // правая кнопка мыши (и аэромыши) открывает те же действия, что долгое касание
             .mouseSecondary(onMenu)
             // долгое нажатие открывает меню, но с короткой задержкой: если палец сразу потянул (перетаскивание), меню не успевает мигнуть

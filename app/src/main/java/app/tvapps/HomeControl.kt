@@ -150,7 +150,7 @@ object HomeControl {
         prepareAliasForPicker(ctx)
         runCatching { autoConnect(ctx) }
         // человек сам нажал кнопку: можно запросить root у менеджера (раньше root проверялся только в окне «Подключить ADB...»)
-        if (!Adb.isConnected && Cfg.useRoot) runCatching { if (Adb.tryRoot()) Conn.refresh() }
+        if (!Adb.isConnected && Cfg.useRoot) runCatching { if (Adb.tryRoot(RootHelp.AUTO)) Conn.refresh() }
         if (!Adb.isConnected) { Log.w("TVApps", "включение «Дома»: нет ни ADB, ни root, открываю системный выбор"); return "no_control" }
         if (setDefault(ctx) || currentHome(ctx) == ctx.packageName) { Cfg.setHomePinned(true); fgPrefs(ctx).edit().putBoolean(PICKER_PREF, false).commit(); return "ok" }
         if (android.os.Build.VERSION.SDK_INT >= 29) {

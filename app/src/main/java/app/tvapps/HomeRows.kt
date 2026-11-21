@@ -313,7 +313,7 @@ private fun AppsRow(
     // ширина слота каждой плитки при масштабе 1 (у значков не уже 84 dp: под ними подпись); линии набираются по реальной ширине
     val availW = maxWidth.value - 8f - 0.5f
     val gapF = row.gap.toFloat()
-    val slotW = els.map { e -> val sz = row.size.toFloat(); maxOf(if (e.item.mode == "banner") sz * 16f / 9f else sz, 84f) }
+    val slotW = els.map { e -> val sz = row.size.toFloat(); maxOf(if (e.item.mode == "banner") sz * 16f / 9f else sz, tileMinW(sz)) }
     val lines = ArrayList<List<Int>>()
     if (row.fit && row.perLine > 0) lines.addAll(els.indices.toList().chunked(row.perLine)) else run {
         var cur = ArrayList<Int>(); var sum = 0f
@@ -451,8 +451,9 @@ private fun HomeAppTile(
         dragEnd = if (dragEnabled) ({ p -> TileDrag.drop(item.id, p) }) else null,
         ringColor = if (item.borderW > 0 && item.borderHover) (if (item.borderC == 0L) t.accent else Color(item.borderC.toInt())) else null,
         ringWidth = if (item.borderHover) item.borderW else 0,
+        zoomOnFocus = true,
     ) {
-        Column(Modifier.width(maxOf(wDp, 84f * scale).dp).padding(2.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.width(maxOf(wDp, tileMinW(row.size.toFloat()) * scale).dp).padding(2.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Box(
                 Modifier.size(wDp.dp, sizeDp.dp).then(if (item.shadow) Modifier.shadow(10.dp, shape) else Modifier)
                     .clip(shape).background(if (card) t.tile else Color.Transparent)
@@ -481,7 +482,7 @@ private fun HomeAppTile(
                 var fit by remember(label, baseFs) { mutableStateOf(baseFs) }
                 Text(
                     label, color = t.text, fontSize = fit.sp, maxLines = 2, minLines = 1, overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center, modifier = Modifier.width(maxOf(wDp, 84f * scale).dp).padding(top = 3.dp),
+                    textAlign = TextAlign.Center, modifier = Modifier.width(maxOf(wDp, tileMinW(row.size.toFloat()) * scale).dp).padding(top = 3.dp),
                     onTextLayout = { r ->
                         var cut = false
                         for (i in 0 until r.lineCount - 1) {
@@ -689,3 +690,10 @@ internal fun TileDragOverlay(scroll: androidx.compose.foundation.ScrollState) {
         ) { HomeAppTile(d.row, d.el, false, null, 0f, Modifier, d.scale, {}, {}, { false }, {}) }
     }
 }
+
+/**
+ * Наименьшая ширина плитки ряда «Дома» при масштабе 1 (под значком стоит подпись). Раньше была 84 dp для любого размера: у мелких значков (40–56 dp)
+ * рамка выделения выходила вдвое шире значка («плитка при выделении гораздо крупнее значка», 4PDA, flint1965, 21.11.2026). Теперь ширина
+ * растёт с размером значка и не превышает прежние 84 dp.
+ */
+internal fun tileMinW(size: Float): Float = minOf(84f, size * 1.35f + 6f).coerceAtLeast(56f)

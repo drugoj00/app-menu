@@ -408,7 +408,9 @@ fun AppMenu(e: Entry, hidden: Boolean, onToggleHide: () -> Unit, onSelect: () ->
                                 }
                             }
                             ActionCell(Icons.Outlined.Refresh, stringResource(R.string.clear_cache), Modifier.weight(1f)) {
-                                withAdb { toast(ctx, if (Actions.clearCache(e.pkg)) ctx.getString(R.string.cache_cleared) else ctx.getString(R.string.failed)) }
+                                // 15.0: у некоторых плееров IPTV в кэше списки каналов и программа передач, поэтому сначала подтверждение (если не отключено)
+                                if (Cfg.askClearCache) screen = "confirm_cache"
+                                else withAdb { toast(ctx, if (Actions.clearCache(e.pkg)) ctx.getString(R.string.cache_cleared) else ctx.getString(R.string.failed)) }
                             }
                             ActionCell(Icons.Outlined.Delete, stringResource(R.string.clear_data), Modifier.weight(1f)) { screen = "confirm_data" }
                             ActionCell(Icons.Outlined.Lock, stringResource(R.string.perms), Modifier.weight(1f)) { screen = if (Adb.isConnected) "perms" else "connect" }
@@ -455,6 +457,20 @@ fun AppMenu(e: Entry, hidden: Boolean, onToggleHide: () -> Unit, onSelect: () ->
                     }
                     else -> Column(Modifier.fillMaxWidth().background(Pop.band).padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         when (screen) {
+                            "confirm_cache" -> {
+                                var noAsk by remember { mutableStateOf(false) }
+                                Text(stringResource(R.string.confirm_cache), color = Pop.text, fontSize = shortcutFont(), letterSpacing = 0.sp, fontFamily = AppFont.family, modifier = Modifier.padding(horizontal = 6.dp))
+                                ToggleRow(stringResource(R.string.confirm_cache_never), noAsk) { noAsk = it }
+                                // 15.0 (проверка в ландшафте и пультом): кнопки в один ряд (карточка в ландшафте телефона не помещалась по высоте), фокус по умолчанию на «Отмене»
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    PopButton(stringResource(R.string.confirm_cache_yes), Modifier.weight(1f), fill = Pop.dangerFill, textColor = Pop.danger) {
+                                        if (noAsk) Cfg.changeAskClearCache(false)
+                                        screen = "main"
+                                        withAdb { toast(ctx, if (Actions.clearCache(e.pkg)) ctx.getString(R.string.cache_cleared) else ctx.getString(R.string.failed)) }
+                                    }
+                                    PopButton(stringResource(R.string.cancel), Modifier.weight(1f).focusRequester(first)) { screen = "main" }
+                                }
+                            }
                             "confirm_data" -> {
                                 Text(stringResource(R.string.confirm_data, e.label), color = Pop.text, fontSize = 15.sp, modifier = Modifier.padding(horizontal = 6.dp))
                                 PopButton(stringResource(R.string.yes_clear), Modifier.focusRequester(first), fill = Pop.dangerFill, textColor = Pop.danger) {
@@ -813,7 +829,7 @@ private fun ConnectPanel(first: FocusRequester, onDone: () -> Unit, onBack: () -
             else toast(ctx, whyText(ctx, Conn.why) ?: ctx.getString(R.string.adb_fail))
         }
     }
-    LaunchedEffect(Unit) { if (!Adb.isConnected && Cfg.useRoot && Adb.tryRoot()) { Conn.refresh(); toast(ctx, ctx.getString(R.string.adb_ok)); onDone() } }
+    LaunchedEffect(Unit) { if (!Adb.isConnected && Cfg.useRoot && Adb.tryRoot(RootHelp.AUTO)) { Conn.refresh(); toast(ctx, ctx.getString(R.string.adb_ok)); onDone() } }
     // пока окно открыто и подключения нет, программа сама пробует порт 5555: стоит один раз включить сетевой ADB (с компьютера или по беспроводной отладке), и подключение произойдёт без нажатий
     LaunchedEffect(Unit) {
         while (!Adb.isConnected) {
@@ -831,7 +847,7 @@ private fun ConnectPanel(first: FocusRequester, onDone: () -> Unit, onBack: () -
     Text(stringResource(Conn.statusRes), color = if (Conn.connected) Pop.accent else Pop.sub, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp))
     if (!Conn.connected) whyText(ctx, Conn.why)?.let { Text(it, color = Pop.danger, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(horizontal = 8.dp)) }
     PopButton(stringResource(R.string.root_connect_btn), enabled = !busy) {
-        run { if (Adb.tryRoot()) Result.success(Unit) else Result.failure(IllegalStateException("no root")) }
+        run { if (Adb.tryRoot(RootHelp.EXPLICIT)) Result.success(Unit) else Result.failure(IllegalStateException("no root")) }
     }
     Text(stringResource(R.string.root_hint), color = Pop.text, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 8.dp))
     if (android.os.Build.VERSION.SDK_INT < 30) Text(stringResource(R.string.connect_text_old), color = Pop.text, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 8.dp))

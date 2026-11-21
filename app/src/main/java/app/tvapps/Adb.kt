@@ -121,13 +121,34 @@ object Adb {
      * Проверяет, дал ли менеджер root (или другой su) права root этому приложению. При первом запуске на экране появится запрос менеджере root:
      * ждём ответа до 30 секунд. Успех включает режим root для всех команд ниже.
      */
-    suspend fun tryRoot(): Boolean = withContext(Dispatchers.IO) {
-        val ok = runCatching { rootRun("id", null, 30_000).contains("uid=0") }
-            .onFailure { Log.i("TVApps", "root недоступен: ${it.message}") }.getOrDefault(false)
+    suspend fun tryRoot(ask: Int = RootHelp.NO): Boolean = withContext(Dispatchers.IO) {
+        val t0 = System.currentTimeMillis()
+        var why = ""
+        var noSu = false
+        val out = runCatching { rootRun("id", null, 30_000) }
+            .onFailure { why = "su не запустился (${it.message?.take(80)})"; noSu = it is java.io.IOException }.getOrNull()
+        val ok = out?.contains("uid=0") == true
+        if (!ok && why.isEmpty()) {
+            why = if (System.currentTimeMillis() - t0 >= 29_000L) "su не ответил за 30 с (тайм-аут)"
+            else if (out.isNullOrBlank()) "su закрылся без ответа"
+            else "su отказал: «${out.take(80).replace(Char(10), ' ')}»"
+        }
         rootOn = ok
         saveRootCache(ok)
         Log.i("TVApps", "root=$ok")
+        // окно-подсказка: после явного действия человека всегда; после автоматической попытки только если su есть, но отказал (на устройствах без root не мешаем)
+        if (!ok) {
+            if (ask == RootHelp.EXPLICIT || (ask == RootHelp.AUTO && !noSu)) RootHelp.offer(why) else Log.w("TVApps", "root не выдан: $why")
+        }
         ok
+    }
+
+    /** Режим root был включён по сохранённому признаку, а su отказал: признак сбрасывается, окно-подсказка показывается один раз. */
+    private fun rootLost(why: String) {
+        if (!rootOn) return
+        rootOn = false
+        saveRootCache(false)
+        RootHelp.offer(why)
     }
 
     /** Результат прошлой проверки root хранится, чтобы не запускать su при старте программы «на всякий случай». */
@@ -159,6 +180,8 @@ object Adb {
     private var rsProc: Process? = null
     private var rsIn: java.io.OutputStream? = null
     private var rsQueue: java.util.concurrent.LinkedBlockingQueue<String>? = null
+    /** Отвечал ли su в этой оболочке хотя бы раз: если нет и ответа нет, root этому приложению не выдан. */
+    private var rsVerified = false
 
     private fun rsStop() {
         runCatching { rsProc?.destroy() }
@@ -175,14 +198,14 @@ object Adb {
                 runCatching { p.inputStream.bufferedReader().forEachLine { q.put(it) } }
                 q.put("\u0000EOF")
             }.also { it.isDaemon = true; it.name = "root-shell-reader" }.start()
-            rsProc = p; rsIn = p.outputStream; rsQueue = q
+            rsProc = p; rsIn = p.outputStream; rsQueue = q; rsVerified = false
             true
         }.getOrDefault(false)
     }
 
     /** Команда в постоянной root-оболочке. null: оболочка недоступна (запасной путь — отдельный su). */
     private fun rootShellRun(cmd: String, timeoutMs: Long): String? = synchronized(rsLock) {
-        if (!rsEnsure()) return null
+        if (!rsEnsure()) { if (rootOn) rootLost("su не запускается"); return null }
         val q = rsQueue!!
         q.clear()
         val mark = "__TVA_" + System.nanoTime() + "__"
@@ -193,10 +216,17 @@ object Adb {
         val t0 = System.currentTimeMillis()
         while (true) {
             val left = timeoutMs - (System.currentTimeMillis() - t0)
-            if (left <= 0) { Log.w("TVApps", "timeout root: ${cmd.take(100)}"); rsStop(); break }
+            if (left <= 0) { Log.w("TVApps", "timeout root: ${cmd.take(100)}"); val silent = sb.isEmpty() && !rsVerified; rsStop(); if (silent) rootLost("su не ответил за ${timeoutMs / 1000} с (тайм-аут)"); break }
             val line = q.poll(left, java.util.concurrent.TimeUnit.MILLISECONDS) ?: continue
-            if (line == "\u0000EOF") { rsStop(); if (sb.isEmpty() && rootOn) { Log.w("TVApps", "root: su закрылся без ответа, признак сброшен"); rootOn = false; saveRootCache(false) }; break }
-            if (line.contains(mark)) break
+            if (line == "\u0000EOF") { rsStop(); if (sb.isEmpty() && rootOn) rootLost("su закрылся без ответа"); break }
+            if (line.contains(mark)) {
+                // первый ответ новой оболочки с явным отказом самого su («su: Permission denied»): root не выдан, признак сбрасывается
+                val txt = sb.toString().trim()
+                if (!rsVerified && txt.startsWith("su:", true) && (txt.contains("denied", true) || txt.contains("not allowed", true))) {
+                    rsStop(); rootLost("su отказал: «${txt.take(80).replace("\n", " ")}»")
+                } else rsVerified = true
+                break
+            }
             sb.append(line).append('\n')
         }
         sb.toString().trim()

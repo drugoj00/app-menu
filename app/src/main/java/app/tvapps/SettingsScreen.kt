@@ -140,7 +140,7 @@ internal fun SectionHint(text: String) {
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Section(title: String, content: @Composable () -> Unit) {
+internal fun Section(title: String, content: @Composable () -> Unit) {
     // поиск по настройкам: при непустом запросе показываются только разделы, в названии которых он есть
     val q = LocalSettingsQuery.current
     if (q.isNotBlank() && !SettingsSearch.matches(q, title)) return
@@ -201,7 +201,7 @@ private fun GridBtn(plus: Boolean, modifier: Modifier, gate: StepGate, onClick: 
 
 /** Счётчик: «+» сверху, число в окошке, «−» снизу, подпись под ним. Одно нажатие меняет число на шаг; 0 у строк и столбцов показано как «Авто». */
 @Composable
-private fun GridNum(value: Int, caption: String, show: @Composable (Int) -> String, onPlus: () -> Unit, onMinus: () -> Unit, onReset: (() -> Unit)? = null, range: IntRange? = null, onSet: ((Int) -> Unit)? = null, modifier: Modifier = Modifier.width(150.dp)) {
+internal fun GridNum(value: Int, caption: String, show: @Composable (Int) -> String, onPlus: () -> Unit, onMinus: () -> Unit, onReset: (() -> Unit)? = null, range: IntRange? = null, onSet: ((Int) -> Unit)? = null, modifier: Modifier = Modifier.width(150.dp)) {
     val t = LocalTh.current
     var numDlg by remember { mutableStateOf(false) }
     if (numDlg && onSet != null) NumberDialog(caption, value, range, "", { n -> onSet(n); numDlg = false }, { numDlg = false })
@@ -1028,13 +1028,6 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                                     modifier = Modifier.weight(1f).widthIn(min = 88.dp, max = 132.dp),
                                 )
                             }
-                            GridNum(
-                                Cfg.iconScale.coerceIn(50, 200), stringResource(R.string.grid_scale), { "$it%" },
-                                onPlus = { Cfg.changeIconScale(Steps.rangeStep(Cfg.iconScale, +1, 50, 200, 10)) },
-                                onMinus = { Cfg.changeIconScale(Steps.rangeStep(Cfg.iconScale, -1, 50, 200, 10)) },
-                                onReset = { Cfg.changeIconScale(100) }, range = 50..200, onSet = { Cfg.changeIconScale(it) },
-                                modifier = Modifier.width(132.dp),
-                            )
                         }
                     }
                     Section(stringResource(R.string.set_icon)) {
@@ -1044,6 +1037,10 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                         Options(listOf(0 to stringResource(R.string.gap_tight), 1 to stringResource(R.string.gap_normal), 2 to stringResource(R.string.gap_airy)), Cfg.gridGap) { Cfg.changeGridGap(it) }
                     }
                     SwitchRow(stringResource(R.string.set_labels), Cfg.showLabels, listOf()) { Cfg.changeShowLabels(it) }
+                    }
+                    BlockHead("tl_b", stringResource(R.string.blk_tl_b), openBlk, query.isNotBlank())
+                    if ("tl_b" in openBlk || query.isNotBlank()) {
+                    TilesBlock()
                     }
                     BlockHead("st_b", stringResource(R.string.blk_st_b), openBlk, query.isNotBlank())
                     if ("st_b" in openBlk || query.isNotBlank()) {
@@ -1356,6 +1353,7 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                     }
                     BlockHead("sy_c", stringResource(R.string.blk_sy_c), openBlk, query.isNotBlank())
                     if ("sy_c" in openBlk || query.isNotBlank()) {
+                    SwitchRow(stringResource(R.string.ask_cache_title), Cfg.askClearCache, listOf(stringResource(R.string.ask_cache_hint))) { Cfg.changeAskClearCache(it) }
                     Section(stringResource(R.string.adb_title)) {
                         Text(stringResource(Conn.statusRes), color = if (Conn.connected) t.accent else t.sub, fontSize = 14.sp)
                         ActionRow(HIcons.usb, stringResource(R.string.adb_connect_btn), stringResource(R.string.adb_connect_btn_h)) { adbDialog = true }
@@ -1364,6 +1362,8 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                         Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.useRoot) {
                             Cfg.changeUseRoot(it)
                             if (!it) { Adb.disableRoot(); Conn.refresh() }
+                            // включили root, а он не выдан: окно с подсказкой, где его выдать (14.1)
+                            else if (!Adb.isRoot) scope.launch { if (Adb.tryRoot(RootHelp.EXPLICIT)) Conn.refresh() }
                         }
                         SectionHint(stringResource(R.string.root_hint))
                         // по умолчанию выключено: su в фоне не запускается, пока человек сам не включит датчик бездействия через root

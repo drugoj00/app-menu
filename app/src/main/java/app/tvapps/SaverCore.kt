@@ -168,6 +168,20 @@ object SaverAudio {
         val viaMusic = runCatching { am.isMusicActive }.getOrDefault(false)
         return viaConfigs || viaMusic
     }
+
+    /** Когда звук последний раз был слышен (elapsedRealtime). */
+    @Volatile private var lastSeen = 0L
+
+    /**
+     * 21.11.2026 Евгений: заставка накрыла Кинопоиск между треками/клипами — плеер на пару секунд замолкает (конец потока, загрузка
+     * следующего), и проверка «играет ли звук» в этот миг даёт «нет». Поэтому после последнего слышимого звука держим «играет»
+     * ещё [graceMs] (по умолчанию 15 с): паузы между клипами и треками заставку не вызывают, а настоящая остановка видео или музыки — вызывает.
+     */
+    fun playingOrRecently(c: Context, graceMs: Long = 15_000L): Boolean {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (isAnyPlaying(c)) { lastSeen = now; return true }
+        return lastSeen != 0L && now - lastSeen < graceMs
+    }
 }
 
 // ------------------------------------------------------------------ разрешения и права

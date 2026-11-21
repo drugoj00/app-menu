@@ -49,6 +49,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.zIndex
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -175,6 +176,8 @@ internal fun HomeBox(
     memKey: String? = null,
     /** тонкая рамка в покое (вид «Стекло» верхней строки); Transparent: без рамки */
     edge: Color = Color.Transparent,
+    /** 15.0: увеличение плитки при выделении по настройке «Увеличение при выделении» (только у плиток-значков рядов «Дома») */
+    zoomOnFocus: Boolean = false,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val selfReq = focusReq ?: remember { FocusRequester() }
@@ -196,9 +199,12 @@ internal fun HomeBox(
     val moveKey by rememberUpdatedState(onMoveKey)
     val moveEnd by rememberUpdatedState(onMoveEnd)
     var suppressUntil by remember { mutableStateOf(0L) }
+    val zoomTarget = if (zoomOnFocus && Cfg.focusZoom > 0 && (focused || hover) && !moving) 1f + Cfg.focusZoom / 100f else 1f
+    val zoomNow = if (zoomOnFocus) fixedAnimateFloatAsState(zoomTarget, label = "hz").value else 1f
     Box(
         modifier
-            .zIndex(if (focused || hover) 1f else 0f)      // выбранный элемент выше соседей: рамка не прячется под правым (увеличения плитки нет)
+            .zIndex(if (focused || hover) 1f else 0f)
+            .then(if (zoomNow != 1f) Modifier.graphicsLayer { scaleX = zoomNow; scaleY = zoomNow } else Modifier)      // выбранный элемент выше соседей: рамка не прячется под правым (увеличения плитки нет)
             .then(hm)
             .focusRequester(selfReq)
             .onPreviewKeyEvent { ev ->
