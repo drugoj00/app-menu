@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="root_help_title">Нет root для этого приложения</string>
+    <string name="root_help_body">Выдайте root в программе управления root: вкладка «Суперпользователь», включите «%1$s».</string>
+    <string name="root_help_open">Открыть программу управления root</string>
+    <string name="root_help_retry">Повторить</string>
+    <string name="root_help_nomgr">Программа управления root не найдена</string>
+    <string name="root_help_still">Root по-прежнему не выдан</string>
+</resources>
