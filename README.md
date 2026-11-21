@@ -14,17 +14,16 @@ App Menu replaces the stock app list with a big grid made for a remote and for t
 
 ## Download
 
-**Version 14.0.** [AppMenu-14.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
+**Version 15.0.** [AppMenu-15.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `22ace84a69e5783451bdb8d4ecbca580312aca9ce35f349806afd4e9065789f7`
+SHA-256: `7ac0e9c128896ecd94f85530122aaf7c12f5da3f601e8c6ff135b623ff748bd6`
 
-## What's new in 14.0
+## What's new in 15.0
 
-- Update from the app: a window with the details (what is installed, the method, progress, result) and clear reasons for refusal
-- If “Install unknown apps” is off, the app shows a window and takes you to settings
-- “Update all”: one window with a list, progress and the result for each app
-- Scheduled auto-update installs nothing without a window, only a notification
-- New “Text size” setting; settings text in landscape is as comfortable as in portrait
+- Clear hint when root is not granted: how to grant it and a button to open the root manager app
+- Warning before clearing an app cache
+- Tiles: clear settings for icon size and selection zoom, with a preview
+- Screensaver no longer starts in the gaps between clips and tracks
 
 ## Features
 
@@ -60,7 +59,7 @@ SHA-256: `22ace84a69e5783451bdb8d4ecbca580312aca9ce35f349806afd4e9065789f7`
 
 ## Quick start
 
-1. Download AppMenu-14.0.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
+1. Download AppMenu-15.0.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
 2. Open it: apps are launched with OK or a tap, a long press (or holding OK, or the Menu key) opens the action card. To use it instead of the stock menu turn on “Launcher mode” in Settings.
 3. To act on other apps connect ADB: Settings → “Connect ADB”. Android 9 and older TV boxes with network ADB connect by themselves. Android 11+: turn on the “App Menu” service in Accessibility once, press “Connect automatically”. Android 10 and older: run adb tcpip 5555 once from a computer (repeat after a reboot). With root none of this is needed: allow root for the app once and it connects by itself.
 
