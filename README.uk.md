@@ -16,7 +16,7 @@
 
 **Версія 15.0.** [AppMenu-15.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `af7bd8ed944d4e6df666f36c1ed2ee30e2e866134cc4e36565ced4679acdd327`
+SHA-256: `f093eeb3e754e620b2f89a80b8338479160fcac81610b2d3f75b508a5e468ac7`
 
 ## Що нового в 15.0
 
