@@ -109,7 +109,7 @@
     <string name="root_on">Root: підключено</string>
     <string name="root_connect_btn">Підключити через root</string>
     <string name="root_use_title">Використовувати root замість ADB</string>
-    <string name="root_hint">Якщо на пристрої є root, ADB і комп\'ютер не потрібні. Під час першого запуску дозвольте root цьому застосунку. Що використовувати під час запуску, вирішує перемикач; кнопки підключення ADB перемикають на ADB.</string>
+    <string name="root_hint">Якщо на пристрої є root, ADB і комп’ютер не потрібні. Root видається в програмі керування root (вкладка «Суперкористувач», увімкнути цей застосунок): вікна запиту може не бути. Що використовувати під час запуску, вирішує перемикач; кнопки підключення ADB перемикають на ADB.</string>
     <string name="wn_pending">Картинку завантажено. Натисніть «Поставити: %1$s», щоб застосувати.</string>
     <string name="wn_ask_title">Поставити ці шпалери?</string>
     <string name="wn_ask_text">Картинку завантажено, але ще не поставлено на «%1$s».</string>
@@ -814,7 +814,7 @@
     <string name="set_desk_anim_hint">Плавні переходи між екранами, Домом і столами. Не залежить від системного налаштування «Масштаб анімації». Вимкнено — миттєво. У легкому режимі не використовується.</string>
     <string name="set_desk_anim_style">Стиль анімації</string>
     <string name="set_gap">Щільність значків</string>
-    <string name="set_grid">Сітка та масштаб значків</string>
+    <string name="set_grid">Рядки та стовпці</string>
     <string name="set_lite">Полегшений режим (слабке залізо)</string>
     <string name="set_mem">Пам’ять</string>
     <string name="set_plates">Підкладки значків</string>

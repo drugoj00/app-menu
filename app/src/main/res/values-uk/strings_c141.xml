@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="root_help_title">Немає root для цього застосунку</string>
+    <string name="root_help_body">Видайте root у програмі керування root: вкладка «Суперкористувач», увімкніть «%1$s».</string>
+    <string name="root_help_open">Відкрити програму керування root</string>
+    <string name="root_help_retry">Повторити</string>
+    <string name="root_help_nomgr">Програму керування root не знайдено</string>
+    <string name="root_help_still">Root досі не видано</string>
+</resources>

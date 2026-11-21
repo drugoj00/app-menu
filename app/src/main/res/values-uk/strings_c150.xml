@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="confirm_cache">Очищення кешу видалить тимчасові дані застосунку. У деяких плеєрів IPTV у кеші лежать списки каналів і програма передач. Продовжити?</string>
+    <string name="confirm_cache_never">Більше не питати</string>
+    <string name="confirm_cache_yes">Очистити</string>
+    <string name="ask_cache_title">Питати перед очищенням кешу застосунку</string>
+    <string name="ask_cache_hint">Перед кнопкою «Кеш» у картці дій застосунку показується попередження. Якщо вибрано «Більше не питати», увімкніть цей пункт, щоб запитання повернулося.</string>
+    <string name="blk_tl_b">Розмір плиток</string>
+    <string name="tl_size_title">Розмір значка та збільшення при виділенні</string>
+    <string name="tl_size_cap">розмір значка</string>
+    <string name="tl_fill_cap">значок на плитці</string>
+    <string name="tl_zoom_cap">при фокусі</string>
+    <string name="tl_size_hint">Розмір значка: змінює всю плитку (значок, підкладку й підпис) у меню та в панелі «Усі застосунки». Типово 100%.</string>
+    <string name="tl_fill_hint">Значок на плитці: яку частину плитки займає значок. Більший відсоток: більший значок на тій самій плитці. Типово 75%.</string>
+    <string name="tl_zoom_hint">Збільшення: наскільки плитка росте, коли на ній курсор або фокус пульта. 0%: без збільшення (типово).</string>
+    <string name="tl_prev_label">Відео</string>
+    <string name="tl_defaults">Типово</string>
+    <string name="tl_preview">Попередній перегляд</string>
+    <string name="tl_prev_rest">звичайна</string>
+    <string name="tl_prev_sel">виділена</string>
+</resources>
