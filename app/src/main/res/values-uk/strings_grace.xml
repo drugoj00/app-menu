@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sv_grace">Пауза після звуку</string>
+    <string name="sv_grace_sub">Чекати після останнього звуку, щоб паузи між кліпами й треками не вмикали заставку</string>
+    <string name="sv_grace_off">Вимк</string>
+    <string name="sv_sec" formatted="false">%1$d с</string>
+</resources>
