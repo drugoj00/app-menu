@@ -195,6 +195,7 @@ private fun MainScreen(ctx: Context, go: (String) -> Unit) {
     fun upd(f: (SaverCfg) -> SaverCfg) { SaverPrefs.set(ctx, f); cfg = SaverPrefs.get(ctx) }
     val on = stringResource(R.string.on); val off = stringResource(R.string.off)
     val idles = listOf(1, 2, 5, 10, 15, 30)
+    val graces = listOf(0, 5, 10, 15, 30, 60, 120)
     val ways = listOf(stringResource(R.string.sv_way_auto), stringResource(R.string.sv_way_overlay), stringResource(R.string.sv_way_window))
     val sounds = listOf(stringResource(R.string.sv_snd_off), stringResource(R.string.sv_snd_music), stringResource(R.string.sv_snd_any))
     val modes = listOf(stringResource(R.string.sv_mode_not), stringResource(R.string.sv_mode_only))
@@ -232,6 +233,7 @@ private fun MainScreen(ctx: Context, go: (String) -> Unit) {
         item { Item(stringResource(R.string.sv_apps_mode), modes[cfg.mode.coerceIn(0, 1)], onDec = { upd { it.copy(mode = 1 - it.mode) } }, onInc = { upd { it.copy(mode = 1 - it.mode) } }) }
         item { Item(stringResource(R.string.sv_apps_title), cfg.apps.size.toString(), stringResource(R.string.sv_apps_sub), onClick = { go("apps") }) }
         item { Item(stringResource(R.string.sv_sound), sounds[cfg.sound.coerceIn(0, 2)], stringResource(R.string.sv_sound_sub), onDec = { upd { it.copy(sound = cycle(listOf(0, 1, 2), it.sound, -1)) } }, onInc = { upd { it.copy(sound = cycle(listOf(0, 1, 2), it.sound, 1)) } }) }
+        if (cfg.sound == 0) item { Item(stringResource(R.string.sv_grace), if (cfg.soundGraceSec == 0) stringResource(R.string.sv_grace_off) else stringResource(R.string.sv_sec, cfg.soundGraceSec), stringResource(R.string.sv_grace_sub), onDec = { upd { it.copy(soundGraceSec = cycle(graces, it.soundGraceSec, -1)) } }, onInc = { upd { it.copy(soundGraceSec = cycle(graces, it.soundGraceSec, 1)) } }) }
         item { Item(stringResource(R.string.sv_charging), if (cfg.onlyCharging) on else off, onClick = { upd { it.copy(onlyCharging = !it.onlyCharging) } }) }
         item { Item(stringResource(R.string.sv_sched), if (cfg.schedOn) on else off, stringResource(R.string.sv_sched_sub), onClick = { upd { it.copy(schedOn = !it.schedOn) } }) }
         if (cfg.schedOn) {

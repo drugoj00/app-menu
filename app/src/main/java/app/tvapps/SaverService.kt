@@ -403,7 +403,7 @@ class SaverService : Service() {
         val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         if (am.mode != AudioManager.MODE_NORMAL) return getString(R.string.sv_r_call)
         // 18.11.2026: не только isMusicActive (пропускает часть плееров с аппаратным декодированием) — см. SaverAudio в SaverCore.kt
-        val music = SaverAudio.playingOrRecently(applicationContext)
+        val music = SaverAudio.playingOrRecently(applicationContext, c.soundGraceSec * 1000L)
         if (c.sound == 0 && music) return getString(R.string.sv_r_sound)
         if (c.sound == 1 && !music) return getString(R.string.sv_r_no_music)
         if (c.onlyCharging && !charging()) return getString(R.string.sv_r_no_charge)

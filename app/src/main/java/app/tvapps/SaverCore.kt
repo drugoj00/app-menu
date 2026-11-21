@@ -49,6 +49,8 @@ data class SaverCfg(
     val size: Int = 100,
     /** цвет фона ARGB; 0: чёрный */
     val bg: Long = 0L,
+    /** секунд «паузы после звука»: столько заставка ещё не показывается после последнего звука (паузы между клипами и треками); 0: выкл */
+    val soundGraceSec: Int = 30,
 )
 
 object SaverPrefs {
@@ -68,7 +70,7 @@ object SaverPrefs {
         return SaverCfg(
             p.getBoolean("on", d.enabled), p.getInt("idle", d.idleMin), p.getInt("way", d.way), p.getInt("mode", d.mode), apps, p.getBoolean("chg", d.onlyCharging), p.getInt("snd", d.sound),
             p.getBoolean("sch", d.schedOn), p.getInt("from", d.from), p.getInt("to", d.to), p.getInt("days", d.days), p.getInt("dim", d.dim),
-            p.getBoolean("burn", d.burn), p.getBoolean("clk", d.clockOnly), p.getInt("size", d.size), p.getLong("bg", d.bg),
+            p.getBoolean("burn", d.burn), p.getBoolean("clk", d.clockOnly), p.getInt("size", d.size), p.getLong("bg", d.bg), p.getInt("sg", d.soundGraceSec),
         )
     }
 
@@ -76,7 +78,7 @@ object SaverPrefs {
         val n = f(get(c))
         sp(c).edit().putBoolean("on", n.enabled).putInt("idle", n.idleMin).putInt("way", n.way).putInt("mode", n.mode).putString("apps", JSONArray(n.apps.toList()).toString())
             .putBoolean("chg", n.onlyCharging).putInt("snd", n.sound).putBoolean("sch", n.schedOn).putInt("from", n.from).putInt("to", n.to).putInt("days", n.days)
-            .putInt("dim", n.dim).putBoolean("burn", n.burn).putBoolean("clk", n.clockOnly).putInt("size", n.size).putLong("bg", n.bg).apply()
+            .putInt("dim", n.dim).putBoolean("burn", n.burn).putBoolean("clk", n.clockOnly).putInt("size", n.size).putLong("bg", n.bg).putInt("sg", n.soundGraceSec).apply()
     }
 
     /** Готовые наборы правил: 0 магнитола, 1 телевизор, 2 телефон. */
@@ -175,9 +177,9 @@ object SaverAudio {
     /**
      * 21.11.2026 Евгений: заставка накрыла Кинопоиск между треками/клипами — плеер на пару секунд замолкает (конец потока, загрузка
      * следующего), и проверка «играет ли звук» в этот миг даёт «нет». Поэтому после последнего слышимого звука держим «играет»
-     * ещё [graceMs] (по умолчанию 15 с): паузы между клипами и треками заставку не вызывают, а настоящая остановка видео или музыки — вызывает.
+     * ещё [graceMs] (по умолчанию 30 с): паузы между клипами и треками заставку не вызывают, а настоящая остановка видео или музыки — вызывает.
      */
-    fun playingOrRecently(c: Context, graceMs: Long = 15_000L): Boolean {
+    fun playingOrRecently(c: Context, graceMs: Long = 30_000L): Boolean {
         val now = android.os.SystemClock.elapsedRealtime()
         if (isAnyPlaying(c)) { lastSeen = now; return true }
         return lastSeen != 0L && now - lastSeen < graceMs
