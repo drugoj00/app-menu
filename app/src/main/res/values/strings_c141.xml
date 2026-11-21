@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="root_help_title">No root for this app</string>
+    <string name="root_help_body">Grant root in the root manager app: open the “Superuser” tab and turn on “%1$s”.</string>
+    <string name="root_help_open">Open the root manager app</string>
+    <string name="root_help_retry">Retry</string>
+    <string name="root_help_nomgr">Root manager app not found</string>
+    <string name="root_help_still">Root is still not granted</string>
+</resources>

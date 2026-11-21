@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="confirm_cache">Clearing the cache deletes temporary app data. Some IPTV players keep channel lists and the program guide in the cache. Continue?</string>
+    <string name="confirm_cache_never">Do not ask again</string>
+    <string name="confirm_cache_yes">Clear</string>
+    <string name="ask_cache_title">Ask before clearing an app cache</string>
+    <string name="ask_cache_hint">A warning is shown before the Cache button in the app action card. After choosing Do not ask again, turn this on to bring the question back.</string>
+    <string name="blk_tl_b">Tile size</string>
+    <string name="tl_size_title">Icon size and selection zoom</string>
+    <string name="tl_size_cap">icon size</string>
+    <string name="tl_fill_cap">icon on tile</string>
+    <string name="tl_zoom_cap">on focus</string>
+    <string name="tl_size_hint">Icon size: scales the whole tile (icon, plate and label) in the menu and in the All apps panel. 100% is the default.</string>
+    <string name="tl_fill_hint">Icon on tile: how much of the tile the icon takes. A higher value makes the icon bigger on the same tile. Default 75%.</string>
+    <string name="tl_zoom_hint">Selection zoom: how much a tile grows when the cursor or remote focus is on it. 0% means no zoom (default).</string>
+    <string name="tl_prev_label">Video</string>
+    <string name="tl_defaults">Defaults</string>
+    <string name="tl_preview">Preview</string>
+    <string name="tl_prev_rest">normal</string>
+    <string name="tl_prev_sel">selected</string>
+</resources>

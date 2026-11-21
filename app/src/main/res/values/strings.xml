@@ -109,7 +109,7 @@
     <string name="root_on">Root: connected</string>
     <string name="root_connect_btn">Connect via root</string>
     <string name="root_use_title">Use root instead of ADB</string>
-    <string name="root_hint">If the device has root, ADB and a computer are not needed. On first start allow root for this app. The switch decides what is used at start; the ADB connect buttons switch to ADB.</string>
+    <string name="root_hint">If the device has root, ADB and a computer are not needed. Root is granted in the root manager app (Superuser tab, turn this app on): the request window may not appear. The switch decides what is used at start; the ADB connect buttons switch to ADB.</string>
     <string name="wn_pending">Image loaded. Press “Apply: %1$s” to set it.</string>
     <string name="wn_ask_title">Set this wallpaper?</string>
     <string name="wn_ask_text">The image is loaded but not applied to “%1$s”.</string>
@@ -814,7 +814,7 @@
     <string name="set_desk_anim_hint">Smooth transitions between screens, Home and desks: slide, zoom, flip or fade. Does not depend on the system “Animation scale” option. Off: instant. Not used in lite mode.</string>
     <string name="set_desk_anim_style">Animation style</string>
     <string name="set_gap">Icon density</string>
-    <string name="set_grid">Grid and icon scale</string>
+    <string name="set_grid">Rows and columns</string>
     <string name="set_lite">Light mode (weak devices)</string>
     <string name="set_mem">Memory</string>
     <string name="set_plates">Icon plates</string>
