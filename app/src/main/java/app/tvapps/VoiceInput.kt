@@ -80,6 +80,17 @@ object Voice {
 
     fun request() { trigger.intValue++ }
 
+    /** Есть ли на устройстве программа распознавания речи (15.0): без неё кнопки микрофона скрыты. Результат помнится полминуты. */
+    @Volatile private var availAt = 0L
+    @Volatile private var availVal = false
+    fun available(ctx: Context): Boolean {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (availAt != 0L && now - availAt < 30_000L) return availVal
+        val v = runCatching { engines(ctx.applicationContext).isNotEmpty() || Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).resolveActivity(ctx.packageManager) != null }.getOrDefault(false)
+        availVal = v; availAt = now
+        return v
+    }
+
     /** "" — ещё не выбирали (спросить), "system" — системное окно, иначе пакет/класс выбранной программы. */
     fun saved(ctx: Context): String = ctx.getSharedPreferences("tvapps", Context.MODE_PRIVATE).getString(KEY, "") ?: ""
     fun save(ctx: Context, id: String) { ctx.getSharedPreferences("tvapps", Context.MODE_PRIVATE).edit().putString(KEY, id).apply() }
