@@ -20,3 +20,6 @@
 -dontwarn jcifs.**
 -dontwarn javax.servlet.**
 -dontwarn org.bouncycastle.**
+# SMB с логином и паролем (15.0): NTLM берёт MD4 у провайдера BouncyCastle по имени; без этих правил R8 убирает MD4, и вход по паролю в release не работает
+-keep class org.bouncycastle.jcajce.provider.digest.MD4** { *; }
+-keep class org.bouncycastle.crypto.digests.MD4Digest { *; }
