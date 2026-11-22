@@ -324,7 +324,8 @@ internal val LocalSettingsQuery = androidx.compose.runtime.compositionLocalOf { 
 /** Поиск по настройкам: запрос расширяется синонимами (бекап, копия, резервная; обновить, версия; шрифт, размер; обои, фон; adb, отладка; значки, иконки; usb, флешка и др.). */
 internal object SettingsSearch {
     private val groups = listOf(
-        listOf("бекап", "бэкап", "копи", "резерв", "backup", "copy", "copies", "відновл", "восстанов"),
+        listOf("бекап", "бэкап", "копи", "резерв", "backup", "copy", "copies", "відновл", "восстанов", "синхрон", "sync", "samba", "smb", "webdav", "облак", "яндекс", "сетев", "мереж"),
+        listOf("быстр", "швидк", "quick", "кнопк", "пульт", "remote", "назначен", "призначен"),
         listOf("обнов", "обнов", "верси", "update", "version", "оновл", "новых"),
         listOf("шрифт", "размер", "font", "size", "масштаб", "розмір", "крупн"),
         listOf("обои", "фон", "wallpaper", "background", "шпалер", "картинк"),
@@ -826,7 +827,10 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
     var backups by remember { mutableStateOf(false) }
     var menuBgDlg by remember { mutableStateOf(false) }
     var bkpPick by remember { mutableStateOf<String?>(null) }
-    val anyDialog = dockKeyDlg || homeBgDlg || searchDlg || adbDialog || adbNet || appsUpd || instLog || installFiles != null || browser || net || wifi || backups || menuBgDlg || bkpPick != null
+    var iconPacksDlg by remember { mutableStateOf(false) }
+    var bkRemote by remember { mutableStateOf(false) }
+    var qaDlg by remember { mutableStateOf(false) }
+    val anyDialog = iconPacksDlg || bkRemote || qaDlg || dockKeyDlg || homeBgDlg || searchDlg || adbDialog || adbNet || appsUpd || instLog || installFiles != null || browser || net || wifi || backups || menuBgDlg || bkpPick != null
     val dialogWasOpen = remember { booleanArrayOf(false) }
     LaunchedEffect(anyDialog) {
         if (!anyDialog && dialogWasOpen[0]) {
@@ -907,6 +911,8 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                             runCatching { saveBackup.launch(Backup.fileName(ctx)) }.onFailure { Toast.makeText(ctx, ctx.getString(R.string.icon_no_picker), Toast.LENGTH_LONG).show() }
                         }
                         ActionRow(HIcons.recent, stringResource(R.string.backup_hero_load), stringResource(R.string.backup_load_h)) { bkpPick = "file" }
+                        // 15.0: копии в сеть (SMB, WebDAV, Яндекс Диск, папка, USB) и синхронизация рядом с обычной копией
+                        ActionRow(HIcons.wifi, stringResource(R.string.bkr_title), BkTargets.summary(ctx)) { bkRemote = true }
                         ActionRow(HIcons.open, stringResource(R.string.about_title), stringResource(R.string.about_hero_h)) { sub = "about" }
                     }
                     SwitchRow(stringResource(R.string.self_upd_auto), Cfg.selfUpd, listOf()) { Cfg.changeSelfUpd(it) }
@@ -923,6 +929,11 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                             }
                             ActionRow(HIcons.recent, stringResource(R.string.backup_restore_here), stringResource(R.string.backup_restore_here_h)) { bkpPick = "app" }
                         }
+                    }
+                    // при обычном просмотре кнопка стоит среди главных (выше); раздел нужен для результатов поиска по настройкам
+                    if (query.isNotBlank()) Section(stringResource(R.string.bkr_title)) {
+                        SectionHint(stringResource(R.string.bkr_hint))
+                        ActionRow(HIcons.wifi, stringResource(R.string.bkr_open), BkTargets.summary(ctx)) { bkRemote = true }
                     }
                     Section(stringResource(R.string.set_backups)) {
                         Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.backupOnDelete) { Cfg.changeBackupOnDelete(it) }
@@ -966,6 +977,10 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                     }
                     Section(stringResource(R.string.set_control)) {
                         SectionHint(stringResource(R.string.ctl_help))
+                    }
+                    Section(stringResource(R.string.qa_title)) {
+                        SectionHint(stringResource(R.string.qa_hint))
+                        ActionRow(HIcons.gear, stringResource(R.string.qa_open), QuickActions.summary(ctx)) { qaDlg = true }
                     }
                     SwitchRow(stringResource(R.string.back_start_title), Cfg.backToStart, listOf(stringResource(R.string.back_start_hint))) { Cfg.changeBackToStart(it) }
                     }
@@ -1050,7 +1065,7 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                     SwitchRow(stringResource(R.string.set_plates), Cfg.plates, listOf()) { Cfg.changePlates(it) }
                     Section(stringResource(R.string.set_iconpack)) {
                         val packs = remember { IconPacks.installed(ctx) }
-                        Options(listOf("" to stringResource(R.string.iconpack_native)) + packs, Cfg.iconPack) { Cfg.changeIconPack(it) }
+                        ActionRow(HIcons.apps, stringResource(R.string.ip_open), (packs.firstOrNull { it.first == Cfg.iconPack }?.second ?: stringResource(R.string.iconpack_native)) + " · " + stringResource(R.string.ip_open_h)) { iconPacksDlg = true }
                         if (packs.isEmpty()) Text(stringResource(R.string.iconpack_none), color = t.hint, fontSize = 12.sp)
                         SectionHint(stringResource(R.string.import_hint))
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1408,6 +1423,9 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
         }
         }
     }
+    if (iconPacksDlg) IconPacksDialog(apps) { iconPacksDlg = false }
+    if (bkRemote) BackupRemoteDialog { bkRemote = false }
+    if (qaDlg) QuickActionsDialog { qaDlg = false }
     if (menuBgDlg) BgDialogHost(true) { menuBgDlg = false }
     if (homeBgDlg) BgDialogHost(false) { homeBgDlg = false }
     if (dockKeyDlg) DockKeyCapture { code -> if (code != null) { HomeDock.setKeyCode(ctx, code); HomeDock.setKeyMode(ctx, 3) }; dockKeyDlg = false }
