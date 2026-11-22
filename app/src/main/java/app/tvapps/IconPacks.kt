@@ -135,7 +135,19 @@ object IconPacks {
         return n
     }
 
-    private val cache = HashMap<String, Map<String, String>>()
+    /** Разобранный набор значков (15.0): картинки приложений по компоненту и по пакету, а также фон, маска и накладка для приложений, которых в наборе нет. */
+    class Pack(
+        val byComp: Map<String, String>, val byPkg: Map<String, String>,
+        val back: List<String>, val mask: String?, val upon: String?, val scale: Float,
+    ) {
+        val total get() = byComp.size
+        val hasStyle get() = back.isNotEmpty() || mask != null || upon != null
+    }
+
+    private val cache = HashMap<String, Pack>()
+
+    /** Сбрасывает разобранные наборы: нужен после смены набора. */
+    fun clearCache() { synchronized(cache) { cache.clear() } }
 
     private fun norm(c: String): String {
         var s = c.trim()
@@ -150,32 +162,123 @@ object IconPacks {
         return s.lowercase()
     }
 
-    /** Разбор appfilter.xml набора: компонент приложения → имя картинки. */
-    private fun map(ctx: Context, pack: String): Map<String, String> = cache.getOrPut(pack) {
-        runCatching {
-            val res = ctx.packageManager.getResourcesForApplication(pack)
-            val out = HashMap<String, String>()
-            fun read(p: XmlPullParser) {
-                while (p.next() != XmlPullParser.END_DOCUMENT) {
-                    if (p.eventType == XmlPullParser.START_TAG && p.name == "item") {
-                        val comp = p.getAttributeValue(null, "component") ?: continue
-                        val dr = p.getAttributeValue(null, "drawable") ?: continue
-                        // не putIfAbsent: его нет в Android 6.0 (API 23)
-                        val key = norm(comp)
-                        if (!out.containsKey(key)) out[key] = dr
+    /** Разбор appfilter.xml набора: компонент приложения → имя картинки, фон/маска/накладка (iconback, iconmask, iconupon) и масштаб (scale). */
+    fun load(ctx: Context, pack: String): Pack = synchronized(cache) {
+        cache.getOrPut(pack) {
+            runCatching {
+                val res = ctx.packageManager.getResourcesForApplication(pack)
+                val comps = HashMap<String, String>()
+                val pkgs = HashMap<String, String>()
+                val back = ArrayList<String>()
+                var mask: String? = null
+                var upon: String? = null
+                var scale = 1f
+                fun read(p: XmlPullParser) {
+                    while (p.next() != XmlPullParser.END_DOCUMENT) {
+                        if (p.eventType != XmlPullParser.START_TAG) continue
+                        when (p.name) {
+                            "item" -> {
+                                val comp = p.getAttributeValue(null, "component") ?: continue
+                                val dr = p.getAttributeValue(null, "drawable") ?: continue
+                                // не putIfAbsent: его нет в Android 6.0 (API 23)
+                                val key = norm(comp)
+                                if (!comps.containsKey(key)) comps[key] = dr
+                                val pk = key.substringBefore('/')
+                                if (pk.isNotEmpty() && !pkgs.containsKey(pk)) pkgs[pk] = dr
+                            }
+                            "iconback" -> for (i in 0 until p.attributeCount) if (p.getAttributeName(i).startsWith("img")) back.add(p.getAttributeValue(i))
+                            "iconmask" -> if (p.attributeCount > 0) mask = p.getAttributeValue(0)
+                            "iconupon" -> if (p.attributeCount > 0) upon = p.getAttributeValue(0)
+                            "scale" -> p.getAttributeValue(null, "factor")?.toFloatOrNull()?.let { scale = it.coerceIn(0.3f, 1.2f) }
+                        }
                     }
                 }
-            }
-            val xmlId = res.getIdentifier("appfilter", "xml", pack)
-            if (xmlId != 0) read(res.getXml(xmlId))
-            else ctx.packageManager.getResourcesForApplication(pack).assets.open("appfilter.xml").use { st ->
-                val p = Xml.newPullParser(); p.setInput(st, null); read(p)
-            }
-            out
-        }.getOrDefault(emptyMap())
+                val xmlId = res.getIdentifier("appfilter", "xml", pack)
+                if (xmlId != 0) read(res.getXml(xmlId))
+                else res.assets.open("appfilter.xml").use { st ->
+                    val p = Xml.newPullParser(); p.setInput(st, null); read(p)
+                }
+                Pack(comps, pkgs, back, mask, upon, scale)
+            }.getOrDefault(Pack(emptyMap(), emptyMap(), emptyList(), null, null, 1f))
+        }
     }
 
-    /** Свой значок, если он есть: сначала своя картинка, затем набор значков. */
+    private fun drawableOf(ctx: Context, pack: String, name: String?): Drawable? {
+        if (name.isNullOrBlank()) return null
+        return runCatching {
+            val res = ctx.packageManager.getResourcesForApplication(pack)
+            val id = res.getIdentifier(name, "drawable", pack).takeIf { it != 0 } ?: res.getIdentifier(name, "mipmap", pack)
+            if (id != 0) res.getDrawable(id, null) else null
+        }.getOrNull()
+    }
+
+    /** Название картинки набора для компонента или (запасной вариант) для пакета приложения. */
+    fun nameFor(ctx: Context, pack: String, e: Entry): String? {
+        val d = load(ctx, pack)
+        val comp = e.launch.component?.flattenToString()?.let { norm(it) }
+        return (comp?.let { d.byComp[it] }) ?: d.byPkg[e.pkg.lowercase()]
+    }
+
+    /** Значок приложения из набора (или null, если в наборе его нет). */
+    fun fromPack(ctx: Context, pack: String, e: Entry): Drawable? = drawableOf(ctx, pack, nameFor(ctx, pack, e))
+
+    private fun toBmp(d: Drawable?, size: Int): Bitmap? {
+        if (d == null) return null
+        return runCatching {
+            val b = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            d.setBounds(0, 0, size, size)
+            d.draw(android.graphics.Canvas(b))
+            b
+        }.getOrNull()
+    }
+
+    /**
+     * Значок приложения, которого в наборе нет, но набор задаёт общее оформление (фон, маска, накладка, масштаб): родной значок кладётся на фон набора
+     * с маской. Работает только при включённой настройке «Оформлять остальные значки».
+     */
+    fun styled(ctx: Context, pack: String, native: Drawable, size: Int = 192): Drawable? {
+        val d = load(ctx, pack)
+        if (!d.hasStyle) return null
+        return runCatching {
+            val out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            val c = android.graphics.Canvas(out)
+            val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG or android.graphics.Paint.FILTER_BITMAP_FLAG)
+            val full = android.graphics.Rect(0, 0, size, size)
+            if (d.back.isNotEmpty()) toBmp(drawableOf(ctx, pack, d.back[(native.intrinsicWidth.coerceAtLeast(1) + native.intrinsicHeight.coerceAtLeast(0)) % d.back.size]), size)?.let { c.drawBitmap(it, null, full, paint) }
+            // родной значок рисуется во временный слой, затем вырезается по маске
+            val layer = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            val lc = android.graphics.Canvas(layer)
+            val inner = (size * d.scale).toInt().coerceAtLeast(1)
+            val off = (size - inner) / 2
+            native.setBounds(off, off, off + inner, off + inner)
+            native.draw(lc)
+            toBmp(drawableOf(ctx, pack, d.mask), size)?.let { m ->
+                val mp = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_OUT) }
+                // как в Nova и ADW: непрозрачные места маски вырезаются из значка (DST_OUT)
+                lc.drawBitmap(m, null, full, mp)
+            }
+            c.drawBitmap(layer, 0f, 0f, paint)
+            toBmp(drawableOf(ctx, pack, d.upon), size)?.let { c.drawBitmap(it, null, full, paint) }
+            BitmapDrawable(ctx.resources, out)
+        }.getOrNull()
+    }
+
+    /** Установленный набор: сколько значков подходит к установленным приложениям и первые примеры для предпросмотра. */
+    class Preview(val matched: Int, val total: Int, val samples: List<Pair<Entry, Drawable>>)
+
+    fun preview(ctx: Context, pack: String, apps: List<Entry>, max: Int = 12): Preview {
+        val d = load(ctx, pack)
+        var n = 0
+        val samples = ArrayList<Pair<Entry, Drawable>>()
+        for (e in apps) {
+            val dr = fromPack(ctx, pack, e) ?: continue
+            n++
+            if (samples.size < max) samples.add(e to dr)
+        }
+        return Preview(n, d.total, samples)
+    }
+
+    /** Свой значок, если он есть: сначала своя картинка, затем набор значков (по компоненту, затем по пакету), затем общее оформление набора. */
     fun override(ctx: Context, e: Entry): Drawable? {
         for (d in ownDirs(ctx)) {
             val f = File(d, "${e.pkg}.png")
@@ -183,13 +286,8 @@ object IconPacks {
         }
         val pack = Cfg.iconPack
         if (pack.isNotEmpty()) {
-            val comp = e.launch.component?.flattenToString()?.lowercase()
-            val name = comp?.let { map(ctx, pack)[it] }
-            if (name != null) {
-                val res = ctx.packageManager.getResourcesForApplication(pack)
-                val id = res.getIdentifier(name, "drawable", pack)
-                if (id != 0) return runCatching { res.getDrawable(id, null) }.getOrNull()
-            }
+            fromPack(ctx, pack, e)?.let { return it }
+            if (Cfg.iconPackStyle) styled(ctx, pack, e.icon)?.let { return it }
         }
         return null
     }
