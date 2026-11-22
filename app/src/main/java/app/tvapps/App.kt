@@ -31,6 +31,9 @@ class App : Application() {
         runCatching { Cfg.init(this) }
         runCatching { Lite.init(this) }
         runCatching { UpdSched.apply(this) }
+        // 15.0: копии в сеть и синхронизация: слушатель изменений настроек, расписание и проверка «пора ли» через полминуты после запуска (сеть успевает подняться)
+        runCatching { BkEngine.watch(this); BkSched.apply(this) }
+        runCatching { android.os.Handler(mainLooper).postDelayed({ BkEngine.runAutoAsync(this) }, 30_000L) }
         // защита главного экрана: частые перезапуски при отключённом родном экране возвращают его
         runCatching { HomeControl.guardOnProcessStart(this) }
         // шифрование Conscrypt и ключ ADB создаются при первом обращении к ADB (Adb.ensure), а не при каждом запуске: экономит память
