@@ -157,7 +157,7 @@ internal fun programsFor(row: HRow, channels: List<ChRow>): List<ChProgram> {
 @Composable
 internal fun HomeRowsView(
     layout: HLayout, apps: List<Entry>, tick: Int, refreshTick: Int, movingItem: String?, firstReq: FocusRequester,
-    openApp: (Entry) -> Unit, openMenu: () -> Unit, onDlg: (Dlg?) -> Unit, onMoveEnd: () -> Unit,
+    openApp: (Entry) -> Unit, openMenu: () -> Unit, onDlg: (Dlg?) -> Unit, onMoveEnd: () -> Unit, onMoveStart: (String) -> Unit = {},
     /** Высота панели «Все приложения» (видимая область «Дома»); 0 — панель не показывается. */
     panelH: androidx.compose.ui.unit.Dp = 0.dp,
 ) {
@@ -204,7 +204,7 @@ internal fun HomeRowsView(
                             CardsRow(row, CardStore.programs(ctx, row.auto.removePrefix("mine:")).take(row.count), true, tick, first, onDlg, true) {}
                         } else CardsRow(row, programsFor(row, channels), loaded, tick, first, onDlg, granted) { granted = Channels.granted(ctx) }
                     "widgets" -> WidgetsRow(row, tick, refreshTick, first, onDlg)
-                    else -> AppsRow(row, byPkg, inputs, movingItem, movingReq, first, tick, openApp, openMenu, onDlg, onMoveEnd)
+                    else -> AppsRow(row, byPkg, inputs, movingItem, movingReq, first, tick, openApp, openMenu, onDlg, onMoveEnd, onMoveStart)
                 }
             }
             if (panelOn && idx == panelAfter) Box(Modifier.onGloballyPositioned { panelTopPx = it.positionInParent().y }) { AllAppsPanel(apps, panelEff, openApp, onDlg) }
@@ -237,7 +237,7 @@ private fun RowTitle(row: HRow, onDlg: (Dlg?) -> Unit) {
 @Composable
 private fun AppsRow(
     row: HRow, byPkg: Map<String, Entry>, inputs: List<TvIn>, movingItem: String?, movingReq: FocusRequester, firstReq: FocusRequester?, tick: Int,
-    openApp: (Entry) -> Unit, openMenu: () -> Unit, onDlg: (Dlg?) -> Unit, onMoveEnd: () -> Unit,
+    openApp: (Entry) -> Unit, openMenu: () -> Unit, onDlg: (Dlg?) -> Unit, onMoveEnd: () -> Unit, onMoveStart: (String) -> Unit = {},
 ) {
     val ctx = LocalContext.current
     @Suppress("UNUSED_VARIABLE") val dep = Cfg.launchTick
@@ -356,6 +356,8 @@ private fun AppsRow(
                     }
                 },
                 onLong = { onDlg(Dlg.ItemD(row.id, el.item.id)) },
+                // долгое ОК: сразу режим перемещения без окна (кроме автоматических плиток); окно действий: «Меню» или «Инфо»
+                onLongKey = if (!el.auto && !isMoving) ({ onMoveStart(el.item.id) }) else null,
                 onMoveKey = { k2 ->
                     if (el.auto) true else when (k2) {
                         Key.DirectionLeft -> { HomeStore.moveItem(el.item.id, -1, 0); true }
@@ -395,6 +397,7 @@ private fun HomeAppTile(
     row: HRow, el: El, moving: Boolean, req: FocusRequester?, stepPx: Float, mod: Modifier,
     scale: Float = 1f,
     onClick: () -> Unit, onLong: () -> Unit, onMoveKey: (Key) -> Boolean, onStep: (Int) -> Unit,
+    onLongKey: (() -> Unit)? = null,
     dragEnabled: Boolean = false,
 ) {
     val t = LocalTh.current
@@ -444,7 +447,7 @@ private fun HomeAppTile(
         mod.onGloballyPositioned { c ->
             if (dragEnabled) TileDrag.tileRects[item.id] = row.id to androidx.compose.ui.geometry.Rect(c.positionInRoot(), androidx.compose.ui.geometry.Size(c.size.width.toFloat(), c.size.height.toFloat()))
         }.graphicsLayer { alpha = if (TileDrag.active?.el?.item?.id == item.id) 0.25f else 1f },
-        RoundedCornerShape(radius + 2.dp), Color.Transparent, moving, req, stepPx, onMoveKey, onStep, onClick = onClick, onMoveEnd = onClick, onLong = onLong,
+        RoundedCornerShape(radius + 2.dp), Color.Transparent, moving, req, stepPx, onMoveKey, onStep, onClick = onClick, onMoveEnd = onClick, onLong = onLong, onLongKey = onLongKey,
         memKey = row.id + "|" + item.id,
         dragStart = if (dragEnabled) ({ p -> TileDrag.active = TileDrag.Info(row, el, scale, with(dens) { wDp.dp.toPx() }, with(dens) { sizeDp.dp.toPx() }); TileDrag.pos = p }) else null,
         dragMove = if (dragEnabled) ({ p -> TileDrag.pos = p }) else null,

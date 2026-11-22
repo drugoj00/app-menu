@@ -236,9 +236,10 @@ private fun SearchBar(big: Boolean, onVoice: () -> Unit, onSearch: (String) -> U
             .border(if (focused) 3.dp else 1.5.dp, t.accent, shape),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        HomeBox(shape = androidx.compose.foundation.shape.CircleShape, onClick = onVoice, onLong = onLong) {
+        // 15.0: без программы распознавания речи микрофон не показывается
+        if (Voice.available(androidx.compose.ui.platform.LocalContext.current)) HomeBox(shape = androidx.compose.foundation.shape.CircleShape, onClick = onVoice, onLong = onLong) {
             TintIcon(HIcons.mic, t.accent, (if (big) 28f else 22f).times(sc).dp, (if (big) 12f else 9f).times(sc).dp)
-        }
+        } else Spacer(Modifier.width((10f * sc).dp))
         androidx.compose.foundation.text.BasicTextField(
             text, { text = it }, singleLine = true, readOnly = !editing,
             textStyle = androidx.compose.ui.text.TextStyle(color = barTextTint(t.text), fontSize = fs),
@@ -379,7 +380,7 @@ internal fun HomeTopBar(
         ) { BarIcon(HIcons.hdmi, null, t.accent, (if (big) 34f else 26f).times(sc).dp, (if (big) 9f else 7f).times(sc).dp) }
         // строка поиска занимает всё свободное место между кнопками слева и значками справа
         if (top.search && !stack) SearchBar(big, onVoice, onSearch, onTopLong, Modifier.weight(1f), sc)
-        else if (top.voice && !top.search) HomeBox(
+        else if (top.voice && !top.search && Voice.available(androidx.compose.ui.platform.LocalContext.current)) HomeBox(
             shape = androidx.compose.foundation.shape.RoundedCornerShape(barR(24.dp)), bg = barBg(t.tile), edge = barEdge(t.accent), onClick = onVoice, onLong = onTopLong,
         ) {
             Row(Modifier.padding(horizontal = (16f * sc).dp, vertical = (8f * sc).dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy((8f * sc).dp)) {

@@ -163,6 +163,8 @@ internal fun HomeBox(
     onMoveEnd: () -> Unit = {},
     onClick: () -> Unit,
     onLong: () -> Unit,
+    /** долгое ОК на пульте: если задано, вместо окна действий сразу начинается перемещение (окно не перекрывает экран); «Меню» и «Инфо» по-прежнему открывают окно */
+    onLongKey: (() -> Unit)? = null,
     /** своя рамка при наведении и выборе пультом (цвет и толщина, dp); без неё цвет темы */
     ringColor: Color? = null,
     ringWidth: Int = 0,
@@ -195,6 +197,7 @@ internal fun HomeBox(
     val (hm, hover) = rememberHover()
     val click by rememberUpdatedState(onClick)
     val long by rememberUpdatedState(onLong)
+    val longKey by rememberUpdatedState(onLongKey)
     val step by rememberUpdatedState(onStep)
     val moveKey by rememberUpdatedState(onMoveKey)
     val moveEnd by rememberUpdatedState(onMoveEnd)
@@ -209,6 +212,8 @@ internal fun HomeBox(
             .focusRequester(selfReq)
             .onPreviewKeyEvent { ev ->
                 if (moving) {
+                    // хвост долгого ОК (повторы и отпускание), которым началось перемещение, перемещение не заканчивает
+                    if (OkShield.eats(ev)) return@onPreviewKeyEvent true
                     return@onPreviewKeyEvent when (ev.key) {
                         Key.DirectionLeft, Key.DirectionRight, Key.DirectionUp, Key.DirectionDown ->
                             if (ev.type == KeyEventType.KeyDown) moveKey(ev.key) else true
@@ -227,13 +232,13 @@ internal fun HomeBox(
                                     // у части пультов при удержании нет повторов: долгое нажатие определяем по времени
                                     scope.launch {
                                         delay(LONG_OK_MS)
-                                        if (pending) { pending = false; OkShield.arm(); long() }
+                                        if (pending) { pending = false; OkShield.arm(); (longKey ?: long)() }
                                     }
-                                } else if (pending) { pending = false; OkShield.arm(); long() }
+                                } else if (pending) { pending = false; OkShield.arm(); (longKey ?: long)() }
                             }
                             KeyEventType.KeyUp -> if (pending) {
                                 pending = false
-                                if (android.os.SystemClock.uptimeMillis() - downAt >= LONG_OK_MS) long() else click()
+                                if (android.os.SystemClock.uptimeMillis() - downAt >= LONG_OK_MS) (longKey ?: long)() else click()
                             }
                             else -> {}
                         }
@@ -549,9 +554,10 @@ internal fun NumberDialog(title: String, initial: Int, range: IntRange?, unit: S
 }
 
 @Composable
-internal fun TextDialog(title: String, initial: String, hint: String = "", onDone: (String) -> Unit, onClose: () -> Unit) {
+internal fun TextDialog(title: String, initial: String, hint: String = "", onDone: (String) -> Unit, onClose: () -> Unit, secret: Boolean = false) {
     val t = LocalBaseTh.current ?: LocalTh.current
     var text by remember { mutableStateOf(initial) }
+    var shown by remember { mutableStateOf(false) }
     val fr = remember { FocusRequester() }
     LaunchedEffect(Unit) { delay(80); runCatching { fr.requestFocus() } }
     MotionDialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -565,6 +571,9 @@ internal fun TextDialog(title: String, initial: String, hint: String = "", onDon
             OutlinedTextField(
                 text, { text = it }, singleLine = true,
                 textStyle = androidx.compose.ui.text.TextStyle(fontSize = 16.sp),
+                // 15.0: для паролей поле скрыто, справа глазик (как во всех полях ввода секретов)
+                visualTransformation = if (secret) secretTransform(shown) else androidx.compose.ui.text.input.VisualTransformation.None,
+                trailingIcon = if (secret) ({ SecretEye(shown, t.accent) { shown = !shown } }) else null,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = t.text, unfocusedTextColor = t.text,
                     focusedBorderColor = t.accent, unfocusedBorderColor = t.border, cursorColor = t.accent,
@@ -574,7 +583,7 @@ internal fun TextDialog(title: String, initial: String, hint: String = "", onDon
             if (hint.isNotEmpty()) Text(hint, color = t.hint, fontSize = 12.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Chip(androidx.compose.ui.res.stringResource(R.string.cancel), false) { onClose() }
-                Chip(androidx.compose.ui.res.stringResource(R.string.home_apply), true) { onDone(text.trim()) }
+                Chip(androidx.compose.ui.res.stringResource(R.string.home_apply), true) { onDone(if (secret) text else text.trim()) }
             }
         } } }
     }
