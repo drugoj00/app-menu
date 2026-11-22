@@ -101,6 +101,8 @@
             <intent-filter><action android:name="android.service.notification.NotificationListenerService" /></intent-filter>
         </service>
         <service android:name=".UpdJobService" android:exported="false" android:permission="android.permission.BIND_JOB_SERVICE" />
+        <!-- копии в сеть и синхронизация настроек по расписанию (JobScheduler) -->
+        <service android:name=".BkJobService" android:exported="false" android:permission="android.permission.BIND_JOB_SERVICE" />
         <!-- ===== Заставка «Часы и погода» ===== -->
         <!-- системная заставка Android (Daydream) -->
         <service android:name=".ClockDream" android:exported="true" android:label="@string/sv_dream_name" android:icon="@mipmap/ic_launcher" android:permission="android.permission.BIND_DREAM_SERVICE">
