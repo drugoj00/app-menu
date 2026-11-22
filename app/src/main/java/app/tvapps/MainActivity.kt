@@ -156,6 +156,8 @@ internal object NavReq {
         lastSave = now
         val app = ctx.applicationContext
         Thread { Backup.autoSave(app) }.start()
+        // 15.0: автокопия и синхронизация в сеть (если назначения заданы)
+        BkEngine.runAutoAsync(app)
     }
 }
 
@@ -200,6 +202,8 @@ class MainActivity : ComponentActivity(), HasFx {
     override fun dispatchKeyEvent(ev: android.view.KeyEvent): Boolean {
         if (ev.action == android.view.KeyEvent.ACTION_DOWN) AppsMem.lastKeyAt = System.currentTimeMillis()
         if (Voice.onKey(this, ev)) return true
+        // 15.0: быстрые действия на кнопках пульта
+        if (QuickActions.onKey(this, ev)) return true
         // «Назад» обрабатываем здесь, до списка: иначе первое нажатие после запуска из «Дома» гасилось списком и меню не закрывалось
         if (ev.keyCode == android.view.KeyEvent.KEYCODE_BACK) {
             if (ev.action == android.view.KeyEvent.ACTION_UP && !ev.isCanceled) onBackPressedDispatcher.onBackPressed()
@@ -495,6 +499,7 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
     var memBusy by remember { mutableStateOf(false) }
     // кнопка микрофона: распознанный текст идёт в поиск
     VoiceHost { txt -> query = txt; searching = true }
+    QuickActionsHost()
     // «Дом» открывает меню, которое уже живёт в фоне: настройки или поиск приходят запросом
     LaunchedEffect(NavReq.stamp) {
         if (NavReq.stamp > 0) {
@@ -1571,6 +1576,23 @@ private fun SearchBox(value: String, wide: Boolean = true, onChange: (String) ->
                         overflow = TextOverflow.Ellipsis,
                     )
                     inner()
+                }
+                // 15.0: микрофон в поле поиска; без программы распознавания речи на устройстве кнопки нет
+                val vctx = LocalContext.current
+                if (Voice.available(vctx)) {
+                    var mf by remember { mutableStateOf(false) }
+                    val (mhm, mHover) = rememberHover()
+                    val vtip = stringResource(R.string.home_voice)
+                    // подсказка при наведении и фокусе есть у каждой кнопки (правило 11)
+                    Box {
+                        Icon(
+                            HIcons.mic, vtip, tint = if (mf || mHover) t.accent else t.sub,
+                            modifier = Modifier.size(34.dp).then(mhm).onFocusChanged { mf = it.isFocused }.clip(RoundedCornerShape(8.dp))
+                                .border(if (mf) 2.dp else 0.dp, if (mf) t.accent else Color.Transparent, RoundedCornerShape(8.dp))
+                                .clickable { Voice.request() }.padding(5.dp),
+                        )
+                        if (mf || mHover) IconTip(vtip)
+                    }
                 }
             }
         },
