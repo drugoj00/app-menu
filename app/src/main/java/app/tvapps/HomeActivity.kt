@@ -10,6 +10,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -80,7 +81,7 @@ class HomeActivity : ComponentActivity(), HasFx {
     // кнопка микрофона на пульте или аэромыши (клавиши «Поиск», «Голосовой ассистент», «Ассистент»)
     override fun dispatchKeyEvent(ev: android.view.KeyEvent): Boolean {
         if (ev.action == android.view.KeyEvent.ACTION_DOWN) AppsMem.lastKeyAt = System.currentTimeMillis()
-        return HomeDock.moveKey(this, ev) || HomeDock.onKey(this, ev) || Voice.onKey(this, ev) || super.dispatchKeyEvent(ev)
+        return HomeDock.moveKey(this, ev) || HomeDock.onKey(this, ev) || Voice.onKey(this, ev) || QuickActions.onKey(this, ev) || super.dispatchKeyEvent(ev)
     }
 
     // клавиша «Меню» (или «Инфо») на пульте, когда элемент не выбран и никто её не обработал: меню пустого места («Добавить строку», настройки)
@@ -201,6 +202,7 @@ class HomeActivity : ComponentActivity(), HasFx {
             HomeStore.dirty = false
             val app = applicationContext
             Thread { Backup.autoSave(app) }.start()
+            BkEngine.runAutoAsync(app)
         }
     }
 }
@@ -383,6 +385,7 @@ private fun HomeScreen(tick: Int, again: Int) {
     VoiceHost { txt ->
         leaveVia(ctx, 1) { ctx.startActivity(Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("from_home", true).putExtra("q", txt)) }
     }
+    QuickActionsHost()
     val startVoice = { Voice.request() }
     val imgPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         val id = pickFor
@@ -519,7 +522,7 @@ private fun HomeScreen(tick: Int, again: Int) {
                             Column(Modifier.padding(top = 10.dp, bottom = 10.dp)) {
                                 HomeRowsView(
                                     layoutShown, apps, tick, refreshTick, movingItem, firstReq,
-                                    openApp = openApp, openMenu = { openMenu() }, onDlg = { dlg = it }, onMoveEnd = { movingItem = null },
+                                    openApp = openApp, openMenu = { openMenu() }, onDlg = { dlg = it }, onMoveEnd = { movingItem = null }, onMoveStart = { dlg = null; movingItem = it },
                                     panelH = (viewH - 40.dp).coerceAtLeast(260.dp),
                                 )
                             }
@@ -545,6 +548,13 @@ private fun HomeScreen(tick: Int, again: Int) {
                     runCatching { imgPicker.launch("image/*") }.onFailure { pickFor = null; Toast.makeText(ctx, ctx.getString(R.string.icon_no_picker), Toast.LENGTH_LONG).show() }
                 }, onClose = { ownTilePick = null; pickFor = null })
             }
+            // подсказка режима перемещения: тонкая полупрозрачная плашка внизу, не закрывает поле
+            if (movingItem != null || movingStatus != null) androidx.compose.material3.Text(
+                androidx.compose.ui.res.stringResource(R.string.home_move_bar), color = androidx.compose.ui.graphics.Color.White,
+                fontSize = androidx.compose.ui.unit.TextUnit(13f, androidx.compose.ui.unit.TextUnitType.Sp),
+                modifier = Modifier.align(androidx.compose.ui.Alignment.BottomCenter).padding(bottom = 6.dp)
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp)).background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.55f)).padding(horizontal = 12.dp, vertical = 4.dp),
+            )
             HomeDialogs(
                 dlg, apps, { dlg = it },
                 startMove = { movingItem = it }, startMoveStatus = { movingStatus = it },
