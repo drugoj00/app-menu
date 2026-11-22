@@ -111,6 +111,8 @@ object Cfg {
     var updFound by mutableIntStateOf(0); private set
     /** Пакет набора значков; пусто — родные значки. */
     var iconPack by mutableStateOf(""); private set
+    /** 15.0: значки приложений, которых нет в наборе, оформляются фоном и маской набора (если они в нём заданы). По умолчанию выключено. */
+    var iconPackStyle by mutableStateOf(false); private set
     /** Растёт при смене значков, чтобы список перезагрузился. */
     var iconTick by mutableIntStateOf(0); private set
     /** Растёт, когда список приложений надо перечитать без пересоздания всех значков (после установки пачки). */
@@ -227,6 +229,7 @@ object Cfg {
         barShape = sp.getString("bar_shape", "normal").orEmpty().takeIf { it in listOf("normal", "round", "square") } ?: "normal"
         selRing = sp.getInt("sel_ring", 0).coerceIn(0, RING_COLORS.size - 1)
         iconPack = sp.getString("icon_pack", "") ?: ""
+        iconPackStyle = sp.getBoolean("icon_pack_style", false)
         nativeHome = sp.getString("native_home", "") ?: ""
         hardOff = sp.getStringSet("home_hard_off", emptySet())?.toSet() ?: emptySet()
         hardKeep = if (sp.getBoolean("home_hard_keep_set", false)) sp.getStringSet("home_hard_keep", emptySet())?.toSet() ?: emptySet() else null
@@ -283,7 +286,8 @@ object Cfg {
     fun changeFullscreen(v: Boolean) { fullscreen = v; sp.edit().putBoolean("fullscreen", v).apply() }
     fun changeShowHidden(v: Boolean) { showHidden = v; sp.edit().putBoolean("show_hidden", v).apply() }
 
-    fun changeIconPack(v: String) { iconPack = v; sp.edit().putString("icon_pack", v).apply(); iconTick++ }
+    fun changeIconPack(v: String) { IconPacks.clearCache(); iconPack = v; sp.edit().putString("icon_pack", v).apply(); iconTick++ }
+    fun changeIconPackStyle(v: Boolean) { iconPackStyle = v; sp.edit().putBoolean("icon_pack_style", v).apply(); iconTick++ }
     fun bumpIcons() { iconTick++ }
     fun changeOrder(v: List<String>) { order = v; sp.edit().putString("order", v.joinToString("\n")).apply() }
     fun changeBootWarm(v: Boolean) { bootWarm = v; sp.edit().putBoolean("boot_warm", v).apply() }

@@ -29,10 +29,22 @@ object Backup {
         f
     }
 
-    fun write(ctx: Context, out: OutputStream) {
+    /** Служебные счётчики и временные отметки: меняются сами, в синхронизации и поиске изменений не участвуют. */
+    private val volatile = Regex("^(n_|t_|mm_|stamp_|try_|credit_|upd_|self_upd|restore_pending|starts$|tripped|bails|ip_|home_pause_at|auto_last_boot|compile_|force_after|auto_log|home_known_pkgs|home_seeded|dream_orig|wall_res|accu_loc_|sig$|granted$)")
+
+    /** Настройки, которые зависят от самого устройства (масштаб экрана, root, аппаратный режим, кнопки пульта): между устройствами не синхронизируются. */
+    private val deviceKeys = Regex("^(ui_mul|text_mul|lite$|use_root|native_home|home_alias_was|home_hard_|voice_key|voice_engine|inst_saved|dock_key|ag_device|boot_warm|saver_root_sensor|auto_mode_|auto_on|auto_list|auto_install|auto_upd|qa_bind)")
+
+    /** Ключ входит в синхронизацию и учитывается при поиске изменений: не счётчик, не секрет и не настройка самого устройства. */
+    fun syncKey(k: String): Boolean = !volatile.containsMatchIn(k) && !deviceKeys.containsMatchIn(k) && k != "github_token" && k != "gh_token" && !k.startsWith("apikey_")
+
+    /** [forRemote]: копия уходит в сетевое или внешнее место (без секретов, токен GitHub не пишется); [sync]: общий файл синхронизации (ещё и без настроек самого устройства). */
+    fun write(ctx: Context, out: OutputStream, forRemote: Boolean = false, sync: Boolean = false) {
         val prefs = ctx.getSharedPreferences("tvapps", Context.MODE_PRIVATE)
         val json = JSONObject()
         prefs.all.forEach { (k, v) ->
+            if (sync && !syncKey(k)) return@forEach
+            if (forRemote && (k == "github_token" || k == "gh_token" || k.startsWith("apikey_"))) return@forEach
             val e = JSONObject()
             when (v) {
                 is Boolean -> e.put("t", "b").put("v", v)
@@ -47,7 +59,7 @@ object Backup {
         }
         ZipOutputStream(out).use { z ->
             z.putNextEntry(ZipEntry(SETTINGS))
-            z.write(JSONObject().put("app", "TVApps").put("format", 1).put("prefs", json).toString(2).toByteArray())
+            z.write(JSONObject().put("app", "TVApps").put("format", 1).put("time", System.currentTimeMillis()).put("device", android.os.Build.MODEL.orEmpty()).put("prefs", json).toString(2).toByteArray())
             z.closeEntry()
             File(ctx.filesDir, "icons").listFiles()?.filter { it.name.endsWith(".png") }?.forEach { f ->
                 z.putNextEntry(ZipEntry("icons/" + f.name))
@@ -121,7 +133,7 @@ object Backup {
     @Volatile var lastFail: String = ""
 
     /** Восстановление: настройки заменяются на сохранённые, свои значки добавляются. Возвращает true при успехе. */
-    fun restore(ctx: Context, input: InputStream): Boolean = runCatching {
+    fun restore(ctx: Context, input: InputStream, keepLocal: Boolean = false): Boolean = runCatching {
         lastFail = ""
         var settings: JSONObject? = null
         val icons = HashMap<String, ByteArray>()
@@ -140,8 +152,13 @@ object Backup {
         val prefsJson = settings?.optJSONObject("prefs")
         if (prefsJson == null) { lastFail = "notcopy"; return false }
         saveBeforeRestore(ctx)
-        val ed = ctx.getSharedPreferences("tvapps", Context.MODE_PRIVATE).edit().clear()
+        val sp0 = ctx.getSharedPreferences("tvapps", Context.MODE_PRIVATE)
+        // синхронизация: настройки самого устройства, счётчики и секреты остаются своими
+        val keep = if (keepLocal) sp0.all.filter { !syncKey(it.key) } else emptyMap()
+        val ed = sp0.edit().clear()
         prefsJson.keys().forEach { k ->
+            // синхронизация не переносит настройки самого устройства, счётчики и секреты, даже если они попали в файл
+            if (keepLocal && !syncKey(k)) return@forEach
             val e = prefsJson.getJSONObject(k)
             when (e.getString("t")) {
                 "b" -> ed.putBoolean(k, e.getBoolean("v"))
@@ -150,6 +167,16 @@ object Backup {
                 "f" -> ed.putFloat(k, e.getDouble("v").toFloat())
                 "s" -> ed.putString(k, e.getString("v"))
                 "S" -> ed.putStringSet(k, e.getJSONArray("v").let { a -> (0 until a.length()).map { a.getString(it) }.toSet() })
+            }
+        }
+        keep.forEach { (k, v) ->
+            when (v) {
+                is Boolean -> ed.putBoolean(k, v)
+                is Int -> ed.putInt(k, v)
+                is Long -> ed.putLong(k, v)
+                is Float -> ed.putFloat(k, v)
+                is String -> ed.putString(k, v)
+                is Set<*> -> ed.putStringSet(k, v.map { it.toString() }.toSet())
             }
         }
         ed.apply()
