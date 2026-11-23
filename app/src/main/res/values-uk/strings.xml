@@ -811,7 +811,7 @@
     <string name="selected">Вибрано</string>
     <string name="set_dense">Щільність сітки</string>
     <string name="set_desk_anim">Анімація переходів</string>
-    <string name="set_desk_anim_hint">Плавні переходи між екранами, Домом і столами. Не залежить від системного налаштування «Масштаб анімації». Вимкнено — миттєво. У легкому режимі не використовується.</string>
+    <string name="set_desk_anim_hint">Плавні переходи між екранами, Домом і столами. Не залежить від системного налаштування «Масштаб анімації». Вимкнено - миттєво. У легкому режимі не використовується.</string>
     <string name="set_desk_anim_style">Стиль анімації</string>
     <string name="set_gap">Щільність значків</string>
     <string name="set_grid">Рядки та стовпці</string>
@@ -1187,7 +1187,7 @@
     <string name="su_method">Спосіб встановлення: %1$s</string>
     <string name="su_installed">Встановлено: Меню застосунків %1$s (%2$d).</string>
     <string name="text_size_title">Розмір тексту</string>
-    <string name="text_size_hint">Лише текст вікон програми (налаштування, діалоги, меню). Не змінює «Розмір інтерфейсу», сітку та підписи значків. «Авто» — зручний розмір для екрана.</string>
+    <string name="text_size_hint">Лише текст вікон програми (налаштування, діалоги, меню). Не змінює «Розмір інтерфейсу», сітку та підписи значків. «Авто» - зручний розмір для екрана.</string>
     <string name="ts_small">Дрібний 0,85</string>
     <string name="ts_auto">Авто 1,0</string>
     <string name="ts_big">Великий 1,25</string>

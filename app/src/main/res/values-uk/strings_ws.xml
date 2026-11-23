@@ -161,7 +161,7 @@
     <string name="sv_to">До</string>
     <string name="sv_g_look">Вигляд</string>
     <string name="sv_dim">Затемнення вночі</string>
-    <string name="sv_dim_sub">22:00–07:00 або години розкладу</string>
+    <string name="sv_dim_sub">22:00-07:00 або години розкладу</string>
     <string name="sv_burn">Захист від вигорання</string>
     <string name="sv_burn_sub">Картинка трохи зміщується раз на хвилину</string>
     <string name="sv_clock_only">Лише годинник</string>
