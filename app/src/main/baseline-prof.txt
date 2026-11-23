@@ -18,3 +18,12 @@ Landroidx/compose/animation/**;
 HSPLandroidx/compose/animation/**;->**(**)**
 Landroidx/compose/material3/*;
 HSPLandroidx/compose/material3/*;->**(**)**
+# 15.1: остальные пакеты Compose и AndroidX, через которые идут нажатия пульта, фокус, рамка плитки и волна нажатия (прежний профиль охватывал foundation только на один уровень)
+Landroidx/compose/foundation/**;
+HSPLandroidx/compose/foundation/**;->**(**)**
+Landroidx/compose/material/ripple/**;
+HSPLandroidx/compose/material/ripple/**;->**(**)**
+Landroidx/activity/**;
+HSPLandroidx/activity/**;->**(**)**
+Landroidx/lifecycle/**;
+HSPLandroidx/lifecycle/**;->**(**)**
