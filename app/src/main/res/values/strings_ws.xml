@@ -161,7 +161,7 @@
     <string name="sv_to">To</string>
     <string name="sv_g_look">Look</string>
     <string name="sv_dim">Dim at night</string>
-    <string name="sv_dim_sub">22:00–07:00, or the schedule hours</string>
+    <string name="sv_dim_sub">22:00-07:00, or the schedule hours</string>
     <string name="sv_burn">Burn-in protection</string>
     <string name="sv_burn_sub">The picture drifts slightly every minute</string>
     <string name="sv_clock_only">Clock only</string>
