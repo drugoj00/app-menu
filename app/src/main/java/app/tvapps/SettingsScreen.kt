@@ -80,11 +80,11 @@ internal class SettingsChipReg {
 internal val LocalBlockNest = androidx.compose.runtime.compositionLocalOf { false }
 internal val LocalChipReg = androidx.compose.runtime.compositionLocalOf<SettingsChipReg?> { null }
 internal val LocalSettingsScroll = androidx.compose.runtime.compositionLocalOf<androidx.compose.foundation.ScrollState?> { null }
-/** Положение (в координатах root) верхнего края прокручиваемой колонки настроек — нужно, чтобы [BlockHead] при раскрытии пересчитал
+/** Положение (в координатах root) верхнего края прокручиваемой колонки настроек - нужно, чтобы [BlockHead] при раскрытии пересчитал
  * свою позицию в координатах прокрутки и подвёл заголовок к верхнему краю ОКНА программы (18.11.2026, владелица: «если я открываю
- * пункт, то название вверх окна», тот же принцип, что и для ADB-phon). floatArrayOf(0f) — простой изменяемый держатель без пересоздания. */
+ * пункт, то название вверх окна», тот же принцип, что и для ADB-phon). floatArrayOf(0f) - простой изменяемый держатель без пересоздания. */
 internal val LocalSettingsScrollAnchor = androidx.compose.runtime.compositionLocalOf<FloatArray?> { null }
-/** Y-позиции (root) заголовков групп (узкая раскладка, [GroupHead]) по id — читает [SettingsScreen] в своём LaunchedEffect(grp), чтобы
+/** Y-позиции (root) заголовков групп (узкая раскладка, [GroupHead]) по id - читает [SettingsScreen] в своём LaunchedEffect(grp), чтобы
  * прокрутить к только что раскрытой группе вместо жёсткого «в начало» (18.11.2026); так нет гонки между этим эффектом и анимацией. */
 internal val LocalGroupHeadTops = androidx.compose.runtime.compositionLocalOf<HashMap<String, Float>?> { null }
 
@@ -109,7 +109,7 @@ internal fun Chip(text: String, selected: Boolean, modifier: Modifier = Modifier
             .onFocusChanged { focused = it.isFocused; if (it.isFocused && reg != null) reg.onFocus(text, ypos[0] + (scrollSt?.value ?: 0)) }
             .clip(RoundedCornerShape(12.dp))
             .background(if (selected) t.chipSel else if (hover) t.tileFocus else t.tile)
-            .border(if (focused) 3.dp else 1.dp, if (focused) t.accent else t.border, RoundedCornerShape(12.dp))
+            .focusBorder({ focused }, 3.dp, 1.dp, t.accent, t.border, RoundedCornerShape(12.dp))
             .clickable(onClick = { snd(); onClick() })
             .padding(horizontal = if (isNarrow()) 11.dp else 16.dp, vertical = if (isNarrow()) 7.dp else 10.dp),
         contentAlignment = Alignment.Center,
@@ -148,14 +148,14 @@ internal fun Section(title: String, content: @Composable () -> Unit) {
     val hints = remember { androidx.compose.runtime.mutableStateListOf<String>() }
     var open by remember { mutableStateOf(false) }
     var focused by remember { mutableStateOf(false) }
-    // 18.11.2026: animateContentSize не принимает свой withContext — полагаемся на AnimScale.forceFull() (Desks.kt); компонент общий для
+    // 18.11.2026: animateContentSize не принимает свой withContext - полагаемся на AnimScale.forceFull() (Desks.kt); компонент общий для
     // всех пунктов настроек, свою анимацию раскрытия здесь переписывать рискованно (большая часть экрана настроек проходит через Section)
     Column(Modifier.fillMaxWidth().padding(vertical = 8.dp).animateContentSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (hints.isEmpty()) Text(title, color = t.sub, fontSize = 13.sp)
         else Row(
             Modifier.onFocusChanged { focused = it.isFocused }
                 .clip(RoundedCornerShape(8.dp))
-                .border(if (focused) 2.dp else 0.dp, if (focused) t.accent else Color.Transparent, RoundedCornerShape(8.dp))
+                .focusBorder({ focused }, 2.dp, 0.dp, t.accent, Color.Transparent, RoundedCornerShape(8.dp))
                 .clickable(role = androidx.compose.ui.semantics.Role.Button) { open = !open }
                 .padding(horizontal = 4.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -183,7 +183,7 @@ private fun GridBtn(plus: Boolean, modifier: Modifier, gate: StepGate, onClick: 
             .onFocusChanged { focused = it.isFocused }
             .clip(RoundedCornerShape(12.dp))
             .background(if (hover) t.tileFocus else t.tile)
-            .border(if (focused) 3.dp else 1.dp, if (focused) t.accent else t.border, RoundedCornerShape(12.dp))
+            .focusBorder({ focused }, 3.dp, 1.dp, t.accent, t.border, RoundedCornerShape(12.dp))
             .stepKeys(gate, onClick)
             .holdStep(gate, onClick)
             .focusable(),
@@ -234,7 +234,7 @@ private fun <T> Options(options: List<Pair<T, String>>, current: T, onPick: (T) 
 
 /**
  * Выбор цвета образцами (вместо кнопок со словами): кружки или одинаковые прямоугольники ([rect]); выбранный с галочкой и жирным ободком,
- * под рядом — название выбранного цвета. [lightMark] — образцы, на которых галочка чёрная.
+ * под рядом - название выбранного цвета. [lightMark] - образцы, на которых галочка чёрная.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -374,7 +374,7 @@ internal fun ActionRow(icon: androidx.compose.ui.graphics.vector.ImageVector, ti
             .onFocusChanged { focused = it.isFocused; if (it.isFocused && reg != null) reg.onFocus(title, ypos[0] + (scrollSt?.value ?: 0)) }
             .clip(shape)
             .background(if (hover) t.tileFocus else t.tile)
-            .border(if (focused) 3.dp else 1.dp, if (focused) t.accent else t.border, shape)
+            .focusBorder({ focused }, 3.dp, 1.dp, t.accent, t.border, shape)
             .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = { snd(); onClick() })
             .padding(horizontal = 14.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -450,7 +450,7 @@ private fun AutoAppsPane(ctx: android.content.Context, apps: List<Entry>) {
         var focused by remember { mutableStateOf(false) }
         Row(
             Modifier.fillMaxWidth().padding(vertical = 3.dp).onFocusChanged { focused = it.isFocused }.clip(RoundedCornerShape(12.dp))
-                .background(if (focused) t.tileFocus else t.tile).border(if (focused) 3.dp else 0.dp, if (focused) t.accent else Color.Transparent, RoundedCornerShape(12.dp))
+                .drawBehind { drawRect(if (focused) t.tileFocus else t.tile) }.focusBorder({ focused }, 3.dp, 0.dp, t.accent, Color.Transparent, RoundedCornerShape(12.dp))
                 .toggleable(on, onValueChange = { v -> Autostart.setList(ctx, if (v) sel + pkg else sel - pkg) })
                 .heightIn(min = 56.dp).padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -489,7 +489,7 @@ private fun DockAppsPane(ctx: android.content.Context, apps: List<Entry>) {
         var focused by remember { mutableStateOf(false) }
         Row(
             Modifier.fillMaxWidth().padding(vertical = 3.dp).onFocusChanged { focused = it.isFocused }.clip(RoundedCornerShape(12.dp))
-                .background(if (focused) t.tileFocus else t.tile).border(if (focused) 3.dp else 0.dp, if (focused) t.accent else Color.Transparent, RoundedCornerShape(12.dp))
+                .drawBehind { drawRect(if (focused) t.tileFocus else t.tile) }.focusBorder({ focused }, 3.dp, 0.dp, t.accent, Color.Transparent, RoundedCornerShape(12.dp))
                 .toggleable(on, onValueChange = { v -> HomeDock.setList(ctx, if (v) sel + pkg else sel - pkg) })
                 .heightIn(min = 56.dp).padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -526,7 +526,7 @@ private fun DockHidePane(ctx: android.content.Context, apps: List<Entry>) {
         var focused by remember { mutableStateOf(false) }
         Row(
             Modifier.fillMaxWidth().padding(vertical = 3.dp).onFocusChanged { focused = it.isFocused }.clip(RoundedCornerShape(12.dp))
-                .background(if (focused) t.tileFocus else t.tile).border(if (focused) 3.dp else 0.dp, if (focused) t.accent else Color.Transparent, RoundedCornerShape(12.dp))
+                .drawBehind { drawRect(if (focused) t.tileFocus else t.tile) }.focusBorder({ focused }, 3.dp, 0.dp, t.accent, Color.Transparent, RoundedCornerShape(12.dp))
                 .toggleable(on, onValueChange = { v -> HomeDock.setHiddenList(ctx, if (v) sel + pkg else sel - pkg) })
                 .heightIn(min = 56.dp).padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -550,8 +550,8 @@ private fun DockHidePane(ctx: android.content.Context, apps: List<Entry>) {
 /**
  * Заголовок блока внутри группы: сворачивается и раскрывается; при поиске всё раскрыто.
  * 18.11.2026 (владелица): при раскрытии (не при сворачивании) список сам прокручивается так, чтобы заголовок оказался
- * у верхнего края окна — иначе раскрытое содержимое уходит ниже видимой области и приходится прокручивать руками.
- * Фиксированный масштаб (DeskFullMotion) — независимо от системной настройки «Масштаб анимации».
+ * у верхнего края окна - иначе раскрытое содержимое уходит ниже видимой области и приходится прокручивать руками.
+ * Фиксированный масштаб (DeskFullMotion) - независимо от системной настройки «Масштаб анимации».
  */
 @Composable
 private fun BlockHead(id: String, title: String, open: androidx.compose.runtime.snapshots.SnapshotStateList<String>, searching: Boolean) {
@@ -578,15 +578,15 @@ private fun BlockHead(id: String, title: String, open: androidx.compose.runtime.
             .clip(RoundedCornerShape(10.dp))
             .background(if (isOpen) t.chipSel else t.tile)
             .drawBehind { if (nest) drawRect(t.accent, size = androidx.compose.ui.geometry.Size(6.dp.toPx(), size.height)) }
-            .border(if (focused) 3.dp else 1.dp, if (focused) t.accent else t.border, RoundedCornerShape(10.dp))
+            .focusBorder({ focused }, 3.dp, 1.dp, t.accent, t.border, RoundedCornerShape(10.dp))
             .clickable(role = androidx.compose.ui.semantics.Role.Button) {
                 if (isOpen) open.remove(id)
                 else {
                     open.add(id)
                     val sc = scrollSt; val a = anchor
                     if (sc != null && a != null) {
-                        // anchor — позиция НАЧАЛА всего прокручиваемого содержимого (Modifier.verticalScroll даёт его так, уже со
-                        // сдвигом на текущую прокрутку), а не видимого края окна — поэтому здесь НЕ прибавляется scroll.value,
+                        // anchor - позиция НАЧАЛА всего прокручиваемого содержимого (Modifier.verticalScroll даёт его так, уже со
+                        // сдвигом на текущую прокрутку), а не видимого края окна - поэтому здесь НЕ прибавляется scroll.value,
                         // иначе текущая прокрутка учтётся дважды (ровно это и было причиной перелёта при первой проверке вживую).
                         val target = (headerTop[0] - a[0]).toInt().coerceAtLeast(0)
                         scope.launch { kotlinx.coroutines.withContext(DeskFullMotion) { sc.animateScrollTo(target) } }
@@ -626,7 +626,7 @@ private fun SwitchRow(title: String, checked: Boolean, hints: List<String> = emp
                 .then(if (reg != null) Modifier.focusRequester(req).onGloballyPositioned { ypos[0] = it.positionInRoot().y } else Modifier)
                 .onFocusChanged { focused = it.isFocused; if (it.isFocused && reg != null) reg.onFocus(title, ypos[0] + (scrollSt?.value ?: 0)) }
                 .clip(shape).background(if (hover) t.tileFocus else t.tile)
-                .border(if (focused) 3.dp else 1.dp, if (focused) t.accent else t.border, shape)
+                .focusBorder({ focused }, 3.dp, 1.dp, t.accent, t.border, shape)
                 .toggleable(checked, role = androidx.compose.ui.semantics.Role.Switch, onValueChange = onChange)
                 .padding(horizontal = 14.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -641,7 +641,7 @@ private fun SwitchRow(title: String, checked: Boolean, hints: List<String> = emp
 
 /** Какая группа настроек открыта (помнится, пока жив процесс). */
 internal object SettingsGroups {
-    /** Открытая группа (портрет: раскрытая; ландшафт и ТВ: выбранная слева). Пусто — все группы свёрнуты (20.11.2026: при каждом новом входе в настройки). */
+    /** Открытая группа (портрет: раскрытая; ландшафт и ТВ: выбранная слева). Пусто - все группы свёрнуты (20.11.2026: при каждом новом входе в настройки). */
     var last: String = ""
     /** Раскрытые блоки внутри групп: помнятся, пока настройки открыты (смена ориентации, вложенные окна), при новом входе сбрасываются. */
     val openBlocks = androidx.compose.runtime.mutableStateListOf<String>()
@@ -664,7 +664,7 @@ internal object SettingsGroups {
 
 /** Кнопка группы: компактная, выбранная подсвечена; на пульте группа выбирается при наведении фокуса, мышью и касанием по нажатию. */
 @Composable
-private fun GroupBtn(id: String, selected: Boolean, modifier: Modifier = Modifier, onTap: (String) -> Unit = {}, onPick: (String) -> Unit) {
+private fun GroupBtn(id: String, selected: Boolean, modifier: Modifier = Modifier, onTap: (String) -> Unit = {}, onFocusPick: (String) -> Unit = {}, onPick: (String) -> Unit) {
     val t = LocalTh.current
     var focused by remember { mutableStateOf(false) }
     val req = remember { FocusRequester() }
@@ -673,10 +673,10 @@ private fun GroupBtn(id: String, selected: Boolean, modifier: Modifier = Modifie
         modifier
             .then(hm)
             .focusRequester(req)
-            .onFocusChanged { focused = it.isFocused; if (it.isFocused) onPick(id) }
+            .onFocusChanged { focused = it.isFocused; if (it.isFocused) onFocusPick(id) }
             .clip(RoundedCornerShape(10.dp))
             .background(if (selected) t.chipSel else if (hover) t.tileFocus else t.tile)
-            .border(if (focused) 3.dp else 1.dp, if (focused) t.accent else t.border, RoundedCornerShape(10.dp))
+            .focusBorder({ focused }, 3.dp, 1.dp, t.accent, t.border, RoundedCornerShape(10.dp))
             // касание и мышь: фокус встаёт на кнопку группы (иначе первая стрелка пульта уходила на самую верхнюю группу), результаты поиска сбрасываются
             .clickable(role = androidx.compose.ui.semantics.Role.Tab) { runCatching { req.requestFocus() }; onTap(id); onPick(id) }
             .padding(horizontal = 24.dp, vertical = if ((androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 500 && !isNarrow())) 1.dp else if (isNarrow()) 10.dp else 11.dp),
@@ -697,18 +697,41 @@ private fun SettingsFrame(pane: @Composable () -> Unit, content: @Composable () 
 /** Левая панель широкого экрана: список групп настроек. */
 @Composable
 private fun GroupsPane(current: String, onTap: (String) -> Unit = {}, onPick: (String) -> Unit) {
+    // 15.1 (плавность): смена группы при наведении фокуса собирает всё содержимое группы (на приставке 100-190 мс); при быстром пролистывании списка групп
+    // (следующий шаг раньше чем через 300 мс после прошлой смены) содержимое сменяется один раз, когда курсор остановился на 110 мс. Одиночный шаг - сразу, как раньше.
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val gate = remember { GroupPickGate() }
+    // 16.0 (плавность): ширина колонки групп считается один раз по самой широкой подписи (жирной), а не IntrinsicSize.Max при каждой смене
+    // группы (на приставке это сотни вызовов maxIntrinsicWidth на каждое нажатие); подпись выбранной группы жирная, поэтому мерим жирной
+    val shortScreen = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 500 && !isNarrow()
+    val titles = SettingsGroups.ids.map { stringResource(SettingsGroups.title(it)) }
+    val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+    val dens = androidx.compose.ui.platform.LocalDensity.current
+    val baseStyle = androidx.compose.material3.LocalTextStyle.current
+    val fsz = btnSp(if (shortScreen) 13 else 18)
+    // ширины каждой подписи жирной и обычной: подпись выбранной группы жирная (колонка, как раньше, зависит от выбранной группы)
+    val widths = remember(titles, dens.density, dens.fontScale, shortScreen, fsz, baseStyle) {
+        titles.map { tt ->
+            IntArray(2) { k -> measurer.measure(tt, baseStyle.merge(androidx.compose.ui.text.TextStyle(fontSize = fsz, fontWeight = if (k == 0) FontWeight.Bold else FontWeight.Normal)), maxLines = 1, softWrap = false).size.width }
+        }
+    }
+    var mx = 0
+    for (i in titles.indices) mx = maxOf(mx, widths[i][if (SettingsGroups.ids[i] == current) 0 else 1])
+    // -1 px: так же, как у IntrinsicSize.Max (сверено по снимкам X96)
+    val colW = with(dens) { (mx - 1).toDp() + 48.dp + (if (shortScreen) 16.dp else 28.dp) + 14.dp + 4.dp }
     Column(
-        Modifier.width(androidx.compose.foundation.layout.IntrinsicSize.Max).fillMaxHeight().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(top = 8.dp, end = 4.dp),
+        Modifier.width(colW)
+            .fillMaxHeight().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(top = 8.dp, end = 4.dp),
         verticalArrangement = Arrangement.spacedBy(if ((androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 500 && !isNarrow())) 2.dp else 6.dp),
     ) {
-        SettingsGroups.ids.forEach { id -> GroupBtn(id, id == current, Modifier.fillMaxWidth(), onTap, onPick) }
+        SettingsGroups.ids.forEach { id -> GroupBtn(id, id == current, Modifier.fillMaxWidth(), onTap, { gate.request(scope, it, onPick) }, onPick) }
     }
 }
 
 /**
  * Заголовок группы в узкой раскладке (портрет телефона): нажатие раскрывает группу и сворачивает остальные. На широком экране ничего не рисует.
- * 18.11.2026 (владелица): при раскрытии группа сама прокручивается к верхнему краю окна — см. [BlockHead]. Саму прокрутку делает
- * LaunchedEffect(grp) в [SettingsScreen] (там же раньше жил сброс «в начало» — гонка с анимацией тут привела бы к рывку); эта функция
+ * 18.11.2026 (владелица): при раскрытии группа сама прокручивается к верхнему краю окна - см. [BlockHead]. Саму прокрутку делает
+ * LaunchedEffect(grp) в [SettingsScreen] (там же раньше жил сброс «в начало» - гонка с анимацией тут привела бы к рывку); эта функция
  * только запоминает свою Y-позицию в [LocalGroupHeadTops], чтобы тому эффекту было куда скроллить.
  */
 @Composable
@@ -735,7 +758,7 @@ private fun GroupHead(id: String, wide: Boolean, current: String, onPick: (Strin
             .onFocusChanged { focused = it.isFocused; if (it.isFocused && reg != null) reg.onFocus(title, ypos[0] + (scrollSt?.value ?: 0)) }
             .clip(RoundedCornerShape(10.dp))
             .background(if (open) t.chipSel else t.tile)
-            .border(if (focused) 3.dp else 1.dp, if (focused) t.accent else t.border, RoundedCornerShape(10.dp))
+            .focusBorder({ focused }, 3.dp, 1.dp, t.accent, t.border, RoundedCornerShape(10.dp))
             .clickable(role = androidx.compose.ui.semantics.Role.Button) { onPick(if (open) "" else id) }
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween,
@@ -799,6 +822,16 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
         val idx = if (sub == "main") MenuMemoryLogic.pickChip(cand, MenuMemory.settingsFocusText, MenuMemory.settingsFocusY) else null
         if (idx != null) runCatching { chipReg.items[idx].req.requestFocus() } else runCatching { first.requestFocus() }
     }
+    val rvl = remember { RevealGate() }
+    LaunchedEffect(g, query.isNotBlank(), sub) {
+        if (query.isNotBlank() || sub != "main") return@LaunchedEffect
+        // следующие порции добавляются по кадру, пока не покажется всё содержимое группы
+        while (rvl.limit < rvl.total) {
+            runCatching { androidx.compose.runtime.withFrameNanos { }; androidx.compose.runtime.withFrameNanos { } }
+            rvl.limit += RevealGate.CHUNK
+            rvl.tick++
+        }
+    }
     val grpFirst = remember { booleanArrayOf(true) }
     val groupHeadTops = remember { HashMap<String, Float>() }
     val scrollAnchor = remember { floatArrayOf(0f) }
@@ -806,10 +839,10 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
         SettingsGroups.last = grp
         // 18.11.2026 (владелица): в узкой раскладке (без сайдбара) раскрытая группа подъезжает к верхнему краю окна, а не сбрасывается
         // «в начало» (её GroupHead сам сообщает свою Y-позицию через groupHeadTops, см. LocalGroupHeadTops); в широкой раскладке
-        // (сайдбар + содержимое) GroupHead не рисуется вообще, там прежнее поведение — содержимое пане просто начинается сверху.
+        // (сайдбар + содержимое) GroupHead не рисуется вообще, там прежнее поведение - содержимое пане просто начинается сверху.
         if (grpFirst[0]) grpFirst[0] = false
         else if (!wide) {
-            // открытие группы ОДНОВРЕМЕННО сворачивает предыдущую открытую — всё выше нужной группы сдвигается, и Y, записанный
+            // открытие группы ОДНОВРЕМЕННО сворачивает предыдущую открытую - всё выше нужной группы сдвигается, и Y, записанный
             // GroupHead ДО этого сдвига, устаревает; та же пара кадров, что и в HomeRows.kt, даёт разметке осесть перед чтением
             runCatching { androidx.compose.runtime.withFrameNanos {}; androidx.compose.runtime.withFrameNanos {} }
             val top = groupHeadTops[grp]
@@ -875,7 +908,7 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
         }
     }
 
-    // на узком окне (телефон, крупный интерфейс) боковые поля меньше, а «Назад» — компактная стрелка; заголовок занимает остаток и переносится по словам
+    // на узком окне (телефон, крупный интерфейс) боковые поля меньше, а «Назад» - компактная стрелка; заголовок занимает остаток и переносится по словам
     val sideDp = if (screenDp().first < 560f) 16.dp else 32.dp
     Column(Modifier.fillMaxSize().background(t.bg).padding(horizontal = sideDp, vertical = 20.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(if (isNarrow()) 12.dp else 16.dp)) {
@@ -901,11 +934,14 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (sub == "main") Column(Modifier.widthIn(max = 900.dp).fillMaxWidth()) {
-                ActionRow(HIcons.search, stringResource(R.string.set_search), if (query.isBlank()) stringResource(R.string.set_search_hint) else "«" + query + "»") { searchDlg = true }
-                GroupHead("updates", wide || query.isNotBlank(), g) { grp = it }
+                // 16.0 (плавность): содержимое группы собирается порциями (по несколько элементов за кадр), а не целиком за один кадр: на приставке
+                // сборка большой группы занимала 100-200 мс одним кадром. При поиске и вне главной страницы всё сразу.
+                rvl.begin(g, query.isNotBlank())
+                if (rvl.next(1)) { ActionRow(HIcons.search, stringResource(R.string.set_search), if (query.isBlank()) stringResource(R.string.set_search_hint) else "«" + query + "»") { searchDlg = true } }
+                if (rvl.next(1)) { GroupHead("updates", wide || query.isNotBlank(), g) { grp = it } }
                 if (g == "updates" || query.isNotBlank()) {
                     // главное по обновлениям и копиям: четыре крупные кнопки по центру, видны сразу без прокрутки
-                    if (query.isBlank()) Column(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (query.isBlank()) if (rvl.next(5)) { Column(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         ActionRow(HIcons.refresh, stringResource(R.string.about_check_upd), stringResource(R.string.about_version, BuildConfig.VERSION_NAME)) { SelfUpd.checkNow(ctx.applicationContext, scope) }
                         ActionRow(HIcons.save, stringResource(R.string.backup_hero_save), stringResource(R.string.backup_save_h)) {
                             runCatching { saveBackup.launch(Backup.fileName(ctx)) }.onFailure { Toast.makeText(ctx, ctx.getString(R.string.icon_no_picker), Toast.LENGTH_LONG).show() }
@@ -914,13 +950,13 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                         // 15.0: копии в сеть (SMB, WebDAV, Яндекс Диск, папка, USB) и синхронизация рядом с обычной копией
                         ActionRow(HIcons.wifi, stringResource(R.string.bkr_title), BkTargets.summary(ctx)) { bkRemote = true }
                         ActionRow(HIcons.open, stringResource(R.string.about_title), stringResource(R.string.about_hero_h)) { sub = "about" }
-                    }
-                    SwitchRow(stringResource(R.string.self_upd_auto), Cfg.selfUpd, listOf()) { Cfg.changeSelfUpd(it) }
+                    } }
+                    if (rvl.next(1)) { SwitchRow(stringResource(R.string.self_upd_auto), Cfg.selfUpd, listOf()) { Cfg.changeSelfUpd(it) } }
                     // 9.0 (просьба Евгения): на виду, один переключатель на удаление и обновление; путь папки копий в пояснении
-                    SwitchRow(stringResource(R.string.bk_del_switch), Cfg.backupOnDelete, listOf(stringResource(R.string.bk_del_hint, remember { AppBackups.root(ctx).absolutePath }))) { Cfg.changeBackupOnDelete(it) }
-                    CleanCopiesRow()
-                    SwitchRow(stringResource(R.string.inst_ask_setting), Cfg.askInstaller, listOf(stringResource(R.string.inst_ask_hint), stringResource(R.string.inst_default_now, InstallerPick.labelOf(ctx, Cfg.instSaved)))) { Cfg.changeAskInstaller(it) }
-                    Section(stringResource(R.string.backup_title)) {
+                    if (rvl.next(1)) { SwitchRow(stringResource(R.string.bk_del_switch), Cfg.backupOnDelete, listOf(stringResource(R.string.bk_del_hint, remember { AppBackups.root(ctx).absolutePath }))) { Cfg.changeBackupOnDelete(it) } }
+                    if (rvl.next(1)) { CleanCopiesRow() }
+                    if (rvl.next(1)) { SwitchRow(stringResource(R.string.inst_ask_setting), Cfg.askInstaller, listOf(stringResource(R.string.inst_ask_hint), stringResource(R.string.inst_default_now, InstallerPick.labelOf(ctx, Cfg.instSaved)))) { Cfg.changeAskInstaller(it) } }
+                    if (rvl.next(3)) { Section(stringResource(R.string.backup_title)) {
                         SectionHint(stringResource(R.string.backup_hint))
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             ActionRow(HIcons.folder, stringResource(R.string.backup_here), stringResource(R.string.backup_here_h)) {
@@ -929,23 +965,23 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                             }
                             ActionRow(HIcons.recent, stringResource(R.string.backup_restore_here), stringResource(R.string.backup_restore_here_h)) { bkpPick = "app" }
                         }
-                    }
+                    } }
                     // при обычном просмотре кнопка стоит среди главных (выше); раздел нужен для результатов поиска по настройкам
-                    if (query.isNotBlank()) Section(stringResource(R.string.bkr_title)) {
+                    if (query.isNotBlank()) if (rvl.next(2)) { Section(stringResource(R.string.bkr_title)) {
                         SectionHint(stringResource(R.string.bkr_hint))
                         ActionRow(HIcons.wifi, stringResource(R.string.bkr_open), BkTargets.summary(ctx)) { bkRemote = true }
-                    }
-                    Section(stringResource(R.string.set_backups)) {
+                    } }
+                    if (rvl.next(3)) { Section(stringResource(R.string.set_backups)) {
                         Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.backupOnDelete) { Cfg.changeBackupOnDelete(it) }
                         SectionHint(stringResource(R.string.backups_hint))
                         ActionRow(HIcons.save, stringResource(R.string.backups_open), stringResource(R.string.backups_open_h)) { backups = true }
-                    }
+                    } }
                 }
-                GroupHead("ui", wide || query.isNotBlank(), g) { grp = it }
+                if (rvl.next(1)) { GroupHead("ui", wide || query.isNotBlank(), g) { grp = it } }
                 if (g == "ui" || query.isNotBlank()) {
-                    BlockHead("ui_a", stringResource(R.string.blk_ui_a), openBlk, query.isNotBlank())
+                    if (rvl.next(1)) { BlockHead("ui_a", stringResource(R.string.blk_ui_a), openBlk, query.isNotBlank()) }
                     if ("ui_a" in openBlk || query.isNotBlank()) {
-                    Section(stringResource(R.string.set_lang)) {
+                    if (rvl.next(2)) { Section(stringResource(R.string.set_lang)) {
                         Options(
                             listOf("" to stringResource(R.string.lang_system), "ru" to "Русский", "uk" to "Українська", "en" to "English"),
                             Cfg.lang,
@@ -954,18 +990,18 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                             // язык применяется при создании окна: пересоздаём его
                             (ctx as? android.app.Activity)?.recreate()
                         }
-                    }
-                    Section(stringResource(R.string.ui_size_title)) {
+                    } }
+                    if (rvl.next(2)) { Section(stringResource(R.string.ui_size_title)) {
                         SectionHint(stringResource(R.string.ui_size_hint))
                         UiSizeSetting()
-                    }
-                    Section(stringResource(R.string.text_size_title)) {
+                    } }
+                    if (rvl.next(2)) { Section(stringResource(R.string.text_size_title)) {
                         SectionHint(stringResource(R.string.text_size_hint))
                         TextSizeSetting()
-                    }
-                    SwitchRow(stringResource(R.string.click_sound_title), Cfg.clickSound, listOf(stringResource(R.string.click_sound_hint))) { Cfg.changeClickSound(it) }
-                    SwitchRow(stringResource(R.string.set_desk_anim), Cfg.deskAnim, listOf(stringResource(R.string.set_desk_anim_hint))) { Cfg.changeDeskAnim(it) }
-                    if (Cfg.deskAnim) Section(stringResource(R.string.set_desk_anim_style)) {
+                    } }
+                    if (rvl.next(1)) { SwitchRow(stringResource(R.string.click_sound_title), Cfg.clickSound, listOf(stringResource(R.string.click_sound_hint))) { Cfg.changeClickSound(it) } }
+                    if (rvl.next(1)) { SwitchRow(stringResource(R.string.set_desk_anim), Cfg.deskAnim, listOf(stringResource(R.string.set_desk_anim_hint))) { Cfg.changeDeskAnim(it) } }
+                    if (Cfg.deskAnim) if (rvl.next(2)) { Section(stringResource(R.string.set_desk_anim_style)) {
                         Options(
                             listOf(
                                 "slide" to stringResource(R.string.desk_anim_slide), "zoom" to stringResource(R.string.desk_anim_zoom),
@@ -974,19 +1010,19 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                             ),
                             Cfg.deskAnimStyle,
                         ) { Cfg.changeDeskAnimStyle(it) }
-                    }
-                    Section(stringResource(R.string.set_control)) {
+                    } }
+                    if (rvl.next(1)) { Section(stringResource(R.string.set_control)) {
                         SectionHint(stringResource(R.string.ctl_help))
-                    }
-                    Section(stringResource(R.string.qa_title)) {
+                    } }
+                    if (rvl.next(2)) { Section(stringResource(R.string.qa_title)) {
                         SectionHint(stringResource(R.string.qa_hint))
                         ActionRow(HIcons.gear, stringResource(R.string.qa_open), QuickActions.summary(ctx)) { qaDlg = true }
+                    } }
+                    if (rvl.next(1)) { SwitchRow(stringResource(R.string.back_start_title), Cfg.backToStart, listOf(stringResource(R.string.back_start_hint))) { Cfg.changeBackToStart(it) } }
                     }
-                    SwitchRow(stringResource(R.string.back_start_title), Cfg.backToStart, listOf(stringResource(R.string.back_start_hint))) { Cfg.changeBackToStart(it) }
-                    }
-                    BlockHead("st_a", stringResource(R.string.blk_st_a), openBlk, query.isNotBlank())
+                    if (rvl.next(1)) { BlockHead("st_a", stringResource(R.string.blk_st_a), openBlk, query.isNotBlank()) }
                     if ("st_a" in openBlk || query.isNotBlank()) {
-                    Section(stringResource(R.string.set_theme)) {
+                    if (rvl.next(2)) { Section(stringResource(R.string.set_theme)) {
                         Options(
                             listOf(
                                 "dark" to stringResource(R.string.theme_dark), "black" to stringResource(R.string.theme_black),
@@ -994,8 +1030,8 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                             ),
                             Cfg.theme,
                         ) { Cfg.changeTheme(it) }
-                    }
-                    Section(stringResource(R.string.set_accent)) {
+                    } }
+                    if (rvl.next(2)) { Section(stringResource(R.string.set_accent)) {
                         val names = mapOf(
                             "teal" to R.string.accent_teal, "blue" to R.string.accent_blue, "orange" to R.string.accent_orange,
                             "purple" to R.string.accent_purple, "pink" to R.string.accent_pink, "green" to R.string.accent_green,
@@ -1003,22 +1039,22 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                         // одинаковые прямоугольники с цветами акцента (вместо кнопок со словами); название выбранного под рядом
                         val dark = t.dark
                         ColorDots(accentKeys.map { accentSwatch(it, dark) }, accentKeys.map { stringResource(names.getValue(it)) }, accentKeys.indexOf(Cfg.accent).coerceAtLeast(0), rect = true) { Cfg.changeAccent(accentKeys[it]) }
-                    }
-                    Section(stringResource(R.string.set_ring)) {
+                    } }
+                    if (rvl.next(2)) { Section(stringResource(R.string.set_ring)) {
                         val ringNames = listOf(R.string.ring_default, R.string.bd_c1, R.string.bd_c2, R.string.bd_c3, R.string.bd_c4, R.string.bd_c5, R.string.bd_c6, R.string.bd_c7, R.string.bd_c8, R.string.bd_c9, R.string.bd_c10)
                         val ringAccent = LocalTh.current.accent
                         ColorDots(Cfg.RING_COLORS.indices.map { if (it == 0) ringAccent else Color(Cfg.RING_COLORS[it].toInt()) }, ringNames.map { stringResource(it) }, Cfg.selRing, lightMark = setOf(1, 5)) { Cfg.changeSelRing(it) }
-                    }
+                    } }
                     }
                 }
-                GroupHead("menu", wide || query.isNotBlank(), g) { grp = it }
+                if (rvl.next(1)) { GroupHead("menu", wide || query.isNotBlank(), g) { grp = it } }
                 if (g == "menu" || query.isNotBlank()) {
-                    BlockHead("ui_b", stringResource(R.string.blk_ui_b), openBlk, query.isNotBlank())
+                    if (rvl.next(1)) { BlockHead("ui_b", stringResource(R.string.blk_ui_b), openBlk, query.isNotBlank()) }
                     if ("ui_b" in openBlk || query.isNotBlank()) {
-                    Section(stringResource(R.string.set_view)) {
+                    if (rvl.next(2)) { Section(stringResource(R.string.set_view)) {
                         Options(listOf(false to stringResource(R.string.view_grid), true to stringResource(R.string.view_list)), Cfg.listMode) { Cfg.changeListMode(it) }
-                    }
-                    Section(stringResource(R.string.set_grid)) {
+                    } }
+                    if (rvl.next(3)) { Section(stringResource(R.string.set_grid)) {
                         // три счётчика: строки × столбцы и масштаб значков
                         // 20.11.2026: строки × столбцы в одной строке с гибкой шириной, масштаб переносится на следующую строку, если места мало
                         FlowRow(verticalArrangement = Arrangement.spacedBy(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1044,26 +1080,26 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                                 )
                             }
                         }
-                    }
-                    Section(stringResource(R.string.set_icon)) {
+                    } }
+                    if (rvl.next(2)) { Section(stringResource(R.string.set_icon)) {
                         Options(listOf(3 to stringResource(R.string.size_xs), 0 to stringResource(R.string.size_s), 1 to stringResource(R.string.size_m), 2 to stringResource(R.string.size_l)), Cfg.iconSize) { Cfg.changeIconSize(it) }
-                    }
-                    Section(stringResource(R.string.set_gap)) {
+                    } }
+                    if (rvl.next(2)) { Section(stringResource(R.string.set_gap)) {
                         Options(listOf(0 to stringResource(R.string.gap_tight), 1 to stringResource(R.string.gap_normal), 2 to stringResource(R.string.gap_airy)), Cfg.gridGap) { Cfg.changeGridGap(it) }
+                    } }
+                    if (rvl.next(1)) { SwitchRow(stringResource(R.string.set_labels), Cfg.showLabels, listOf()) { Cfg.changeShowLabels(it) } }
                     }
-                    SwitchRow(stringResource(R.string.set_labels), Cfg.showLabels, listOf()) { Cfg.changeShowLabels(it) }
-                    }
-                    BlockHead("tl_b", stringResource(R.string.blk_tl_b), openBlk, query.isNotBlank())
+                    if (rvl.next(1)) { BlockHead("tl_b", stringResource(R.string.blk_tl_b), openBlk, query.isNotBlank()) }
                     if ("tl_b" in openBlk || query.isNotBlank()) {
-                    TilesBlock()
+                    if (rvl.next(7)) { TilesBlock() }
                     }
-                    BlockHead("st_b", stringResource(R.string.blk_st_b), openBlk, query.isNotBlank())
+                    if (rvl.next(1)) { BlockHead("st_b", stringResource(R.string.blk_st_b), openBlk, query.isNotBlank()) }
                     if ("st_b" in openBlk || query.isNotBlank()) {
-                    Section(stringResource(R.string.set_tilebg)) {
+                    if (rvl.next(2)) { Section(stringResource(R.string.set_tilebg)) {
                         Options(listOf(true to stringResource(R.string.tilebg_clear), false to stringResource(R.string.tilebg_card)), Cfg.transparentTiles) { Cfg.changeTransparentTiles(it) }
-                    }
-                    SwitchRow(stringResource(R.string.set_plates), Cfg.plates, listOf()) { Cfg.changePlates(it) }
-                    Section(stringResource(R.string.set_iconpack)) {
+                    } }
+                    if (rvl.next(1)) { SwitchRow(stringResource(R.string.set_plates), Cfg.plates, listOf()) { Cfg.changePlates(it) } }
+                    if (rvl.next(6)) { Section(stringResource(R.string.set_iconpack)) {
                         val packs = remember { IconPacks.installed(ctx) }
                         ActionRow(HIcons.apps, stringResource(R.string.ip_open), (packs.firstOrNull { it.first == Cfg.iconPack }?.second ?: stringResource(R.string.iconpack_native)) + " · " + stringResource(R.string.ip_open_h)) { iconPacksDlg = true }
                         if (packs.isEmpty()) Text(stringResource(R.string.iconpack_none), color = t.hint, fontSize = 12.sp)
@@ -1082,18 +1118,18 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                             AppCache.clearIcons(ctx); Cfg.bumpIcons()
                             Toast.makeText(ctx, ctx.getString(R.string.icons_cache_cleared), Toast.LENGTH_SHORT).show()
                         }
+                    } }
                     }
-                    }
-                    BlockHead("ui_c", stringResource(R.string.blk_ui_c), openBlk, query.isNotBlank())
+                    if (rvl.next(1)) { BlockHead("ui_c", stringResource(R.string.blk_ui_c), openBlk, query.isNotBlank()) }
                     if ("ui_c" in openBlk || query.isNotBlank()) {
-                    SwitchRow(stringResource(R.string.set_remember), Cfg.rememberPos, listOf(stringResource(R.string.remember_hint))) { Cfg.changeRememberPos(it) }
-                    Section(stringResource(R.string.set_dense)) {
+                    if (rvl.next(1)) { SwitchRow(stringResource(R.string.set_remember), Cfg.rememberPos, listOf(stringResource(R.string.remember_hint))) { Cfg.changeRememberPos(it) } }
+                    if (rvl.next(2)) { Section(stringResource(R.string.set_dense)) {
                         Options(
                             listOf(0 to stringResource(R.string.lite_auto), 1 to stringResource(R.string.dense_on), 2 to stringResource(R.string.dense_off)), DenseGrid.mode,
                         ) { DenseGrid.change(ctx, it) }
                         SectionHint(stringResource(R.string.dense_hint))
-                    }
-                    Section(stringResource(R.string.set_sort)) {
+                    } }
+                    if (rvl.next(2)) { Section(stringResource(R.string.set_sort)) {
                         Options(
                             listOf(
                                 "name" to stringResource(R.string.sort_name), "name_desc" to stringResource(R.string.sort_name_desc),
@@ -1102,65 +1138,65 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                             ),
                             Cfg.sort,
                         ) { Cfg.changeSort(it) }
-                    }
-                    SwitchRow(stringResource(R.string.desks_title), Desks.on, listOf()) { Desks.enable(it) }
-                    Section(stringResource(R.string.set_hidden)) {
+                    } }
+                    if (rvl.next(1)) { SwitchRow(stringResource(R.string.desks_title), Desks.on, listOf()) { Desks.enable(it) } }
+                    if (rvl.next(3)) { Section(stringResource(R.string.set_hidden)) {
                         Options(listOf(false to stringResource(R.string.hidden_hide), true to stringResource(R.string.hidden_show)), Cfg.showHidden) { Cfg.changeShowHidden(it) }
                         ActionRow(HIcons.eyeOff, stringResource(R.string.hidden_list) + " (" + Cfg.hidden.size + ")", stringResource(R.string.hidden_list_h)) { sub = "hidden" }
+                    } }
                     }
-                    }
-                    BlockHead("mn_d", stringResource(R.string.blk_mn_d), openBlk, query.isNotBlank())
+                    if (rvl.next(1)) { BlockHead("mn_d", stringResource(R.string.blk_mn_d), openBlk, query.isNotBlank()) }
                     if ("mn_d" in openBlk || query.isNotBlank()) {
                     // выключатель меню виден всегда (раньше исчезал при выключенном «Доме»); оба модуля сразу выключить нельзя
-                    Section(stringResource(R.string.menu_module_title)) {
+                    if (rvl.next(2)) { Section(stringResource(R.string.menu_module_title)) {
                         SectionHint(stringResource(R.string.menu_module_hint))
                         Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.menuModule) { v ->
                             if (!v && !Cfg.homeModule) Toast.makeText(ctx, ctx.getString(R.string.menu_module_need_home), Toast.LENGTH_LONG).show()
                             else Cfg.changeMenuModule(v)
                         }
-                    }
+                    } }
                     }
                 }
-                GroupHead("home", wide || query.isNotBlank(), g) { grp = it }
+                if (rvl.next(1)) { GroupHead("home", wide || query.isNotBlank(), g) { grp = it } }
                 if (g == "home" || query.isNotBlank()) {
-                    BlockHead("hm_a", stringResource(R.string.blk_hm_a), openBlk, query.isNotBlank())
+                    if (rvl.next(1)) { BlockHead("hm_a", stringResource(R.string.blk_hm_a), openBlk, query.isNotBlank()) }
                     if ("hm_a" in openBlk || query.isNotBlank()) {
-                    SwitchRow(stringResource(R.string.home_auto_add_title), Cfg.homeAutoAdd, listOf(stringResource(R.string.home_auto_add_hint))) { Cfg.changeHomeAutoAdd(it) }
+                    if (rvl.next(1)) { SwitchRow(stringResource(R.string.home_auto_add_title), Cfg.homeAutoAdd, listOf(stringResource(R.string.home_auto_add_hint))) { Cfg.changeHomeAutoAdd(it) } }
                     // оформление верхней строки и выделения на «Доме» (по умолчанию вид прежний; выбор применяется сразу; пояснения свёрнуты под названием)
-                    Section(stringResource(R.string.top_outline)) {
+                    if (rvl.next(2)) { Section(stringResource(R.string.top_outline)) {
                         SectionHint(stringResource(R.string.top_outline_hint))
                         Options(listOf("auto" to stringResource(R.string.top_o_auto), "dark" to stringResource(R.string.top_o_dark), "white" to stringResource(R.string.top_o_white), "none" to stringResource(R.string.top_o_none)), Cfg.statusOutline) { Cfg.changeStatusOutline(it) }
-                    }
-                    Section(stringResource(R.string.top_icol)) {
+                    } }
+                    if (rvl.next(2)) { Section(stringResource(R.string.top_icol)) {
                         SectionHint(stringResource(R.string.top_icol_hint))
                         IconColorRow()
-                    }
-                    Section(stringResource(R.string.top_fill)) {
+                    } }
+                    if (rvl.next(3)) { Section(stringResource(R.string.top_fill)) {
                         SectionHint(stringResource(R.string.top_fill_hint))
                     BarFillPreview()
                         Options(listOf("solid" to stringResource(R.string.top_f_solid), "glass" to stringResource(R.string.top_f_glass), "none" to stringResource(R.string.top_f_none)), Cfg.barFill) { Cfg.changeBarFill(it) }
-                    }
-                    Section(stringResource(R.string.top_shape)) {
+                    } }
+                    if (rvl.next(2)) { Section(stringResource(R.string.top_shape)) {
                         SectionHint(stringResource(R.string.top_shape_hint))
                         Options(listOf("normal" to stringResource(R.string.top_s_normal), "round" to stringResource(R.string.top_s_round), "square" to stringResource(R.string.top_s_square)), Cfg.barShape) { Cfg.changeBarShape(it) }
-                    }
-                    Section(stringResource(R.string.sel_glow)) {
+                    } }
+                    if (rvl.next(3)) { Section(stringResource(R.string.sel_glow)) {
                         SectionHint(stringResource(R.string.sel_glow_hint))
                         GlowPreview()
                         Options(listOf("none" to stringResource(R.string.glow_none), "weak" to stringResource(R.string.glow_weak), "strong" to stringResource(R.string.glow_strong)), Cfg.selGlow) { Cfg.changeSelGlow(it) }
+                    } }
                     }
-                    }
-                    BlockHead("hm_b", stringResource(R.string.blk_hm_b), openBlk, query.isNotBlank())
+                    if (rvl.next(1)) { BlockHead("hm_b", stringResource(R.string.blk_hm_b), openBlk, query.isNotBlank()) }
                     if ("hm_b" in openBlk || query.isNotBlank()) {
-                    SwitchRow(stringResource(R.string.all_panel), Cfg.homeAllPanel, listOf(stringResource(R.string.all_panel_hint))) { Cfg.changeHomeAllPanel(it) }
-                    if (Cfg.homeAllPanel) Section(stringResource(R.string.all_panel_glass)) {
+                    if (rvl.next(1)) { SwitchRow(stringResource(R.string.all_panel), Cfg.homeAllPanel, listOf(stringResource(R.string.all_panel_hint))) { Cfg.changeHomeAllPanel(it) } }
+                    if (Cfg.homeAllPanel) if (rvl.next(2)) { Section(stringResource(R.string.all_panel_glass)) {
                         SectionHint(stringResource(R.string.all_panel_glass_hint))
                         Options(listOf("light" to stringResource(R.string.glass_light), "mid" to stringResource(R.string.glass_mid), "dense" to stringResource(R.string.glass_dense)), Cfg.homeAllGlass) { Cfg.changeHomeAllGlass(it) }
+                    } }
                     }
-                    }
-                    BlockHead("hm_c", stringResource(R.string.blk_sy_a), openBlk, query.isNotBlank())
+                    if (rvl.next(1)) { BlockHead("hm_c", stringResource(R.string.blk_sy_a), openBlk, query.isNotBlank()) }
                     if ("hm_c" in openBlk || query.isNotBlank()) {
-                    Section(stringResource(R.string.home_module_title)) {
+                    if (rvl.next(2)) { Section(stringResource(R.string.home_module_title)) {
                         SectionHint(stringResource(R.string.home_module_hint))
                         Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.homeModule) { v ->
                             if (v) HomeModule.enable(ctx)
@@ -1169,8 +1205,8 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                                 Toast.makeText(ctx, ctx.getString(if (r.isEmpty()) R.string.home_module_off_ok else if (r == HomeModule.NEED_MENU) R.string.home_module_need_menu else R.string.home_module_off_fail), Toast.LENGTH_LONG).show()
                             }
                         }
-                    }
-                    Section(stringResource(R.string.set_home)) {
+                    } }
+                    if (rvl.next(6)) { Section(stringResource(R.string.set_home)) {
                         SectionHint(stringResource(R.string.set_home_hint))
                         SectionHint(stringResource(R.string.native_home_hint))
                         // список родных экранов с названиями собирается в фоне: loadLabel обращается к ресурсам и Binder, в главном потоке это до 150 мс (журнал магнитолы)
@@ -1210,8 +1246,8 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                             }
                         }
                         HomeHardBlock()
-                    }
-                    Section(stringResource(R.string.home_keep_title)) {
+                    } }
+                    if (rvl.next(3)) { Section(stringResource(R.string.home_keep_title)) {
                         Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.rememberHome) { Cfg.changeRememberHome(it) }
                         SectionHint(stringResource(R.string.home_remember_hint))
                         ActionRow(HIcons.home, stringResource(R.string.home_now), stringResource(R.string.home_now_h)) {
@@ -1220,27 +1256,27 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                                 Toast.makeText(ctx, ctx.getString(if (ok) R.string.home_now_ok else R.string.home_now_fail), Toast.LENGTH_LONG).show()
                             }
                         }
-                    }
-                    Section(stringResource(R.string.set_return)) {
+                    } }
+                    if (rvl.next(2)) { Section(stringResource(R.string.set_return)) {
                         Options(listOf("menu" to stringResource(R.string.return_menu), "home" to stringResource(R.string.return_home)), Cfg.returnTo) { Cfg.changeReturnTo(it) }
-                    }
+                    } }
                     }
                 }
-                GroupHead("dock", wide || query.isNotBlank(), g) { grp = it }
+                if (rvl.next(1)) { GroupHead("dock", wide || query.isNotBlank(), g) { grp = it } }
                 if (g == "dock" || query.isNotBlank()) {
                     @Suppress("UNUSED_VARIABLE") val dockRev = HomeDock.rev.intValue
-                    SwitchRow(stringResource(R.string.dock_title), HomeDock.on(ctx), listOf(stringResource(R.string.dock_hint))) { HomeDock.setOn(ctx, it) }
+                    if (rvl.next(1)) { SwitchRow(stringResource(R.string.dock_title), HomeDock.on(ctx), listOf(stringResource(R.string.dock_hint))) { HomeDock.setOn(ctx, it) } }
                     // блок «Приложения»: что в доке, добавить, скрыть
-                    Section(stringResource(R.string.dock_apps_title)) {
+                    if (rvl.next(5)) { Section(stringResource(R.string.dock_apps_title)) {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             ActionRow(HIcons.list, stringResource(R.string.dock_pick) + " (" + HomeDock.list(ctx).size + ")", stringResource(R.string.dock_pick_h)) { sub = "dockapps" }
                             ActionRow(HIcons.list, stringResource(R.string.dock_m_add), stringResource(R.string.dock_add_h)) { sub = "dockapps" }
                             ActionRow(HIcons.eyeOff, stringResource(R.string.dock_hide_pick) + " (" + HomeDock.hiddenList(ctx).size + ")", stringResource(R.string.dock_hide_h)) { sub = "dockhide" }
                         }
                         CounterRow(stringResource(R.string.dock_count), HomeDock.count(ctx), 6..12, "") { HomeDock.setCount(ctx, it) }
-                    }
+                    } }
                     // блок «Вид»: расположение, размеры, подписи, фон и прозрачность рядом
-                    Section(stringResource(R.string.dock_look)) {
+                    if (rvl.next(10)) { Section(stringResource(R.string.dock_look)) {
                         Text(stringResource(R.string.dock_align), color = t.sub, fontSize = hintSp(13), modifier = Modifier.padding(top = 2.dp))
                         Options(listOf(0 to stringResource(R.string.dock_al_l), 1 to stringResource(R.string.dock_al_c), 2 to stringResource(R.string.dock_al_r)), HomeDock.align(ctx)) { HomeDock.setAlign(ctx, it) }
                         CounterRow(stringResource(R.string.dock_icon), HomeDock.icon(ctx), 24..72, "dp") { HomeDock.setIcon(ctx, it) }
@@ -1252,9 +1288,9 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                         Options(listOf(0 to "0 %", 25 to "25 %", 50 to "50 %", 75 to "75 %", 100 to "100 %"), HomeDock.transp(ctx)) { HomeDock.setTransp(ctx, it) }
                         CounterRow(stringResource(R.string.dock_bottom), HomeDock.bottom(ctx), 0..60, "dp") { HomeDock.setBottom(ctx, it) }
                         CounterRow(stringResource(R.string.dock_radius), HomeDock.radius(ctx), 0..30, "dp") { HomeDock.setRadius(ctx, it) }
-                    }
+                    } }
                     // блок «Поведение»: порядок, недавние, автодобавление, прокрутка, кнопка
-                    Section(stringResource(R.string.dock_behave)) {
+                    if (rvl.next(8)) { Section(stringResource(R.string.dock_behave)) {
                         Text(stringResource(R.string.dock_sort), color = t.sub, fontSize = hintSp(13))
                         Options(listOf(0 to stringResource(R.string.dock_s0), 1 to stringResource(R.string.dock_s1), 2 to stringResource(R.string.dock_s2), 3 to stringResource(R.string.dock_s3)), HomeDock.sort(ctx)) { HomeDock.setSort(ctx, it) }
                         SwitchRow(stringResource(R.string.dock_recents), HomeDock.recents(ctx), listOf(stringResource(R.string.dock_recents_h))) { HomeDock.setRecents(ctx, it) }
@@ -1263,60 +1299,60 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                         SwitchRow(stringResource(R.string.dock_close_after), HomeDock.closeAfter(ctx), listOf(stringResource(R.string.dock_close_after_h))) { HomeDock.setCloseAfter(ctx, it) }
                         SwitchRow(stringResource(R.string.dock_scroll), HomeDock.scrollbar(ctx), listOf(stringResource(R.string.dock_scroll_h))) { HomeDock.setScrollbar(ctx, it) }
                         SwitchRow(stringResource(R.string.dock_btn), HomeDock.btn(ctx), listOf(stringResource(R.string.dock_btn_h))) { HomeDock.setBtn(ctx, it) }
-                    }
-                    Section(stringResource(R.string.dock_key)) {
+                    } }
+                    if (rvl.next(3)) { Section(stringResource(R.string.dock_key)) {
                         Options(listOf(0 to stringResource(R.string.dock_key_0), 1 to stringResource(R.string.dock_key_1), 2 to stringResource(R.string.dock_key_2), 3 to stringResource(R.string.dock_key_3)), HomeDock.keyMode(ctx)) { HomeDock.setKeyMode(ctx, it) }
                         if (HomeDock.keyMode(ctx) == 3) ActionRow(HIcons.gear, stringResource(R.string.dock_key_press) + (if (HomeDock.keyCode(ctx) >= 0) ": " + Voice.keyName(HomeDock.keyCode(ctx)) else ""), stringResource(R.string.dock_key_press_h)) { dockKeyDlg = true }
                         Text(stringResource(R.string.dock_keys_help), color = t.sub, fontSize = hintSp(12), modifier = Modifier.padding(top = 4.dp))
-                    }
+                    } }
                 }
-                GroupHead("wall", wide || query.isNotBlank(), g) { grp = it }
+                if (rvl.next(1)) { GroupHead("wall", wide || query.isNotBlank(), g) { grp = it } }
                 if (g == "wall" || query.isNotBlank()) {
                     @Suppress("UNUSED_VARIABLE") val wallRev = HomeDock.rev.intValue
-                    SwitchRow(stringResource(R.string.wall_res), WallRes.on(ctx), listOf(stringResource(R.string.wall_res_h))) { WallRes.setOn(ctx, it); HomeDock.rev.intValue++ }
-                    Section(stringResource(R.string.grp_wall)) {
+                    if (rvl.next(1)) { SwitchRow(stringResource(R.string.wall_res), WallRes.on(ctx), listOf(stringResource(R.string.wall_res_h))) { WallRes.setOn(ctx, it); HomeDock.rev.intValue++ } }
+                    if (rvl.next(3)) { Section(stringResource(R.string.grp_wall)) {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             ActionRow(HIcons.home, stringResource(R.string.wall_home), stringResource(R.string.wall_home_h)) { homeBgDlg = true }
                             ActionRow(HIcons.apps, stringResource(R.string.bg_menu_btn), stringResource(R.string.bg_menu_btn_h)) { menuBgDlg = true }
                         }
-                    }
+                    } }
                 }
-                GroupHead("widgets", wide || query.isNotBlank(), g) { grp = it }
+                if (rvl.next(1)) { GroupHead("widgets", wide || query.isNotBlank(), g) { grp = it } }
                 if (g == "widgets" || query.isNotBlank()) {
-                    Section(stringResource(R.string.grp_widgets)) {
+                    if (rvl.next(2)) { Section(stringResource(R.string.grp_widgets)) {
                         ActionRow(HIcons.home, stringResource(R.string.wid_open), stringResource(R.string.wid_open_h)) { leaveVia(ctx, -1) { ctx.startActivity(Intent(ctx, HomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
-                    }
+                    } }
                 }
-                GroupHead("dl", wide || query.isNotBlank(), g) { grp = it }
+                if (rvl.next(1)) { GroupHead("dl", wide || query.isNotBlank(), g) { grp = it } }
                 if (g == "dl" || query.isNotBlank()) {
-                    Section(stringResource(R.string.grp_dl)) {
+                    if (rvl.next(3)) { Section(stringResource(R.string.grp_dl)) {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             ActionRow(HIcons.download, stringResource(R.string.about_apps_upd), stringResource(R.string.about_apps_upd_h)) { appsUpd = true }
                             ActionRow(HIcons.download, stringResource(R.string.dl_wall), stringResource(R.string.dl_wall_h)) { homeBgDlg = true }
                         }
-                    }
+                    } }
                 }
-                GroupHead("auto", wide || query.isNotBlank(), g) { grp = it }
+                if (rvl.next(1)) { GroupHead("auto", wide || query.isNotBlank(), g) { grp = it } }
                 if (g == "auto" || query.isNotBlank()) {
                     @Suppress("UNUSED_VARIABLE") val autoRev = Autostart.rev.intValue
-                    SwitchRow(stringResource(R.string.auto_title), Autostart.on(ctx), listOf(stringResource(R.string.auto_limits))) { Autostart.setOn(ctx, it) }
-                    Section(stringResource(R.string.auto_apps_title)) {
+                    if (rvl.next(1)) { SwitchRow(stringResource(R.string.auto_title), Autostart.on(ctx), listOf(stringResource(R.string.auto_limits))) { Autostart.setOn(ctx, it) } }
+                    if (rvl.next(2)) { Section(stringResource(R.string.auto_apps_title)) {
                         ActionRow(HIcons.list, stringResource(R.string.auto_pick) + " (" + Autostart.list(ctx).size + ")", stringResource(R.string.auto_pick_h)) { sub = "autoapps" }
-                    }
-                    Section(stringResource(R.string.auto_timing)) {
+                    } }
+                    if (rvl.next(3)) { Section(stringResource(R.string.auto_timing)) {
                         CounterRow(stringResource(R.string.auto_delay), Autostart.delaySec(ctx), 0..600, stringResource(R.string.auto_unit)) { Autostart.setDelaySec(ctx, it) }
                         CounterRow(stringResource(R.string.auto_gap), Autostart.gapSec(ctx), 0..120, stringResource(R.string.auto_unit)) { Autostart.setGapSec(ctx, it) }
-                    }
-                    Section(stringResource(R.string.auto_check)) {
+                    } }
+                    if (rvl.next(2)) { Section(stringResource(R.string.auto_check)) {
                         ActionRow(HIcons.refresh, stringResource(R.string.auto_now), stringResource(R.string.auto_now_h)) { Autostart.runNow(ctx, scope) }
-                    }
-                    Section(stringResource(R.string.auto_log)) {
+                    } }
+                    if (rvl.next(1)) { Section(stringResource(R.string.auto_log)) {
                         Text(Autostart.logText(ctx).ifBlank { stringResource(R.string.auto_log_none) }, color = t.sub, fontSize = btnSp(12))
-                    }
+                    } }
                 }
-                GroupHead("files", wide || query.isNotBlank(), g) { grp = it }
+                if (rvl.next(1)) { GroupHead("files", wide || query.isNotBlank(), g) { grp = it } }
                 if (g == "files" || query.isNotBlank()) {
-                    Section(stringResource(R.string.set_install)) {
+                    if (rvl.next(7)) { Section(stringResource(R.string.set_install)) {
                         SectionHint(stringResource(R.string.install_hint))
                         ActionRow(HIcons.folder, stringResource(R.string.fb_open), stringResource(R.string.fb_open_h)) { browser = true }
                         ActionRow(HIcons.wifi, stringResource(R.string.wifi_open), stringResource(R.string.wifi_open_h)) { wifi = true }
@@ -1331,13 +1367,13 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                                     .onFailure { Toast.makeText(ctx, ctx.getString(R.string.icon_no_picker), Toast.LENGTH_LONG).show() }
                             }
                         }
-                    }
+                    } }
                 }
-                GroupHead("system", wide || query.isNotBlank(), g) { grp = it }
+                if (rvl.next(1)) { GroupHead("system", wide || query.isNotBlank(), g) { grp = it } }
                 if (g == "system" || query.isNotBlank()) {
-                    BlockHead("sy_b", stringResource(R.string.blk_sy_b), openBlk, query.isNotBlank())
+                    if (rvl.next(1)) { BlockHead("sy_b", stringResource(R.string.blk_sy_b), openBlk, query.isNotBlank()) }
                     if ("sy_b" in openBlk || query.isNotBlank()) {
-                    Section(stringResource(R.string.set_fullscreen)) {
+                    if (rvl.next(3)) { Section(stringResource(R.string.set_fullscreen)) {
                         val ctxSb = androidx.compose.ui.platform.LocalContext.current
                         var sbS by remember { mutableStateOf(!SysBars.hidden(ctxSb, false)) }
                         var sbN by remember { mutableStateOf(!SysBars.hidden(ctxSb, true)) }
@@ -1346,8 +1382,8 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                         Options(onOff, sbS) { sbS = it; SysBars.set(ctxSb, false, if (it) 1 else 2); onFullscreenChanged() }
                         Text(stringResource(R.string.sb_nav), color = t.sub, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
                         Options(onOff, sbN) { sbN = it; SysBars.set(ctxSb, true, if (it) 1 else 2); onFullscreenChanged() }
-                    }
-                    Section(stringResource(R.string.set_mem)) {
+                    } }
+                    if (rvl.next(7)) { Section(stringResource(R.string.set_mem)) {
                         FoldItem(stringResource(R.string.mem_auto), stringResource(R.string.mem_auto_hint)) {
                             Options(listOf(true to stringResource(R.string.on), false to stringResource(R.string.off)), Cfg.memAuto) { Cfg.changeMemAuto(it) }
                         }
@@ -1357,19 +1393,19 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                         FoldItem(stringResource(R.string.mem_excl_title), stringResource(R.string.mem_excl_hint)) {
                             ActionRow(HIcons.list, stringResource(R.string.mem_excl_open) + " (" + Cfg.memExcl.size + ")", stringResource(R.string.mem_excl_open_h)) { sub = "excl" }
                         }
-                    }
-                    SwitchRow(stringResource(R.string.boot_title), Cfg.bootWarm, listOf(stringResource(R.string.boot_hint))) { Cfg.changeBootWarm(it) }
-                    Section(stringResource(R.string.set_lite)) {
+                    } }
+                    if (rvl.next(1)) { SwitchRow(stringResource(R.string.boot_title), Cfg.bootWarm, listOf(stringResource(R.string.boot_hint))) { Cfg.changeBootWarm(it) } }
+                    if (rvl.next(2)) { Section(stringResource(R.string.set_lite)) {
                         Options(
                             listOf(0 to stringResource(R.string.lite_auto), 1 to stringResource(R.string.on), 2 to stringResource(R.string.off)), Lite.mode,
                         ) { Lite.change(ctx, it) }
                         SectionHint(stringResource(R.string.lite_hint))
+                    } }
                     }
-                    }
-                    BlockHead("sy_c", stringResource(R.string.blk_sy_c), openBlk, query.isNotBlank())
+                    if (rvl.next(1)) { BlockHead("sy_c", stringResource(R.string.blk_sy_c), openBlk, query.isNotBlank()) }
                     if ("sy_c" in openBlk || query.isNotBlank()) {
-                    SwitchRow(stringResource(R.string.ask_cache_title), Cfg.askClearCache, listOf(stringResource(R.string.ask_cache_hint))) { Cfg.changeAskClearCache(it) }
-                    Section(stringResource(R.string.adb_title)) {
+                    if (rvl.next(1)) { SwitchRow(stringResource(R.string.ask_cache_title), Cfg.askClearCache, listOf(stringResource(R.string.ask_cache_hint))) { Cfg.changeAskClearCache(it) } }
+                    if (rvl.next(5)) { Section(stringResource(R.string.adb_title)) {
                         Text(stringResource(Conn.statusRes), color = if (Conn.connected) t.accent else t.sub, fontSize = 14.sp)
                         ActionRow(HIcons.usb, stringResource(R.string.adb_connect_btn), stringResource(R.string.adb_connect_btn_h)) { adbDialog = true }
                         ActionRow(HIcons.wifi, stringResource(R.string.adbn_btn), stringResource(R.string.adbn_btn_h)) { adbNet = true }
@@ -1389,9 +1425,10 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                             ctx.getSharedPreferences("tvapps", android.content.Context.MODE_PRIVATE).edit().putBoolean("saver_root_sensor", it).apply()
                         }
                         SectionHint(stringResource(R.string.root_sensor_hint))
-                    }
+                    } }
                     }
                 }
+                rvl.end()
                 Spacer(Modifier.size(24.dp))
             } else if (sub == "about") {
                 Column(Modifier.widthIn(max = 900.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1475,7 +1512,7 @@ private fun FoldItem(title: String, hint: String?, content: @Composable () -> Un
         Row(
             Modifier.onFocusChanged { focused = it.isFocused }
                 .clip(RoundedCornerShape(8.dp))
-                .border(if (focused) 2.dp else 0.dp, if (focused) t.accent else Color.Transparent, RoundedCornerShape(8.dp))
+                .focusBorder({ focused }, 2.dp, 0.dp, t.accent, Color.Transparent, RoundedCornerShape(8.dp))
                 .then(if (hint != null) Modifier.clickable { open = !open } else Modifier)
                 .padding(horizontal = 4.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1501,8 +1538,8 @@ private fun ExcludeList(apps: List<Entry>) {
             Modifier.fillMaxWidth().padding(vertical = 3.dp)
                 .onFocusChanged { focused = it.isFocused }
                 .clip(RoundedCornerShape(12.dp))
-                .background(if (focused) t.tileFocus else t.tile)
-                .border(if (focused) 3.dp else 0.dp, if (focused) t.accent else Color.Transparent, RoundedCornerShape(12.dp))
+                .drawBehind { drawRect(if (focused) t.tileFocus else t.tile) }
+                .focusBorder({ focused }, 3.dp, 0.dp, t.accent, Color.Transparent, RoundedCornerShape(12.dp))
                 .toggleable(on, onValueChange = { Cfg.toggleMemExcl(e.pkg) })
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -1532,8 +1569,8 @@ private fun HiddenList(apps: List<Entry>) {
             Modifier.fillMaxWidth().padding(vertical = 3.dp)
                 .onFocusChanged { focused = it.isFocused }
                 .clip(RoundedCornerShape(12.dp))
-                .background(if (focused) t.tileFocus else t.tile)
-                .border(if (focused) 3.dp else 0.dp, if (focused) t.accent else Color.Transparent, RoundedCornerShape(12.dp))
+                .drawBehind { drawRect(if (focused) t.tileFocus else t.tile) }
+                .focusBorder({ focused }, 3.dp, 0.dp, t.accent, Color.Transparent, RoundedCornerShape(12.dp))
                 .toggleable(h, onValueChange = { Cfg.toggleHidden(e.pkg) })
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -1560,4 +1597,41 @@ private fun setHomeMode(ctx: android.content.Context, on: Boolean) {
         if (on) android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED else android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
         android.content.pm.PackageManager.DONT_KILL_APP,
     )
+}
+
+
+/** Откладывает смену группы настроек при быстром пролистывании списка групп (15.1): см. [GroupsPane]. */
+private class GroupPickGate {
+    private var lastAt = 0L
+    private var job: kotlinx.coroutines.Job? = null
+    fun request(scope: kotlinx.coroutines.CoroutineScope, id: String, onPick: (String) -> Unit) {
+        job?.cancel(); job = null
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - lastAt > 300L) { lastAt = now; onPick(id); return }
+        job = scope.launch { kotlinx.coroutines.delay(110); lastAt = android.os.SystemClock.uptimeMillis(); onPick(id) }
+    }
+}
+
+/** Порционная сборка содержимого группы настроек (16.0): первые [FIRST] элементов сразу, остальные по [CHUNK] за кадр. */
+private class RevealGate {
+    companion object { const val FIRST = 3; const val CHUNK = 3 }
+    @JvmField var limit = Int.MAX_VALUE
+    @JvmField var n = 0
+    @JvmField var total = 0
+    private var lastG = ""
+    private var lastAll = true
+    /** Есть запомненное положение (прокрутка, кнопка в фокусе): первую сборку делаем целиком, иначе прокрутка упрётся в короткое содержимое и потеряется. */
+    private val restore = MenuMemory.settingsScroll > 0 || MenuMemory.settingsFocusText != null
+    /** Меняется, чтобы экран настроек перекомпоновался и показал очередную порцию. */
+    var tick by androidx.compose.runtime.mutableIntStateOf(0)
+    fun begin(g: String, all: Boolean) {
+        tick   // чтение состояния: перекомпоновка при новой порции
+        n = 0
+        if (all) { limit = Int.MAX_VALUE; lastAll = true; lastG = g; return }
+        if (lastG.isEmpty() && restore) { limit = Int.MAX_VALUE; lastAll = false; lastG = g; return }
+        if (g != lastG || lastAll) { lastG = g; lastAll = false; limit = FIRST }
+    }
+    /** Оператор весом [w] (число тяжёлых строк внутри) показывается, если до него набрано меньше предела: тяжёлый оператор занимает свой кадр. */
+    fun next(w: Int): Boolean { val show = n < limit; n += w; return show }
+    fun end() { total = n }
 }

@@ -1,5 +1,6 @@
 package app.tvapps
 
+import androidx.compose.ui.draw.drawBehind
 import kotlinx.coroutines.sync.withLock
 
 import android.content.Intent
@@ -100,7 +101,7 @@ import kotlin.math.max
 object Conn {
     var connected by mutableStateOf(false)
     var root by mutableStateOf(false)
-    /** Причина, по которой ADB не подключён (AdbWhy.*): 0 — причина неизвестна или подключено. */
+    /** Причина, по которой ADB не подключён (AdbWhy.*): 0 - причина неизвестна или подключено. */
     var why by mutableIntStateOf(0)
     fun refresh() { connected = Adb.isConnected; root = Adb.isRoot; why = if (connected) 0 else AdbWhy.summary() }
     /** Строка состояния: «ADB: подключено», «Root: подключено» или «не подключено». */
@@ -184,8 +185,8 @@ private fun ActionCell(icon: ImageVector, label: String, modifier: Modifier = Mo
             .then(hm)
             .onFocusChanged { focused = it.isFocused }
             .clip(RoundedCornerShape(14.dp))
-            .background(if (focused || hover) Pop.focusFill else Color.Transparent)
-            .border(if (focused) 2.dp else 0.dp, if (focused) Pop.focusLine else Color.Transparent, RoundedCornerShape(14.dp))
+            .focusFillDraw({ focused || hover }, Pop.focusFill)
+            .focusBorder({ focused }, 2.dp, 0.dp, Pop.focusLine, Color.Transparent, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
             .heightIn(min = cellMinHeight())
             .padding(vertical = 5.dp, horizontal = 2.dp),
@@ -217,7 +218,7 @@ private fun PopButton(text: String, modifier: Modifier = Modifier, fill: Color =
             .onFocusChanged { focused = it.isFocused }
             .clip(RoundedCornerShape(14.dp))
             .background(if (!enabled) Pop.disabledFill else if (focused || hover) Pop.focusFill else fill)
-            .border(if (focused) 2.dp else Pop.outlineW, if (focused) Pop.focusLine else Pop.outline, RoundedCornerShape(14.dp))
+            .focusBorder({ focused }, 2.dp, Pop.outlineW, Pop.focusLine, Pop.outline, RoundedCornerShape(14.dp))
             .clickable(enabled = enabled, onClick = onClick)
             .heightIn(min = cellMinHeight())
             .padding(horizontal = 12.dp, vertical = 6.dp),
@@ -234,8 +235,8 @@ private fun ToggleRow(text: String, checked: Boolean, onChange: (Boolean) -> Uni
             .then(hm)
             .onFocusChanged { focused = it.isFocused }
             .clip(RoundedCornerShape(12.dp))
-            .background(if (focused || hover) Pop.focusFill else Color.Transparent)
-            .border(if (focused) 2.dp else 0.dp, if (focused) Pop.focusLine else Color.Transparent, RoundedCornerShape(12.dp))
+            .focusFillDraw({ focused || hover }, Pop.focusFill)
+            .focusBorder({ focused }, 2.dp, 0.dp, Pop.focusLine, Color.Transparent, RoundedCornerShape(12.dp))
             .toggleable(checked, onValueChange = onChange)
             .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -608,8 +609,8 @@ private fun ShortcutsPanel(list: List<Shortcut>, e: Entry, width: Dp, onPick: (S
                     .then(hm)
                     .onFocusChanged { focused = it.isFocused }
                     .clip(RoundedCornerShape(14.dp * k))
-                    .background(if (focused || hover) Pop.focusFill else Color.Transparent)
-                    .border(if (focused) 2.dp else 0.dp, if (focused) Pop.focusLine else Color.Transparent, RoundedCornerShape(14.dp * k))
+                    .focusFillDraw({ focused || hover }, Pop.focusFill)
+                    .focusBorder({ focused }, 2.dp, 0.dp, Pop.focusLine, Color.Transparent, RoundedCornerShape(14.dp * k))
                     .clickable { onPick(sc) }
                     .padding(horizontal = 7.dp * k),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp * k),
@@ -677,7 +678,7 @@ private val IconMove: ImageVector by lazy {
     }
 }
 
-/** Значок «удалить» — кружок с чертой, как «⊖» у Samsung. */
+/** Значок «удалить» - кружок с чертой, как «⊖» у Samsung. */
 private val IconRemove: ImageVector by lazy {
     outline("Remove") {
         moveTo(21f, 12f)
@@ -697,8 +698,8 @@ private fun BackRow(first: FocusRequester?, onBack: () -> Unit) {
             .then(hm)
             .onFocusChanged { focused = it.isFocused }
             .clip(RoundedCornerShape(12.dp))
-            .background(if (focused || hover) Pop.focusFill else Color.Transparent)
-            .border(if (focused) 2.dp else 0.dp, if (focused) Pop.focusLine else Color.Transparent, RoundedCornerShape(12.dp))
+            .focusFillDraw({ focused || hover }, Pop.focusFill)
+            .focusBorder({ focused }, 2.dp, 0.dp, Pop.focusLine, Color.Transparent, RoundedCornerShape(12.dp))
             .clickable(onClick = onBack)
             .padding(horizontal = 8.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,

@@ -29,6 +29,7 @@ object Integrity {
     fun warm(ctx: Context) {
         if (!release()) return
         Thread {
+            runCatching { env() }   // среда сразу, не на главном потоке при первой компоновке (15.1)
             runCatching { Thread.sleep(4000); safe(ctx) }
         }.apply { priority = Thread.MIN_PRIORITY; isDaemon = true }.start()
     }
@@ -130,9 +131,23 @@ object Integrity {
     // ---- проверка 5: отладчик и подмена среды (Frida, Xposed)
     @Volatile private var envAt = 0L
     @Volatile private var envRes = true
+    @Volatile private var envBusy = false
     private fun env(): Boolean {
         val now = android.os.SystemClock.elapsedRealtime()
         if (envAt != 0L && now - envAt < 5_000L) return envRes
+        // 15.1 (плавность): на главном потоке (компоновка вызывает Integrity.ok на каждый кадр) файл /proc/self/maps (сотни КБ) не читается:
+        // отдаётся прежний результат, обновление идёт в фоне. Раньше этот разбор занимал 30-75 мс главного потока раз в 5 с, и это были самые длинные кадры
+        // при перемещении курсора на приставке. Самая первая проверка (результата ещё нет) выполняется на месте, поэтому подмена с первого вызова не пропускается.
+        if (envAt != 0L && android.os.Looper.getMainLooper().thread === Thread.currentThread()) {
+            if (!envBusy) {
+                envBusy = true
+                Thread {
+                    try { val r = runCatching { envNow() }.getOrDefault(true); envRes = r; envAt = android.os.SystemClock.elapsedRealtime() }
+                    finally { envBusy = false }
+                }.apply { priority = Thread.MIN_PRIORITY; isDaemon = true; name = "integrity-env" }.start()
+            }
+            return envRes
+        }
         val r = runCatching { envNow() }.getOrDefault(true)
         envAt = now; envRes = r
         return r
@@ -149,8 +164,11 @@ object Integrity {
             if (loaded) return false
         }
         // Frida: её библиотеки в памяти процесса
-        val maps = runCatching { File("/proc/self/maps").readText() }.getOrDefault("")
-        if (maps.contains("frida-agent") || maps.contains("frida-gadget") || maps.contains("gum-js-loop")) return false
+        // построчно, без склейки всего файла в одну строку (раньше readText копил сотни КБ мусора на каждую проверку)
+        val bad = runCatching {
+            File("/proc/self/maps").bufferedReader().useLines { ls -> ls.any { it.contains("frida-agent") || it.contains("frida-gadget") || it.contains("gum-js-loop") } }
+        }.getOrDefault(false)
+        if (bad) return false
         return true
     }
 

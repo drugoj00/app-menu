@@ -265,7 +265,7 @@ private fun MainScreen(ctx: Context, go: (String) -> Unit) {
 
 private const val DREAM_COMP = "app.tvapps/app.tvapps.ClockDream"
 
-/** Выбирает нашу заставку системной (на ТВ без экрана «Заставка» — через защищённые настройки; исходные значения запоминаются). */
+/** Выбирает нашу заставку системной (на ТВ без экрана «Заставка» - через защищённые настройки; исходные значения запоминаются). */
 private fun enableDream(ctx: Context) {
     val sp = ctx.getSharedPreferences("tvapps_saver", Context.MODE_PRIVATE)
     fun get(k: String) = runCatching { Settings.Secure.getString(ctx.contentResolver, k) }.getOrNull()
@@ -483,7 +483,7 @@ private fun DiagScreen(ctx: Context, go: (String) -> Unit) {
     val ov = SaverPerm.overlay(ctx)
     BarLazyColumn(Modifier.fillMaxSize()) {
         item {
-            val shown = if (SaverBus.shown) stringResource(R.string.sv_now_shown, SaverBus.shownBy) else stringResource(R.string.sv_now_hidden, SaverBus.reason.ifBlank { "—" })
+            val shown = if (SaverBus.shown) stringResource(R.string.sv_now_shown, SaverBus.shownBy) else stringResource(R.string.sv_now_hidden, SaverBus.reason.ifBlank { "-" })
             Item(stringResource(R.string.sv_state), sub = shown)
         }
         item { Head(stringResource(R.string.sv_g_ways)) }
@@ -561,7 +561,7 @@ private fun LogScreen(ctx: Context) {
             SvChip(stringResource(R.string.sv_log_copy), false) { copyLog(ctx) }
         }
         Column(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(10.dp)).background(TILE).barScroll(Int.MAX_VALUE).padding(10.dp)) {
-            Text(header(ctx) + "\n" + text.ifBlank { "—" }, color = TXT, fontSize = 11.sp, lineHeight = 14.sp)
+            Text(header(ctx) + "\n" + text.ifBlank { "-" }, color = TXT, fontSize = 11.sp, lineHeight = 14.sp)
         }
     }
 }

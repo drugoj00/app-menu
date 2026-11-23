@@ -1,6 +1,7 @@
 @file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 package app.tvapps
 
+import androidx.compose.ui.draw.drawBehind
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -70,7 +71,7 @@ private fun FocusItem(content: @Composable () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     Column(
         Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }.clip(RoundedCornerShape(8.dp))
-            .border(if (focused) 2.dp else 0.dp, if (focused) t.accent else Color.Transparent, RoundedCornerShape(8.dp))
+            .focusBorder({ focused }, 2.dp, 0.dp, t.accent, Color.Transparent, RoundedCornerShape(8.dp))
             .focusable().padding(horizontal = 4.dp, vertical = 2.dp),
     ) { content() }
 }
@@ -114,7 +115,7 @@ fun InstallDialog(files: List<ApkFile>, onClose: () -> Unit) {
     // отказы, которые можно исправить после подтверждения: версия ниже установленной или другая подпись
     var fixable by remember { mutableStateOf<List<Pair<ApkFile, Batch.Fix>>>(emptyList()) }
     var fixAsk by remember { mutableStateOf(false) }
-    // без ADB и root «Исправить» идёт системными окнами (удаление, затем установка): sysFix — это окно подтверждения, restFiles — остальные файлы выбора
+    // без ADB и root «Исправить» идёт системными окнами (удаление, затем установка): sysFix - это окно подтверждения, restFiles - остальные файлы выбора
     var sysFix by remember { mutableStateOf(false) }
     var restFiles by remember { mutableStateOf<List<ApkFile>>(emptyList()) }
     val fr = remember { FocusRequester() }
@@ -219,8 +220,8 @@ fun InstallDialog(files: List<ApkFile>, onClose: () -> Unit) {
                             Modifier.fillMaxWidth().padding(vertical = 2.dp)
                                 .onFocusChanged { focused = it.isFocused }
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(if (focused) t.tileFocus else Color.Transparent)
-                                .border(if (focused) 2.dp else 0.dp, if (focused) t.accent else Color.Transparent, RoundedCornerShape(10.dp))
+                                .drawBehind { drawRect(if (focused) t.tileFocus else Color.Transparent) }
+                                .focusBorder({ focused }, 2.dp, 0.dp, t.accent, Color.Transparent, RoundedCornerShape(10.dp))
                                 .toggleable(on, onValueChange = { v -> chosen = if (v) chosen + f.name else chosen - f.name })
                                 .padding(horizontal = 8.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,

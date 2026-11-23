@@ -14,8 +14,16 @@ object AppLoc {
             if (android.os.Build.VERSION.SDK_INT >= 24) c.locales[0] else @Suppress("DEPRECATION") c.locale
         }.getOrNull() ?: Locale.getDefault()
 
-    /** Чистая часть: язык выбора ([lang], пусто — авто) и язык системы дают язык форматирования. */
-    fun resolve(lang: String, system: Locale): Locale = if (lang.isBlank()) system else Locale(lang)
+    /** Чистая часть: язык выбора ([lang], пусто - авто) и язык системы дают язык форматирования. */
+    // 15.1 (плавность): прежний Locale(lang) создавал новый объект на каждый вызов, а вызывают его десятки раз в секунду из часов и верхней полосы «Дома»
+    @Volatile private var memoLang: String? = null
+    @Volatile private var memoLoc: Locale? = null
+    fun resolve(lang: String, system: Locale): Locale {
+        if (lang.isBlank()) return system
+        val l = memoLoc
+        if (l != null && memoLang == lang) return l
+        return Locale(lang).also { memoLoc = it; memoLang = lang }
+    }
 
     fun locale(): Locale = resolve(Cfg.lang, system)
 

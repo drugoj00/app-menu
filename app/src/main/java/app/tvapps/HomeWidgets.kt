@@ -113,7 +113,7 @@ private fun ClockBody(w: HWidget) {
     val sh = s.textShadow(t.dark)
     val base = androidx.compose.material3.LocalTextStyle.current.copy(fontFamily = fam, shadow = sh)
     val lang = AppLoc.code()
-    // восход и закат: из данных погоды (место: город этого виджета, пусто — по адресу в интернете)
+    // восход и закат: из данных погоды (место: город этого виджета, пусто - по адресу в интернете)
     val wx by produceState<Weather?>(if (s.sun) WeatherData.cached(ctx, w.city) else null, s.sun, w.city, lang) {
         if (!s.sun) { value = null; return@produceState }
         val old = value
@@ -130,7 +130,7 @@ private fun ClockBody(w: HWidget) {
         val cSec = s.col(s.cSec, cTime)
         val cDate = s.col(s.cDate, t.sub)
         val cWeek = s.col(s.cWeek, t.sub)
-        val fmt = { p: String -> SimpleDateFormat(p, loc()).format(Date(now)) }
+        val fmt = { p: String -> DFmt.format(p, loc(), now) }
         val hours = fmt(if (h12) "h" else if (s.hide0) "H" else "HH")
         val mins = fmt("mm")
         val secs = fmt("ss")
@@ -178,8 +178,8 @@ private fun DateBody() {
     BoxWithConstraints(Modifier.fillMaxSize().padding(10.dp), contentAlignment = Alignment.Center) {
         val big = (maxHeight.value * 0.5f).coerceIn(20f, 72f)
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(SimpleDateFormat("d", loc()).format(Date(now)), color = t.accent, fontSize = big.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-            Text(SimpleDateFormat("EEEE, MMMM", loc()).format(Date(now)), color = t.sub, fontSize = (big * 0.28f).coerceAtLeast(11f).sp, maxLines = 1)
+            Text(DFmt.format("d", loc(), now), color = t.accent, fontSize = big.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            Text(DFmt.format("EEEE, MMMM", loc(), now), color = t.sub, fontSize = (big * 0.28f).coerceAtLeast(11f).sp, maxLines = 1)
         }
     }
 }
@@ -407,7 +407,7 @@ private fun AppWidgetBody(w: HWidget, onLong: () -> Unit) {
     }
 }
 
-/** Значок погоды: эмодзи, а туман рисуется сам (системный эмодзи тумана — квадратная картинка): облако и три полосы. [sp] — размер как у текста. */
+/** Значок погоды: эмодзи, а туман рисуется сам (системный эмодзи тумана - квадратная картинка): облако и три полосы. [sp] - размер как у текста. */
 @Composable
 internal fun WxIcon(code: Int, sp: Float) {
     if (code != 45 && code != 48) { Text(WeatherData.emoji(code), fontSize = sp.sp, maxLines = 1); return }

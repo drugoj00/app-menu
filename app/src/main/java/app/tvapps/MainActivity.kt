@@ -84,9 +84,11 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
+import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.input.key.Key
@@ -239,7 +241,7 @@ class MainActivity : ComponentActivity(), HasFx {
         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ runCatching { nativeHomeIntent(this)?.let { startActivity(it) } } }, 250)
     }
 
-    /** Язык из настроек программы (пусто — как в системе). Читается напрямую: Cfg здесь ещё не создан. */
+    /** Язык из настроек программы (пусто - как в системе). Читается напрямую: Cfg здесь ещё не создан. */
     private var langAtStart = ""
     private var sysAtStart = ""
 
@@ -355,10 +357,10 @@ internal fun loadApps(ctx: android.content.Context, prev: List<Entry> = emptyLis
 private fun loadAppsImpl(ctx: android.content.Context, prev: List<Entry> = emptyList(), reuse: Boolean = false): List<Entry> {
     val pm = ctx.packageManager
     // 18.11.2026 (находка по образцу ADB-phon: дорогая проверка без кэша на каждый клик): при каждом возврате в меню (resumeTick) список
-    // перечитывался целиком — а это значит getPackageInfo ОТДЕЛЬНЫМ межпроцессным вызовом на КАЖДОЕ из ~130 приложений (reuse экономил только
-    // подготовку значков, но не эти вызовы, нужные просто чтобы проверить, не изменилось ли время обновления). getChangedPackages — один дешёвый
+    // перечитывался целиком - а это значит getPackageInfo ОТДЕЛЬНЫМ межпроцессным вызовом на КАЖДОЕ из ~130 приложений (reuse экономил только
+    // подготовку значков, но не эти вызовы, нужные просто чтобы проверить, не изменилось ли время обновления). getChangedPackages - один дешёвый
     // вызов с номером последовательности: если он не изменился с прошлой полной загрузки, точно ни одно приложение не ставилось/не удалялось/
-    // не обновлялось, и можно вернуть прежний список без единого обращения к PackageManager за приложение. Замеры — в ТОДО-файле программы.
+    // не обновлялось, и можно вернуть прежний список без единого обращения к PackageManager за приложение. Замеры - в ТОДО-файле программы.
     if (reuse && prev.isNotEmpty() && android.os.Build.VERSION.SDK_INT >= 26 && !IconPacks.ownChanged(ctx)) {
         val seq = AppsMem.pkgSeq
         val t0 = android.os.SystemClock.elapsedRealtime()
@@ -410,7 +412,7 @@ private fun loadAppsImpl(ctx: android.content.Context, prev: List<Entry> = empty
     }
     android.util.Log.i("TVApps", "перф: полный перебор приложений (${out.size}) ${android.os.SystemClock.elapsedRealtime() - tFull0} мс")
     // номер последовательности для следующей быстрой проверки (getChangedPackages выше): getChangedPackages(seq) возвращает null, если счётчик
-    // системы ещё не ушёл дальше seq — то есть он и есть текущий, запоминаем именно seq в этом случае (не трогаем «-1», сравнение растёт только вверх)
+    // системы ещё не ушёл дальше seq - то есть он и есть текущий, запоминаем именно seq в этом случае (не трогаем «-1», сравнение растёт только вверх)
     if (android.os.Build.VERSION.SDK_INT >= 26) runCatching {
         val base = AppsMem.pkgSeq.coerceAtLeast(0)
         AppsMem.pkgSeq = pm.getChangedPackages(base)?.sequenceNumber ?: base
@@ -459,7 +461,7 @@ private fun labelSp() = when (Cfg.iconSize) { 3 -> 10; 0 -> 12; 2 -> 16; else ->
 private fun narrowCell(): Float = ((when (Cfg.iconSize) { 3 -> 48f; 0 -> 62f; 2 -> 96f; else -> 78f }) * Cfg.iconScale / 100f).coerceAtLeast(34f)
 
 /** Длительности фаз анимации перехода между столами (мс): «туда» (старый стол уезжает) и «обратно» (новый приезжает на место). У «куба» и
- * «параллакса» чуть дольше — так читается их объём; у обычного «сдвига» короче, он был таким и раньше (свайп пальцем). */
+ * «параллакса» чуть дольше - так читается их объём; у обычного «сдвига» короче, он был таким и раньше (свайп пальцем). */
 internal fun deskAnimDurations(style: String): Pair<Int, Int> = when (style) {
     "cube" -> 170 to 190
     "zoom" -> 150 to 170
@@ -551,6 +553,8 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
     val reqs = remember { HashMap<String, FocusRequester>() }
     fun reqFor(p: String): FocusRequester = reqs.getOrPut(p) { FocusRequester() }
     val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+    val rvTileH = remember { mutableIntStateOf(0) }
+    val rvCtl = remember { MenuRvCtl() }   // 16.0: сетка на RecyclerView (MenuRv.kt); при MenuRv.ON = false не используется
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     var reload by remember { mutableIntStateOf(0) }
     val seenIconTick = remember { intArrayOf(Cfg.iconTick) }
@@ -599,9 +603,9 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
         CompileBoost.runIfNeeded(ctx)
     }
 
-    // выход из настроек: при выключенном меню (открыты с «Дома» пунктом «Настройки программы») — обратно на «Дом», а не в сетку выключенного меню
+    // выход из настроек: при выключенном меню (открыты с «Дома» пунктом «Настройки программы») - обратно на «Дом», а не в сетку выключенного меню
     val leaveSettings = { if (Cfg.menuOff && ctx is android.app.Activity) openHomeInstead(ctx) else screen = "main" }
-    // «Назад»: из настроек — на главную страницу; из выбора — выйти из выбора; как главный экран — остаёмся на месте
+    // «Назад»: из настроек - на главную страницу; из выбора - выйти из выбора; как главный экран - остаёмся на месте
     BackHandler(enabled = screen != "main" || asHome || searching || selectMode || (NavReq.fromHome && Cfg.homeModule)) {
         if (moving != null) moving = null
         else if (screen != "main") leaveSettings()
@@ -609,7 +613,7 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
         else if (searching) { searching = false; query = "" }
         else if (asHome) {
             // выход из меню на родной экран: без «Запоминать положение после выхода» следующее открытие начинается с начала
-            if (!Cfg.rememberPos) { MenuMemory.clear(ctx); Desks.resetNav(); lastFocus = null; scope.launch { runCatching { if (Cfg.listMode) listState.scrollToItem(0) else gridState.scrollToItem(0) } } }
+            if (!Cfg.rememberPos) { MenuMemory.clear(ctx); Desks.resetNav(); lastFocus = null; if (MenuRv.ON) rvCtl.view?.scrollToItem(0) else scope.launch { runCatching { if (Cfg.listMode) listState.scrollToItem(0) else gridState.scrollToItem(0) } } }
             runCatching { nativeHomeIntent(ctx)?.let { ctx.startActivity(it) } }
         }
         else if (NavReq.fromHome && Cfg.homeModule) goHome(ctx)
@@ -672,7 +676,7 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
      * При включённой «Анимации переходов» (Cfg.deskAnim) стол уезжает за экран выбранным стилем, данные меняются в момент, когда он
      * уже не виден, затем новый стол приезжает на место; выключенная анимация переключает без всякой задержки и движения (требование
      * владелицы: мгновенно, а не просто быстро). Анимация идёт с зафиксированным масштабом (DeskFullMotion), независимо от системной
-     * настройки «Масштаб анимации» — так переход виден и у владелицы, и у любого пользователя с урезанным системным масштабом.
+     * настройки «Масштаб анимации» - так переход виден и у владелицы, и у любого пользователя с урезанным системным масштабом.
      */
     fun pageSwitch(dir: Int, target: Pair<Int, Boolean>? = null) {
         val ids = pageIdsRef.value
@@ -685,7 +689,7 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
         }
         scope.launch {
             val w = deskBoxW.coerceAtLeast(1f)
-            val sgn = if (dir > 0) -1f else 1f   // как при свайпе пальцем: dir=1 (вперёд) уезжает влево (-w), dir=-1 — вправо (+w)
+            val sgn = if (dir > 0) -1f else 1f   // как при свайпе пальцем: dir=1 (вперёд) уезжает влево (-w), dir=-1 - вправо (+w)
             val (outMs, inMs) = deskAnimDurations(Cfg.deskAnimStyle)
             kotlinx.coroutines.withContext(DeskFullMotion) {
                 deskSlide.animateTo(sgn * w, androidx.compose.animation.core.tween(outMs))
@@ -695,7 +699,7 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
             }
         }
     }
-    /** Переключение на определённый стол (цифра 1-9, полоса столов внизу): направление анимации — к какому краю он относительно текущего. */
+    /** Переключение на определённый стол (цифра 1-9, полоса столов внизу): направление анимации - к какому краю он относительно текущего. */
     fun switchDeskTo(id: Int) {
         if (id == Desks.curId) return
         val ids = pageIdsRef.value
@@ -742,7 +746,7 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
     val twoRow = narrow && androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 420
     val shortWide = !narrow && androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 640
     val rootView = androidx.compose.ui.platform.LocalView.current
-    /** Ставит курсор на запомненный значок (прокручивая к нему), а если его нет — на первый. */
+    /** Ставит курсор на запомненный значок (прокручивая к нему), а если его нет - на первый. */
     fun restoreFocus() {
         val list = shownRef.value
         // приложений по запросу нет, но есть карточки каталогов: курсор на первую из них
@@ -750,6 +754,7 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
         // та же плитка; если её уже нет (удалено, скрыто), ближайшая на прежнем месте; без запомненного фокуса первая
         val p = MenuMemoryLogic.focusTarget(list.map { it.pkg }, lastFocus, MenuMemory.focusIndex) ?: return
         val idx = list.indexOfFirst { it.pkg == p }
+        if (MenuRv.ON) { rvCtl.view?.focusPkg(p); return }
         scope.launch {
             val visible = if (Cfg.listMode) listState.layoutInfo.visibleItemsInfo.any { it.key == p } else gridState.layoutInfo.visibleItemsInfo.any { it.key == p }
             if (!visible) runCatching { if (Cfg.listMode) listState.scrollToItem(idx) else gridState.scrollToItem(idx) }
@@ -762,6 +767,7 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
     // прокрутка и фокус запоминаются и восстанавливаются при возврате из настроек, диалогов, папки, запущенного приложения и после пересоздания окна
     val scrollRestored = remember { booleanArrayOf(false) }
     LaunchedEffect(Unit) {
+        if (MenuRv.ON) return@LaunchedEffect   // у сетки на RecyclerView прокрутка сообщается через MenuRvOps.scrolled
         androidx.compose.runtime.snapshotFlow {
             if (Cfg.listMode) listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
             else gridState.firstVisibleItemIndex to gridState.firstVisibleItemScrollOffset
@@ -773,9 +779,10 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
         if (shown.isNotEmpty()) {
             if (query.isBlank() && MenuMemory.hasScroll && !pagesMode) {
                 val idx = MenuMemoryLogic.scrollIndex(shownRef.value.map { it.pkg }, MenuMemory.firstPkg, MenuMemory.firstIndex)
-                val cur = if (Cfg.listMode) listState.firstVisibleItemIndex else gridState.firstVisibleItemIndex
+                val cur = if (MenuRv.ON) (rvCtl.view?.firstVisible() ?: 0) else if (Cfg.listMode) listState.firstVisibleItemIndex else gridState.firstVisibleItemIndex
                 if (MenuMemoryLogic.needsScroll(true, idx, cur)) runCatching {
-                    if (Cfg.listMode) listState.scrollToItem(idx, MenuMemory.firstOffset) else gridState.scrollToItem(idx, MenuMemory.firstOffset)
+                    if (MenuRv.ON) rvCtl.view?.scrollToItem(idx, MenuMemory.firstOffset)
+                    else if (Cfg.listMode) listState.scrollToItem(idx, MenuMemory.firstOffset) else gridState.scrollToItem(idx, MenuMemory.firstOffset)
                 }
             }
             scrollRestored[0] = true
@@ -799,11 +806,11 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
         if (tgt != null && list.isNotEmpty()) {
             val vis = gridState.layoutInfo.visibleItemsInfo
             val f0 = vis.firstOrNull()
-            val cn = if (f0 == null) 1 else vis.takeWhile { it.offset.y == f0.offset.y }.size.coerceAtLeast(1)
+            val cn = if (MenuRv.ON) (rvCtl.view?.cols ?: 1) else if (f0 == null) 1 else vis.takeWhile { it.offset.y == f0.offset.y }.size.coerceAtLeast(1)
             val idx = DeskLogic.targetIndex(tgt.first, cn, list.size, tgt.second)
             val p = list[idx].pkg
             lastFocus = p
-            runCatching { reqFor(p).requestFocus() }
+            if (MenuRv.ON) rvCtl.view?.focusPkg(p) else runCatching { reqFor(p).requestFocus() }
         } else restoreFocus()
     }
     // без чтения moving: перенос значка пальцем не перекомпонует тело экрана; moving проверяется в момент действия
@@ -833,34 +840,43 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
     }
     fun colsNow(): Int {
         if (Cfg.listMode) return 1
+        if (MenuRv.ON) return rvCtl.view?.cols ?: 1
         val vis = gridState.layoutInfo.visibleItemsInfo
         val first = vis.firstOrNull() ?: return 1
         return vis.takeWhile { it.offset.y == first.offset.y }.size.coerceAtLeast(1)
     }
-    // «Назад» на пульте: курсор в сетке не в первом столбце своей строки — вернуть на первую плитку строки (просьба пользователя 4PDA, 19.11.2026).
+    // «Назад» на пульте: курсор в сетке не в первом столбце своей строки - вернуть на первую плитку строки (просьба пользователя 4PDA, 19.11.2026).
     // Зарегистрирован позже основного «Назад» и потому срабатывает первым; условия исключают перенос, выбор, поиск, окна и режим списка.
-    val rowBackIdx = if (gridHasFocus && !Cfg.listMode && moving == null && !selectMode && !searching && !deskMenu && menuFor == null && folderOpen == null) {
-        val lst = shownRef.value; val ci = lst.indexOfFirst { it.pkg == lastFocus }; val cn = colsNow()
-        if (ci > 0 && cn > 1 && ci % cn != 0) ci - ci % cn else -1
-    } else -1
+    // 15.1 (плавность): условия «Назад» читаются в отдельной области композиции (LiveBackHandler), а не в теле экрана: раньше каждое перемещение курсора
+    // (смена lastFocus) перекомпоновывало всё тело экрана «Меню» (на приставке X96 около 16-27 мс на нажатие). Номер плитки для возврата в строку считается
+    // в момент нажатия «Назад».
+    fun rowBackIdxNow(): Int =
+        if (gridHasFocus && !Cfg.listMode && moving == null && !selectMode && !searching && !deskMenu && menuFor == null && folderOpen == null) {
+            val lst = shownRef.value; val ci = lst.indexOfFirst { it.pkg == lastFocus }; val cn = colsNow()
+            if (ci > 0 && cn > 1 && ci % cn != 0) ci - ci % cn else -1
+        } else -1
     // 13.0 (просьба с 4PDA): следующее «Назад» (курсор уже на первой плитке своей строки или режим списка) ставит курсор на первую плитку списка и прокручивает к ней;
     // на самой первой плитке «Назад» работает как прежде. Зарегистрирован до «возврата в строку» и потому уступает ему.
-    val startPkg = shownRef.value.firstOrNull()?.pkg
-    val backStartOn = Cfg.backToStart && gridHasFocus && moving == null && !selectMode && !searching && !deskMenu && menuFor == null && folderOpen == null &&
-        startPkg != null && lastFocus != null && lastFocus != startPkg && rowBackIdx < 0
-    BackHandler(enabled = backStartOn) {
-        val p = startPkg
-        if (p != null) scope.launch {
+    fun backStartNow(): Boolean {
+        val startPkg = shownRef.value.firstOrNull()?.pkg
+        return Cfg.backToStart && gridHasFocus && moving == null && !selectMode && !searching && !deskMenu && menuFor == null && folderOpen == null &&
+            startPkg != null && lastFocus != null && lastFocus != startPkg && rowBackIdxNow() < 0
+    }
+    LiveBackHandler({ backStartNow() }) {
+        val p = shownRef.value.firstOrNull()?.pkg
+        if (p != null && MenuRv.ON) { rvCtl.view?.scrollToItem(0); rvCtl.view?.focusPkg(p) }
+        else if (p != null) scope.launch {
             runCatching { if (Cfg.listMode) listState.scrollToItem(0) else gridState.scrollToItem(0) }
             runCatching { androidx.compose.runtime.withFrameNanos { }; androidx.compose.runtime.withFrameNanos { } }
             runCatching { reqFor(p).requestFocus() }
         }
     }
-    BackHandler(enabled = rowBackIdx >= 0) { shownRef.value.getOrNull(rowBackIdx)?.pkg?.let { p -> runCatching { reqFor(p).requestFocus() } } }
+    LiveBackHandler({ rowBackIdxNow() >= 0 }) { shownRef.value.getOrNull(rowBackIdxNow())?.pkg?.let { p -> if (MenuRv.ON) rvCtl.view?.focusPkg(p) else runCatching { reqFor(p).requestFocus() } } }
     /** Плавно показывает плитку, только если она не видна целиком (прежний animateScrollToItem каждый раз выталкивал её к верху экрана: сетка «прыгала»). */
     // зафиксированный масштаб (DeskFullMotion): плавная автопрокрутка к фокусу на «Доме»/в меню не должна зависеть от системной
-    // настройки «Масштаб анимации» — тот же приём, что у анимации столов выше (18.11.2026).
+    // настройки «Масштаб анимации» - тот же приём, что у анимации столов выше (18.11.2026).
     suspend fun ensureVisible(index: Int) = kotlinx.coroutines.withContext(DeskFullMotion) {
+        if (MenuRv.ON) { rvCtl.view?.ensureVisible(index); return@withContext }
         if (Cfg.listMode) {
             val info = listState.layoutInfo
             val it = info.visibleItemsInfo.firstOrNull { x -> x.index == index }
@@ -906,7 +922,16 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
     fun dragBegin(e: Entry) { dragOriginPage = Desks.curId; dragEdge = 0; menuFor = null; dragHover = null; mergeReady = null; dragEntry = e; moving = e.pkg; dragging = true }
     /** Над какой плиткой палец (x, y в координатах сетки) и в центре ли она: центр сливает значки в папку, край переставляет. */
     fun hoverAt(pkg: String, x: Float, y: Float) {
-        if (Cfg.listMode) {
+        if (MenuRv.ON) {
+            val vis = rvCtl.view?.visItems() ?: emptyList()
+            val tgt = vis.firstOrNull { it.key != pkg && x >= it.x && x < it.x + it.w && y >= it.y && y < it.y + it.h }
+            val nh = tgt?.let {
+                val canMerge = shownRef.value.firstOrNull { e -> e.pkg == pkg }?.isFolder == false
+                if (Cfg.listMode) it.key to (canMerge && kotlin.math.abs(y - (it.y + it.h / 2f)) < it.h * 0.22f)
+                else it.key to (canMerge && kotlin.math.abs(x - (it.x + it.w / 2f)) / it.w < 0.3f)
+            }
+            if (dragHover != nh) dragHover = nh
+        } else if (Cfg.listMode) {
             val info = listState.layoutInfo
             val tgt = info.visibleItemsInfo.firstOrNull { it.key != pkg && y >= it.offset && y < it.offset + it.size }
             val nh = tgt?.let {
@@ -920,7 +945,7 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
                 it.key != pkg && x >= it.offset.x && x < it.offset.x + it.size.width && y >= it.offset.y && y < it.offset.y + it.size.height
             }
             val nh = tgt?.let {
-                // середина плитки по ширине (значок можно бросить на иконку или подпись) — слияние, левый и правый край — вставка рядом
+                // середина плитки по ширине (значок можно бросить на иконку или подпись) - слияние, левый и правый край - вставка рядом
                 val canMerge = shownRef.value.firstOrNull { e -> e.pkg == pkg }?.isFolder == false
                 val dx = kotlin.math.abs(x - (it.offset.x + it.size.width / 2f)) / it.size.width
                 (it.key as String) to (canMerge && dx < 0.3f)
@@ -975,14 +1000,14 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
             val t = androidx.compose.runtime.withFrameNanos { it }
             val dt = if (last == 0L) 16_666_667L else (t - last).coerceAtMost(50_000_000L)
             last = t
-            val h = (if (Cfg.listMode) listState.layoutInfo.viewportSize.height else gridState.layoutInfo.viewportSize.height).toFloat()
+            val h = (if (MenuRv.ON) (rvCtl.view?.viewportHeight ?: 0) else if (Cfg.listMode) listState.layoutInfo.viewportSize.height else gridState.layoutInfo.viewportSize.height).toFloat()
             if (h <= 0f) continue
             val zone = (h * 0.14f).coerceIn(56f * dragDensity / 2f, 240f)
             val y = dragXY.y
             val v = (if (y < zone) -(zone - y) / zone else if (y > h - zone) (y - (h - zone)) / zone else 0f).coerceIn(-1f, 1f)
             if (v != 0f) {
                 val px = v * 450f * dragDensity * (dt / 1_000_000_000f)    // до 450 dp/с у самого края
-                val moved = if (Cfg.listMode) listState.scrollBy(px) else gridState.scrollBy(px)
+                val moved = if (MenuRv.ON) (rvCtl.view?.scrollByPx(px) ?: 0f) else if (Cfg.listMode) listState.scrollBy(px) else gridState.scrollBy(px)
                 // плитки сдвинулись под неподвижным пальцем: цель перестановки пересчитываем без новых касаний
                 val mp = moving
                 if (moved != 0f && mp != null) hoverAt(mp, dragXY.x, dragXY.y)
@@ -1107,7 +1132,7 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
         HalfUi {
         if (!Integrity.statusOk()) Text(stringResource(R.string.integrity_warn) + " [" + Integrity.why + "]", color = Color(0xFFF87171), fontSize = 13.sp, modifier = Modifier.padding(bottom = 4.dp))
         val leftButtons: @Composable () -> Unit = {
-            // долгое нажатие «Дом» — уведомления
+            // долгое нажатие «Дом» - уведомления
             if (Cfg.homeModule) HeaderTextButton(stringResource(R.string.home_btn), onLong = { TopUi.notifs.value = true }) { goHome(ctx) }
             HeaderTextButton(stringResource(R.string.restart)) { restartApp(ctx) }
             HeaderTextButton(stringResource(R.string.reset_icons)) {
@@ -1227,13 +1252,51 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
             dragBegin = { e -> dragBegin(e) }, dragMove = { p, o -> dragMove(p, o) }, dragEnd = { endDrag() },
             closeMenu = { menuFor = null; Conn.refresh() }, focused = { p -> lastFocus = p; MenuMemory.setFocus(p, shownRef.value.indexOfFirst { it.pkg == p }) },
         ))
+        // 16.0: сетка на RecyclerView. Состояния выбора, переноса и фокуса читаются в своей маленькой области (MenuRvSync), меню действий плитки
+        // показывается здесь (раньше изнутри плитки Compose), события сетки идут через стабильный объект операций.
+        val rvOpsCur = androidx.compose.runtime.rememberUpdatedState(MenuRvOps(
+            click = { e -> opsRef.value.click(e) }, long = { e -> opsRef.value.long(e) },
+            moveKey = { p, code -> opsRef.value.moveKey(p, androidx.compose.ui.input.key.Key(code)) },
+            dragBegin = { e -> opsRef.value.dragBegin(e) }, dragMove = { p, o -> opsRef.value.dragMove(p, o) }, dragEnd = { opsRef.value.dragEnd() },
+            focused = { p -> opsRef.value.focused(p) },
+            gridFocus = { gridHasFocus = it },
+            preKey = { nev -> val cev = androidx.compose.ui.input.key.KeyEvent(nev); deskMenuKey(cev) || pageKey(cev) || deskEdgeKey(cev) },
+            scrolled = { i, o -> if (scrollRestored[0] && query.isBlank()) MenuMemory.setScroll(shownRef.value.getOrNull(i)?.pkg, i, o) },
+            layoutInfo = { c, r, th, _ ->
+                if (c > 0 && Cfg.columns == 0) Cfg.autoCols = c
+                if (r > 0 && Cfg.gridRows == 0) Cfg.autoRows = r
+                if (th > 0) rvTileH.intValue = th
+            },
+            sound = { v -> ClickSound.play(v) },
+        ))
+        val rvOps = remember {
+            MenuRvOps(
+                click = { e -> rvOpsCur.value.click(e) }, long = { e -> rvOpsCur.value.long(e) }, moveKey = { p, c -> rvOpsCur.value.moveKey(p, c) },
+                dragBegin = { e -> rvOpsCur.value.dragBegin(e) }, dragMove = { p, o -> rvOpsCur.value.dragMove(p, o) }, dragEnd = { rvOpsCur.value.dragEnd() },
+                focused = { p -> rvOpsCur.value.focused(p) }, gridFocus = { b -> rvOpsCur.value.gridFocus(b) }, preKey = { k -> rvOpsCur.value.preKey(k) },
+                scrolled = { i, o -> rvOpsCur.value.scrolled(i, o) }, layoutInfo = { a, b, c, d -> rvOpsCur.value.layoutInfo(a, b, c, d) },
+                sound = { v -> rvOpsCur.value.sound(v) },
+            )
+        }
+        if (MenuRv.ON) {
+            MenuRvSync(rvCtl) { MenuRvSnapshot(selectMode, selected, moving, mergeReady, dragging, if (!gridHasFocus) lastFocus else null) }
+            menuFor?.let { e ->
+                HalfUi {
+                    if (e.isFolder) FolderMenu(e.folderId) { menuFor = null; Conn.refresh() }
+                    else AppMenu(
+                        e, hidden = Cfg.isHidden(e.pkg), onToggleHide = { Cfg.toggleHidden(e.pkg) },
+                        onSelect = { startSel(e) }, onMove = { startMove(e) }, onClose = { menuFor = null; Conn.refresh() },
+                    )
+                }
+            }
+        }
         val tileFor: @Composable (Entry, Boolean) -> Unit = { e, listRow ->
             val pkg = e.pkg
             // шесть признаков одним производным состоянием (раньше шесть derivedStateOf на каждую плитку)
             val bits by remember(pkg) {
                 derivedStateOf {
                     (if (menuFor?.pkg == pkg) 1 else 0) or (if (pkg in selected) 2 else 0) or (if (moving == pkg) 4 else 0) or
-                        (if (mergeReady == pkg) 8 else 0) or (if (dragging && moving == pkg) 16 else 0) or (if (pkg == lastFocus && !gridHasFocus) 32 else 0)
+                        (if (mergeReady == pkg) 8 else 0) or (if (dragging && moving == pkg) 16 else 0) or (if (!gridHasFocus && pkg == lastFocus) 32 else 0)   // gridHasFocus первым: пока фокус в сетке, lastFocus не читается и ходьба курсора не пересчитывает признаки всех плиток (15.1)
                 }
             }
             val menuOpen = bits and 1 != 0
@@ -1268,9 +1331,9 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
             (if (searchCat && shown.isEmpty()) Modifier else Modifier.weight(if (searchCat) 0.36f else 1f))
                 .onSizeChanged { deskBoxW = it.width.toFloat() }
                 // пять стилей анимации перехода между столами (настройка «Анимация переходов»): один Animatable (deskSlide, в пикселях
-                // от -ширины до +ширины) ведёт все стили — во время живого свайпа пальцем он совпадает с положением пальца, поэтому
+                // от -ширины до +ширины) ведёт все стили - во время живого свайпа пальцем он совпадает с положением пальца, поэтому
                 // стиль виден уже при перетаскивании, а не только после отпускания. «Сдвиг» и «параллакс» двигают сам стол, у «зума» и
-                // «растворения» не двигают, у «куба» лёгкий поворот по Y с перспективой (cameraDistance). Тяжёлых 3D-эффектов нет — все
+                // «растворения» не двигают, у «куба» лёгкий поворот по Y с перспективой (cameraDistance). Тяжёлых 3D-эффектов нет - все
                 // пять дают нагрузку не больше обычного перехода, чтобы не лагать на слабых приставках.
                 .graphicsLayer { motionStyle(deskSlide.value, size.width.coerceAtLeast(1f), Cfg.deskAnimStyle) }   // общий набор стилей (ScreenFx.kt)
                 .then(if (pagesMode && Desks.cfgOf(curPage).bg != 0L) Modifier.background(Color(Desks.cfgOf(curPage).bg.toInt())) else Modifier)
@@ -1304,9 +1367,9 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
                             val th = w * 0.2f
                             val dir = if (dx < -th) 1 else if (dx > th) -1 else 0
                             // жест не дотянул до порога: плавно возвращаем стол пальца на место (не переключение, поэтому не через pageSwitch);
-                            // с зафиксированным масштабом — иначе при урезанном системном масштабе стол у владелицы просто «прыгал» бы обратно
+                            // с зафиксированным масштабом - иначе при урезанном системном масштабе стол у владелицы просто «прыгал» бы обратно
                             if (dir == 0) scope.launch { kotlinx.coroutines.withContext(DeskFullMotion) { deskSlide.animateTo(0f, androidx.compose.animation.core.tween(120)) } }
-                            // дотянул: ту же анимацию (продолжение уже начатого пальцем сдвига до конца и переключение) делает pageSwitch —
+                            // дотянул: ту же анимацию (продолжение уже начатого пальцем сдвига до конца и переключение) делает pageSwitch -
                             // один источник анимации для свайпа, пульта, цифр, полосы столов и колеса мыши
                             else pageSwitch(dir)
                         }
@@ -1352,9 +1415,10 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
             else if (!searchCat) Text(stringResource(R.string.loading_apps), color = t.sub, fontSize = 16.sp, modifier = Modifier.padding(top = 24.dp))
         } else if (Cfg.listMode) UiScale.GridUnscale {
             androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().onGloballyPositioned { gridLc[0] = it }) {
-            LazyColumn(Modifier.fillMaxSize().verticalScrollbar(listState).onFocusChanged { gridHasFocus = it.hasFocus }, state = listState, contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 8.dp, end = 8.dp + ScrollbarMath.RESERVE_DP.dp, top = 8.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                // 18.11.2026: animateItem — встроенная анимация LazyList, своего withContext не принимает (вызов animateTo внутри неё не наш),
-                // переписывать перестановку плиток вручную рискованно (центральный механизм списка/сетки) — полагаемся на AnimScale.forceFull() (Desks.kt)
+            if (MenuRv.ON) MenuRvArea(shown, true, narrow, pagesMode, 10f, ScrollbarMath.RESERVE_DP, null, null, null, true, rvOps, rvCtl)
+            else LazyColumn(Modifier.fillMaxSize().verticalScrollbar(listState).onFocusChanged { gridHasFocus = it.hasFocus }, state = listState, contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 8.dp, end = 8.dp + ScrollbarMath.RESERVE_DP.dp, top = 8.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                // 18.11.2026: animateItem - встроенная анимация LazyList, своего withContext не принимает (вызов animateTo внутри неё не наш),
+                // переписывать перестановку плиток вручную рискованно (центральный механизм списка/сетки) - полагаемся на AnimScale.forceFull() (Desks.kt)
                 items(shown, key = { it.pkg }) { e -> Box(if (lite) Modifier else Modifier.animateItem(fadeInSpec = null, placementSpec = spring(stiffness = Spring.StiffnessMedium, visibilityThreshold = IntOffset.VisibilityThreshold), fadeOutSpec = null)) { tileFor(e, true) } }
             }
             DragGhostHost({ dragging }, { dragEntry }) { dragXY }
@@ -1423,6 +1487,7 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
             }
             // высота плитки берётся из настоящей раскладки сетки
             var measuredTileH by remember { mutableIntStateOf(0) }
+            val tileHNow = if (MenuRv.ON) rvTileH.intValue else measuredTileH
             LaunchedEffect(Unit) {
                 androidx.compose.runtime.snapshotFlow { gridState.layoutInfo.visibleItemsInfo.firstOrNull()?.size?.height ?: 0 }.collect { if (it > 0) measuredTileH = it }
             }
@@ -1432,7 +1497,7 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
                 // вместимость стола = столбцы x строки; строк при «Авто» столько, сколько помещается по высоте
                 val availPx = with(dn) { maxHeight.toPx() - (2 * vPad).dp.toPx() }
                 val rowsN = if (Cfg.gridRows > 0) Cfg.gridRows
-                else if (measuredTileH > 0) kotlin.math.floor(((availPx + gapPx) / (measuredTileH + gapPx)).toDouble()).toInt().coerceAtLeast(1)
+                else if (tileHNow > 0) kotlin.math.floor(((availPx + gapPx) / (tileHNow + gapPx)).toDouble()).toInt().coerceAtLeast(1)
                 else if (dense != null) dense.rows else {
                     val slotDp = labelSpec.slotPx / dn.density
                     val iconEst = minOf(cap?.value ?: iconDp().value, slotDp - 2 * tilePad()).coerceAtLeast(20f)
@@ -1442,7 +1507,11 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
                 LaunchedEffect(capNow, curPage) { Desks.updateCap(curPage, capNow) }
             }
             CompositionLocalProvider(LocalIconCap provides cap, LocalLabelSpec provides labelSpec, LocalDense provides denseSpec) {
-            LazyVerticalGrid(
+            if (MenuRv.ON) MenuRvArea(
+                shown, false, narrow, pagesMode, vPad, reserve, labelSpec, dense, cap,
+                !pagesMode || (curPage == pagesList.lastIndex && Desks.cap > 0 && shown.size > Desks.cap), rvOps, rvCtl,
+            )
+            else LazyVerticalGrid(
                 columns = if (dense != null) GridCells.Fixed(dense.cols) else if (Cfg.columns > 0) GridCells.Fixed(Cfg.columns) else if (narrow && Cfg.iconSize == 3) GridCells.Fixed(5) else GridCells.Adaptive(minCell),
                 modifier = Modifier.fillMaxSize().then(if (pagesMode) Modifier else Modifier.verticalScrollbar(gridState)).onFocusChanged { gridHasFocus = it.hasFocus }.onPreviewKeyEvent { ev -> deskEdgeKey(ev) },
                 state = gridState,
@@ -1451,7 +1520,7 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
                 horizontalArrangement = Arrangement.spacedBy(if (dense != null) 0.dp else tileGap(narrow).dp),
                 verticalArrangement = Arrangement.spacedBy(if (dense != null) with(dn) { dense.gapYPx.toDp() } else tileGap(narrow).dp),
             ) {
-                // 18.11.2026: то же самое, что в LazyColumn выше — полагаемся на AnimScale.forceFull() (Desks.kt)
+                // 18.11.2026: то же самое, что в LazyColumn выше - полагаемся на AnimScale.forceFull() (Desks.kt)
                 items(shown, key = { it.pkg }) { e -> Box(if (lite) Modifier else Modifier.animateItem(fadeInSpec = null, placementSpec = spring(stiffness = Spring.StiffnessMedium, visibilityThreshold = IntOffset.VisibilityThreshold), fadeOutSpec = null)) { tileFor(e, false) } }
             }
             DragGhostHost({ dragging }, { dragEntry }) { dragXY }
@@ -1563,7 +1632,7 @@ private fun SearchBox(value: String, wide: Boolean = true, onChange: (String) ->
         cursorBrush = androidx.compose.ui.graphics.SolidColor(t.accent),
         modifier = (if (wide) Modifier.fillMaxWidth(0.3f) else Modifier.width(360.dp)).defaultMinSize(minWidth = 280.dp, minHeight = 52.dp)
             .focusRequester(fr).onFocusChanged { focused = it.isFocused }
-            .border(if (focused) 2.dp else 1.dp, if (focused) t.accent else t.border, shape),
+            .focusBorder({ focused }, 2.dp, 1.dp, t.accent, t.border, shape),
         decorationBox = { inner ->
             Row(
                 Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(horizontal = 12.dp),
@@ -1612,8 +1681,8 @@ private fun HeaderTextButton(text: String, onLong: (() -> Unit)? = null, icon: a
             .then(hm)
             .onFocusChanged { focused = it.isFocused }
             .clip(RoundedCornerShape(12.dp))
-            .background(if (focused || hover) t.tileFocus else t.tile)
-            .border(if (focused) 3.dp else 1.dp, if (focused) t.accent else t.border, RoundedCornerShape(12.dp))
+            .drawBehind { drawRect(if (focused || hover) t.tileFocus else t.tile) }
+            .focusBorder({ focused }, 3.dp, 1.dp, t.accent, t.border, RoundedCornerShape(12.dp))
             .combinedClickable(onClick = onClick, onLongClick = onLong)
             .padding(horizontal = if (isNarrow()) 11.dp else 16.dp),
         contentAlignment = Alignment.Center,
@@ -1661,6 +1730,15 @@ private class TileOps(
     val dragBegin: (Entry) -> Unit, val dragMove: (String, androidx.compose.ui.geometry.Offset) -> Unit, val dragEnd: () -> Unit,
     val closeMenu: () -> Unit, val focused: (String) -> Unit,
 )
+
+/** «Назад» с условием, которое читается в своей области композиции: смена условия не перекомпоновывает тело экрана (15.1). */
+@Composable
+internal fun LiveBackHandler(enabled: () -> Boolean, onBack: () -> Unit) {
+    // производное состояние: область перекомпонуется только когда условие действительно изменилось, а не при каждой смене lastFocus
+    val en by androidx.compose.runtime.rememberUpdatedState(enabled)
+    val on by remember { androidx.compose.runtime.derivedStateOf { en() } }
+    BackHandler(enabled = on, onBack = onBack)
+}
 
 /** «Назад» во время переноса значка: своя область композиции, чтобы начало и конец переноса не перекомпоновывали тело экрана. */
 @Composable
@@ -1723,7 +1801,9 @@ internal fun AppTile(
     val dragMove by androidx.compose.runtime.rememberUpdatedState(onDragMove)
     val dragEnd by androidx.compose.runtime.rememberUpdatedState(onDragEnd)
     val t = LocalTh.current
-    var focused by remember { mutableStateOf(false) }
+    // 15.1 (плавность): состояние фокуса читается только при рисовании (рамка, фон), поэтому перемещение курсора не перекомпоновывает плитки
+    // (раньше две плитки на каждое нажатие стрелки: около 8-10 мс на приставке X96); при включённом «Увеличении при выделении» читается и в композиции
+    val focusedS = remember { mutableStateOf(false) }
     var pending by remember { mutableStateOf(false) }
     var downAt by remember { mutableStateOf(0L) }
     val okScope = androidx.compose.runtime.rememberCoroutineScope()
@@ -1741,11 +1821,12 @@ internal fun AppTile(
     val (hm, hover) = if (lite) NoHover else rememberHover()
     // увеличения при наведении и выборе нет (оно налезало на нижний значок): выделение только рамкой; 1,12 остаётся при слиянии в папку
     // 15.0: настройка «Увеличение при выделении» (по умолчанию 0: как раньше, выделение только рамкой)
-    val zoomed = !merge && Cfg.focusZoom > 0 && (focused || hover)
+    val zoomed = !merge && Cfg.focusZoom > 0 && (focusedS.value || hover)
     val scaleTarget = if (merge) 1.12f else if (zoomed) 1f + Cfg.focusZoom / 100f else 1f
-    // 18.11.2026: fixedAnimateFloatAsState вместо animateFloatAsState — фиксированный масштаб (Desks.kt)
+    // 18.11.2026: fixedAnimateFloatAsState вместо animateFloatAsState - фиксированный масштаб (Desks.kt)
     val scale = if (lite) scaleTarget else fixedAnimateFloatAsState(scaleTarget, label = "scale").value
     val bmp = remember(e.pkg, e.icon, e.bmp) { e.bmp ?: e.icon.toBitmap(128, 128).asImageBitmap() }
+    val ringC = Cfg.ringOr(t.accent)
     val hiddenMark = Cfg.isHidden(e.pkg)
     val tileAlpha = if (ghostActive) 0.28f else if (hiddenMark) 0.5f else 1f
     Box(if (zoomed) Modifier.zIndex(1f) else Modifier) {
@@ -1794,20 +1875,27 @@ internal fun AppTile(
                     else -> false
                 }
             }
-            .onFocusChanged { focused = it.isFocused; if (it.isFocused) onFocused() }
-            // рамка только когда она нужна (в покое плитка без узла рамки: меньше узлов и рисования)
-            .then(
-                if (merge || focused || isSelected || isMoving || marked || hover) Modifier.border(
-                    if (merge) 4.dp else if (focused || isSelected || isMoving) 3.dp else if (marked) 2.dp else 1.dp,
-                    if (merge || isMoving) Color(0xFFF59E0B) else if (isSelected) Cfg.ringOr(t.accent) else if (focused || hover) Cfg.ringOr(t.accent)
-                    else Cfg.ringOr(t.accent).copy(alpha = 0.55f),
-                    RoundedCornerShape(14.dp),
-                ) else Modifier
-            )
-            .background(
-                if (isSelected) t.chipSel else if (focused || hover || merge) t.tileFocus else if (Cfg.plates || Cfg.transparentTiles || (dense != null && !listRow)) Color.Transparent else t.tile,
-                RoundedCornerShape(14.dp),
-            )
+            .onFocusChanged { focusedS.value = it.isFocused; if (it.isFocused) onFocused() }
+            // рамка только когда она нужна; рисуется в слое отрисовки и читает фокус там же (без перекомпозиции плитки при смене фокуса).
+            // Геометрия та же, что у Modifier.border(…, RoundedCornerShape(14.dp)): штрих внутри границ плитки, поверх содержимого.
+            .drawWithContent {
+                drawContent()
+                val f = focusedS.value
+                if (merge || f || isSelected || isMoving || marked || hover) {
+                    val w = (if (merge) 4.dp else if (f || isSelected || isMoving) 3.dp else if (marked) 2.dp else 1.dp).toPx()
+                    val c = if (merge || isMoving) Color(0xFFF59E0B) else if (isSelected) ringC else if (f || hover) ringC else ringC.copy(alpha = 0.55f)
+                    val half = w / 2f
+                    drawRoundRect(
+                        c, topLeft = androidx.compose.ui.geometry.Offset(half, half),
+                        size = androidx.compose.ui.geometry.Size(size.width - w, size.height - w),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(14.dp.toPx() - half), style = androidx.compose.ui.graphics.drawscope.Stroke(w),
+                    )
+                }
+            }
+            .drawBehind {
+                val col = if (isSelected) t.chipSel else if (focusedS.value || hover || merge) t.tileFocus else if (Cfg.plates || Cfg.transparentTiles || (dense != null && !listRow)) Color.Transparent else t.tile
+                if (col != Color.Transparent) drawRoundRect(col, cornerRadius = androidx.compose.ui.geometry.CornerRadius(14.dp.toPx()))
+            }
             .clip(RoundedCornerShape(14.dp))   // волна и подсветка нажатия по скруглённой форме плитки (раньше углы выходили квадратом за рамку)
             // правая кнопка мыши (и аэромыши) открывает те же действия, что долгое касание
             .mouseSecondary(onMenu)
@@ -1823,7 +1911,7 @@ internal fun AppTile(
                     okScope.launch { kotlinx.coroutines.delay(170); if (!dragFlag[0]) onMenu() }
                 })
             )
-            // долгое нажатие открывает меню, а если после него потянуть — значок перетаскивается (как у Samsung)
+            // долгое нажатие открывает меню, а если после него потянуть - значок перетаскивается (как у Samsung)
             .onGloballyPositioned { tileLc[0] = it }
             .pointerInput(e.pkg) {
                 var origin = androidx.compose.ui.geometry.Offset.Zero
@@ -1942,7 +2030,7 @@ internal fun goHome(ctx: android.content.Context) {
 /** Перезапуск программы: новый запуск назначается через будильник, затем текущий процесс завершается. Любой сбой системных вызовов пишется в журнал TVApps. */
 private fun restartApp(ctx: android.content.Context) {
     val pm = ctx.packageManager
-    // запускаем обычную точку входа программы (лаунчерный intent); при её отсутствии — меню напрямую
+    // запускаем обычную точку входа программы (лаунчерный intent); при её отсутствии - меню напрямую
     val intent = (runCatching { pm.getLaunchIntentForPackage(ctx.packageName) }.getOrNull() ?: Intent(ctx, MainActivity::class.java))
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
     var scheduled = false
@@ -1976,4 +2064,53 @@ internal fun nativeHomeIntent(ctx: android.content.Context): Intent? {
     val ri = list.firstOrNull { it.activityInfo.packageName == Cfg.nativeHome } ?: list.firstOrNull() ?: return null
     return Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
         .setClassName(ri.activityInfo.packageName, ri.activityInfo.name).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+}
+
+/**
+ * 16.0: сетка или список значков на RecyclerView (MenuRv.kt). Размеры берутся теми же правилами, что у прежней сетки (iconDp, tilePad, tileGap, GridMetrics.Dense, LabelSpec),
+ * только в пикселях; плитка рисуется готовой раскладкой подписи из LabelCache.
+ */
+@Composable
+private fun MenuRvArea(
+    shown: List<Entry>, listMode: Boolean, narrow: Boolean, pagesMode: Boolean, vPad: Float, reserve: Float,
+    labelSpec: LabelSpec?, dense: GridMetrics.Dense?, cap: Dp?, userScroll: Boolean, ops: MenuRvOps, ctl: MenuRvCtl,
+) {
+    val dn = androidx.compose.ui.platform.LocalDensity.current
+    val t = LocalTh.current
+    val d = dn.density
+    val k = Cfg.iconFill / 75f
+    val padH = if (listMode) 8f else if (narrow) 2f else 8f
+    val pad = if (listMode) tilePad() else if (dense != null) 2f else tilePad()
+    val plate: Float; val iconOn: Float; val iconOff: Float
+    if (listMode) {
+        val sd = iconDp().value.coerceAtMost(64f)
+        plate = (sd * d).roundToInt().toFloat(); iconOn = (sd * 0.75f * k * d).roundToInt().toFloat().coerceAtMost(plate); iconOff = (sd * k * d).roundToInt().toFloat().coerceAtMost(plate)
+    } else if (dense != null) {
+        plate = dense.platePx.roundToInt().toFloat(); iconOn = (dense.iconPx * k).roundToInt().toFloat().coerceAtMost(plate); iconOff = iconOn
+    } else {
+        val base = if (narrow) iconDp().value.coerceAtMost((narrowCell() - 2 * tilePad()).coerceAtLeast(24f)) else iconDp().value
+        val icd = if (cap != null) base.coerceAtMost(cap.value) else base
+        plate = (icd * d).roundToInt().toFloat()
+        iconOn = (icd * 0.75f * k * d).roundToInt().toFloat().coerceAtMost(plate); iconOff = (icd * k * d).roundToInt().toFloat().coerceAtMost(plate)
+    }
+    val params = MenuRvParams(
+        listMode = listMode, cols = if (listMode) 1 else (labelSpec?.cols ?: 1).coerceAtLeast(1), dense = dense != null,
+        padL = (padH * d).roundToInt(), padT = ((if (listMode) 8f else vPad) * d).roundToInt(), padR = ((padH + reserve) * d).roundToInt(), padB = ((if (listMode) 8f else vPad) * d).roundToInt(),
+        gapX = if (listMode || dense != null) 0 else (tileGap(narrow) * d).roundToInt(),
+        gapY = if (listMode) (6f * d).roundToInt() else if (dense != null) dense.gapYPx.roundToInt() else (tileGap(narrow) * d).roundToInt(),
+        tilePad = (pad * d).roundToInt().toFloat(), plate = plate, iconOn = iconOn, iconOff = iconOff,
+        labelGap = if (listMode) 0f else if (dense != null) dense.labelGapPx.roundToInt().toFloat() else ((if (Cfg.gridGap == 0 || Cfg.iconSize == 3) 2f else 6f) * d).roundToInt().toFloat(),
+        showLabels = Cfg.showLabels, labelSpec = labelSpec, plates = Cfg.plates, transparentTiles = Cfg.transparentTiles,
+        cOverlay = androidx.compose.material3.LocalContentColor.current.toArgb(),
+        cTile = t.tile.toArgb(), cTileFocus = t.tileFocus.toArgb(), cChipSel = t.chipSel.toArgb(), cText = t.text.toArgb(), cHint = t.hint.toArgb(),
+        cBorder = t.border.toArgb(), cAccent = t.accent.toArgb(), cRing = Cfg.ringOr(t.accent).toArgb(),
+        density = d, fontScale = dn.fontScale, focusZoom = Cfg.focusZoom,
+        listIcon = plate, listLabelSp = (labelSp() + 2).toFloat(),
+        hiddenKey = Cfg.hidden.hashCode(), iconTick = Cfg.iconTick, userScroll = userScroll,
+    )
+    val scr = remember(ctl) { RvScrollable(ctl) }
+    MenuRvGrid(
+        shown, params, ops, ctl,
+        Modifier.fillMaxSize().then(if (pagesMode) Modifier else Modifier.scrollbar(scr) { _ -> ctl.view?.metrics() }),
+    )
 }

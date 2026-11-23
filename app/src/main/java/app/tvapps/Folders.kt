@@ -1,6 +1,7 @@
 @file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 package app.tvapps
 
+import androidx.compose.ui.draw.drawBehind
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -124,7 +125,7 @@ fun FolderDialog(id: String, apps: List<Entry>, menuFor: Entry?, setMenu: (Entry
     LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
     // окно квадратное и по размеру содержимого: чем больше значков, тем крупнее, но не выше 80% экрана
     val scr = screenDp()
-    // сетка в папке всегда 5×5 (25 значков без прокрутки); больше — листается
+    // сетка в папке всегда 5×5 (25 значков без прокрутки); больше - листается
     val cols = 5
     val side = 660.dp.coerceAtMost((scr.second * 0.94f).dp).coerceAtMost((scr.first * 0.96f).dp)
     HDialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -247,8 +248,8 @@ fun AddToFolderDialog(id: String, apps: List<Entry>, onClose: () -> Unit) {
                     val bmp = remember(e.pkg, e.bmp) { e.bmp ?: e.icon.toBitmap(64, 64).asImageBitmap() }
                     Row(
                         Modifier.fillMaxWidth().then(hm).onFocusChanged { focused = it.isFocused }
-                            .clip(RoundedCornerShape(10.dp)).background(if (focused || hover) t.tileFocus else t.tile)
-                            .border(if (focused) 3.dp else 0.dp, if (focused) t.accent else Color.Transparent, RoundedCornerShape(10.dp))
+                            .clip(RoundedCornerShape(10.dp)).drawBehind { drawRect(if (focused || hover) t.tileFocus else t.tile) }
+                            .focusBorder({ focused }, 3.dp, 0.dp, t.accent, Color.Transparent, RoundedCornerShape(10.dp))
                             .clickable { sel = if (on) sel - e.pkg else sel + e.pkg }
                             .padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),

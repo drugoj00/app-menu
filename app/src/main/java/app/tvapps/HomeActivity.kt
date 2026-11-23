@@ -49,7 +49,7 @@ internal object AppsMem {
     @Volatile var list: List<Entry> = emptyList()
     @Volatile var stamp = 0L
     /** Номер последовательности изменений пакетов (PackageManager.getChangedPackages), запомненный после последней полной загрузки списка.
-     * -1 — ещё не было ни одной (быстрая проверка по нему пропускается). См. loadAppsImpl в MainActivity.kt. */
+     * -1 - ещё не было ни одной (быстрая проверка по нему пропускается). См. loadAppsImpl в MainActivity.kt. */
     @Volatile var pkgSeq = -1
     /** Идёт пакетная установка: события «пакет добавлен» не перечитывают список после каждого файла, один общий пересчёт в конце. */
     @Volatile var holdReload = false
@@ -328,7 +328,7 @@ private fun HomeScreen(tick: Int, again: Int) {
             AppsMem.list = apps; AppsMem.stamp = System.currentTimeMillis()
         }
     }
-    // тяжёлое подключение ADB и первичная расстановка каналов — после первого кадра
+    // тяжёлое подключение ADB и первичная расстановка каналов - после первого кадра
     LaunchedEffect(Unit) {
         delay(1200)
         autoConnect(ctx)
@@ -467,7 +467,7 @@ private fun HomeScreen(tick: Int, again: Int) {
                         // на телефоне и планшете полоска не нужна (есть системная); на ТВ и приставках показывается всегда
                         if (TopMode.visible(ctx) || TopUi.tick.intValue < 0) {
                         HomeTopBar(
-                            layout.top, statusTick + tick, movingStatus, menuReq,
+                            layout.top, { statusTick + tick }, movingStatus, menuReq,   // лямбда: тик читается внутри верхней полосы, а не в теле экрана «Дом» (15.1)
                             onMenu = { openMenu() }, onVoice = { startVoice() },
                             onSearch = { q ->
                                 // панель «Все приложения» включена: поиск ведёт в неё (показывает подходящие, курсор на первой плитке)
@@ -491,7 +491,7 @@ private fun HomeScreen(tick: Int, again: Int) {
                             onStatusMoveEnd = { movingStatus = null },
                         )
                         }
-                        // на телефоне и планшете: свайп вверх по экрану открывает меню приложений (прокручивать больше нечего — «лишнее» движение уходит сюда)
+                        // на телефоне и планшете: свайп вверх по экрану открывает меню приложений (прокручивать больше нечего - «лишнее» движение уходит сюда)
                         val swipeMenu = remember {
                             object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
                                 var acc = 0f

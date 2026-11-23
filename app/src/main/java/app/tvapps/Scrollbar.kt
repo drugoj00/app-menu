@@ -105,7 +105,7 @@ internal fun Modifier.verticalScrollbar(state: LazyGridState): Modifier =
         }
     }
 
-private fun Modifier.scrollbar(state: ScrollableState, metrics: (Float) -> Triple<Float, Float, Float>?): Modifier = composed {
+internal fun Modifier.scrollbar(state: ScrollableState, metrics: (Float) -> Triple<Float, Float, Float>?): Modifier = composed {
     val t = LocalTh.current
     val tv = TopMode.isTv(LocalContext.current)
     val scope = rememberCoroutineScope()
@@ -113,7 +113,7 @@ private fun Modifier.scrollbar(state: ScrollableState, metrics: (Float) -> Tripl
     var edgeFocus by remember { mutableStateOf(false) }
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val step = with(androidx.compose.ui.platform.LocalDensity.current) { 220.dp.toPx() }
-    // 18.11.2026: fixedAnimateFloatAsState вместо animateFloatAsState — фиксированный масштаб (Desks.kt)
+    // 18.11.2026: fixedAnimateFloatAsState вместо animateFloatAsState - фиксированный масштаб (Desks.kt)
     val widthDp by fixedAnimateFloatAsState(if (edgeFocus) 14f else if (active) (if (tv) 8f else 6f) else (if (tv) 6f else 4f), label = "barW")
     val alpha by fixedAnimateFloatAsState(if (active || edgeFocus) 1f else if (tv) 0.6f else 0.5f, label = "barA")
     this

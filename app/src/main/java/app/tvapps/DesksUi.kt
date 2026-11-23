@@ -87,7 +87,7 @@ fun DeskStrip(pages: List<DeskPage>, cur: Int, onSelect: (Int) -> Unit, onStep: 
                 }
                 .focusable()
                 .clip(RoundedCornerShape(12.dp))
-                .border(if (focused) 3.dp else 0.dp, if (focused) t.accent else Color.Transparent, RoundedCornerShape(12.dp))
+                .focusBorder({ focused }, 3.dp, 0.dp, t.accent, Color.Transparent, RoundedCornerShape(12.dp))
                 .padding(horizontal = pad, vertical = 2.dp),
             horizontalArrangement = Arrangement.spacedBy(gap), verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -283,7 +283,7 @@ fun TitleMenuBox(onMenu: () -> Unit, content: @Composable () -> Unit) {
             }
             .focusable()
             .clip(RoundedCornerShape(10.dp))
-            .border(if (focused) 2.dp else 0.dp, if (focused) t.accent else Color.Transparent, RoundedCornerShape(10.dp))
+            .focusBorder({ focused }, 2.dp, 0.dp, t.accent, Color.Transparent, RoundedCornerShape(10.dp))
             .pointerInput(Unit) {
                 awaitPointerEventScope {
                     while (true) {

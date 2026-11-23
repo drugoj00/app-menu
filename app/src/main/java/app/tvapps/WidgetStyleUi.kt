@@ -1,5 +1,6 @@
 package app.tvapps
 
+import androidx.compose.ui.draw.drawBehind
 import android.widget.Toast
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Canvas
@@ -119,7 +120,7 @@ internal fun WidgetStyleDialog(dlg: Dlg.WidgetStyle, setDlg: (Dlg?) -> Unit) {
             add(opt { choice(R.string.ws_digits, listOf(R.string.ws_dg0, R.string.ws_dg1), s.digits) { a, v -> a.copy(digits = v) } })
             if (s.digits == 0) {
                 add(opt { choice(R.string.ws_font, listOf(R.string.ws_f0, R.string.ws_f1, R.string.ws_f2, R.string.ws_f3, R.string.ws_f4, R.string.ws_f5, R.string.ws_f6), s.font) { a, v -> a.copy(font = v) } })
-                if (s.font == 6) add(opt { Opt(stringResource(R.string.ws_font_file), s.fontFile.substringAfterLast('/').ifBlank { "—" }, onClick = { fonts = true }) })
+                if (s.font == 6) add(opt { Opt(stringResource(R.string.ws_font_file), s.fontFile.substringAfterLast('/').ifBlank { "-" }, onClick = { fonts = true }) })
                 add(opt { toggle(R.string.ws_bold, s.bold) { a, v -> a.copy(bold = v) } })
             } else {
                 add(opt { toggle(R.string.ws_ghost, s.ghost) { a, v -> a.copy(ghost = v) } })
@@ -239,7 +240,7 @@ internal fun WidgetStyleDialog(dlg: Dlg.WidgetStyle, setDlg: (Dlg?) -> Unit) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 names.forEachIndexed { id, nm -> Chip(stringResource(nm), s.preset == id) { updW { applyPreset(it, id) } } }
             }
-            // 18.11.2026: animateContentSize не принимает свой withContext — полагаемся на AnimScale.forceFull() (Desks.kt)
+            // 18.11.2026: animateContentSize не принимает свой withContext - полагаемся на AnimScale.forceFull() (Desks.kt)
             Column(Modifier.animateContentSize()) {
                 Row(
                     Modifier.clip(RoundedCornerShape(8.dp)).clickable { hintOpen = !hintOpen }.padding(horizontal = 4.dp, vertical = 2.dp),
@@ -301,8 +302,8 @@ internal fun SliderRow(label: String, value: Int, def: Int, lo: Int, hi: Int, st
             }
             .onFocusChanged { focused = it.isFocused }
             .clip(RoundedCornerShape(12.dp))
-            .background(if (focused || hover) t.tileFocus else t.tile)
-            .border(if (focused) 3.dp else 1.dp, if (focused) t.accent else t.border, RoundedCornerShape(12.dp))
+            .drawBehind { drawRect(if (focused || hover) t.tileFocus else t.tile) }
+            .focusBorder({ focused }, 3.dp, 1.dp, t.accent, t.border, RoundedCornerShape(12.dp))
             .focusable()
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),

@@ -1,6 +1,7 @@
 @file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 package app.tvapps
 
+import androidx.compose.ui.draw.drawBehind
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -155,8 +156,8 @@ private fun PackRow(title: String, note: String, applied: Boolean, selected: Boo
     Row(
         Modifier.fillMaxWidth().then(extra).then(hm).onFocusChanged { focused = it.isFocused }
             .clip(RoundedCornerShape(10.dp))
-            .background(if (focused || hover) t.tileFocus else if (selected) t.chipSel else t.tile)
-            .border(if (focused) 3.dp else 0.dp, if (focused) t.accent else Color.Transparent, RoundedCornerShape(10.dp))
+            .drawBehind { drawRect(if (focused || hover) t.tileFocus else if (selected) t.chipSel else t.tile) }
+            .focusBorder({ focused }, 3.dp, 0.dp, t.accent, Color.Transparent, RoundedCornerShape(10.dp))
             .clickable { onClick() }
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),

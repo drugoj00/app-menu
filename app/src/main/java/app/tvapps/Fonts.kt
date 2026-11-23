@@ -53,8 +53,12 @@ object AppFont {
     fun labelPaint(): TextPaint = textPaint()
 
     /** Ширина строки в px тем же способом, каким она рисуется. */
+    // 15.1 (плавность): кисть для замера запоминается по потокам и весу (раньше на каждый замер создавался новый TextPaint, а верхняя строка «Дома»
+    // замеряет десяток подписей каждую секунду; создание кисти тянет за собой регистрацию собственной памяти)
+    private val measurePaints = object : ThreadLocal<HashMap<Int, TextPaint>>() { override fun initialValue() = HashMap<Int, TextPaint>() }
     fun measure(text: String, sizePx: Float, weight: Int = 400): Float {
-        val p = textPaint(weight)
+        val m = measurePaints.get()!!
+        val p = m.getOrPut(weight) { textPaint(weight) }
         p.textSize = sizePx
         return p.measureText(text)
     }

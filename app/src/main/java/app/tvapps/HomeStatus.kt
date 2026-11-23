@@ -72,12 +72,12 @@ internal fun datePattern(opt: Int) = when (opt) { 0 -> "dd.MM"; 1 -> "d MMM"; 2 
 
 /** Две строки даты верхней полосы (день недели; месяц и число) для режима «длинная дата»; для коротких режимов null. Язык задаётся явно. */
 internal fun dateTwoLines(opt: Int, now: Long, loc: Locale): Pair<String, String>? =
-    if (opt >= 3) Pair(cap(SimpleDateFormat("EEEE", loc).format(Date(now))), cap(SimpleDateFormat("LLLL", loc).format(Date(now))) + " " + SimpleDateFormat("dd.MM.yyyy", loc).format(Date(now)))
+    if (opt >= 3) Pair(cap(DFmt.format("EEEE", loc, now)), cap(DFmt.format("LLLL", loc, now)) + " " + DFmt.format("dd.MM.yyyy", loc, now))
     else null
 
 /** Одна строка даты по режиму (для образца в настройках и для коротких режимов). */
 internal fun dateLine(opt: Int, now: Long, loc: Locale): String =
-    dateTwoLines(opt, now, loc)?.let { it.first + ", " + it.second } ?: SimpleDateFormat(datePattern(opt), loc).format(Date(now))
+    dateTwoLines(opt, now, loc)?.let { it.first + ", " + it.second } ?: DFmt.format(datePattern(opt), loc, now)
 
 internal fun dateSample(opt: Int): String = dateLine(opt, System.currentTimeMillis(), locale())
 
@@ -107,7 +107,7 @@ internal fun externalMounted(ctx: Context): Boolean {
     } catch (e: Exception) { false }
 }
 
-/** Шаблон часов: бит 1 — 12-часовой формат, бит 2 — с секундами. */
+/** Шаблон часов: бит 1 - 12-часовой формат, бит 2 - с секундами. */
 internal fun clockPattern(o: Int): String = (if ((o and 1) != 0) "h:mm" else "HH:mm") + (if ((o and 2) != 0) ":ss" else "") + (if ((o and 1) != 0) " a" else "")
 
 /** Время с секундами: секунды (":ss") и пометка AM/PM мельче и тоньше часов с минутами. */
@@ -130,12 +130,12 @@ internal fun statusValue(ctx: Context, s: HStatus, now: Long): SVal = when (s.id
     "bt" -> bluetoothOn(ctx).let { SVal(if (it) HIcons.bt else HIcons.btOff, null, it) }
     "net" -> netKind(ctx).let { SVal(if (it == 2) HIcons.eth else if (it == 1) HIcons.wifi else if (it == 3) HIcons.mobile else HIcons.wifiOff, null, it != 0) }
     "usb" -> externalMounted(ctx).let { SVal(HIcons.usb, null, it) }
-    "time" -> SVal(null, SimpleDateFormat(clockPattern(s.opt), locale()).format(Date(now)), true)
+    "time" -> SVal(null, DFmt.format(clockPattern(s.opt), locale(), now), true)
     "gear" -> SVal(HIcons.gear, null, true)
     // 12.0 (просьба владелицы: «колокольчик всегда серый, нажимаю, а там есть уведомления»): колокольчик всегда цвета остальных значков (как шестерёнка), без тусклого
     // состояния; число уведомлений рисуется красной цифрой внутри колокольчика и берётся из наблюдаемого NotifService.badge (см. BellWithCount)
     "notif" -> SVal(HIcons.bell, null, true)
-    else -> dateTwoLines(s.opt, now, locale())?.let { SVal(null, null, true, null, it.first, it.second) } ?: SVal(null, SimpleDateFormat(datePattern(s.opt), locale()).format(Date(now)), true)
+    else -> dateTwoLines(s.opt, now, locale())?.let { SVal(null, null, true, null, it.first, it.second) } ?: SVal(null, DFmt.format(datePattern(s.opt), locale(), now), true)
 }
 
 internal fun statusClick(ctx: Context, id: String) {
@@ -233,7 +233,7 @@ private fun SearchBar(big: Boolean, onVoice: () -> Unit, onSearch: (String) -> U
     }
     Row(
         modifier.clip(shape).background(barBg(t.tile))
-            .border(if (focused) 3.dp else 1.5.dp, t.accent, shape),
+            .focusBorder({ focused }, 3.dp, 1.5.dp, t.accent, t.accent, shape),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // 15.0: без программы распознавания речи микрофон не показывается
@@ -278,7 +278,7 @@ private fun SearchBar(big: Boolean, onVoice: () -> Unit, onSearch: (String) -> U
 /** Верхняя полоска: слева значок меню и поле «голос и текст», справа значки состояния (по правому краю, порядок свой). */
 @Composable
 internal fun HomeTopBar(
-    top0: HTop, tick: Int, movingStatus: String?, menuReq: FocusRequester,
+    top0: HTop, tickOf: () -> Int, movingStatus: String?, menuReq: FocusRequester,
     onMenu: () -> Unit, onVoice: () -> Unit, onSearch: (String) -> Unit, onTopLong: () -> Unit, onStatusLong: (String) -> Unit,
     onStatusMoveKey: (String, Key) -> Boolean, onStatusStep: (String, Int) -> Unit, onStatusMoveEnd: () -> Unit,
 ) {
@@ -299,7 +299,11 @@ internal fun HomeTopBar(
     val showHdmi = top.hdmi && tv
     if (!top.menu && !top.recent && !top.hdmi && !top.clean && !top.voice && !top.search && vis.isEmpty()) return
     // состояние читаем заново по тику (каждые несколько секунд и при возвращении на экран)
-    val vals = remember(tick, now, top, Cfg.lang) { vis.associate { it.id to statusValue(ctx, it, now) } }
+    // 15.1 (плавность): значки Bluetooth, сети и накопителя обращаются к системным службам (несколько вызовов Binder на значок); раньше они опрашивались
+    // каждую секунду вместе с часами. Теперь только по tick (раз в несколько секунд и при возврате на экран), а время и дата пересчитываются каждую секунду.
+    val tick = tickOf()
+    val sysVals = remember(tick, top) { vis.filter { it.id == "bt" || it.id == "net" || it.id == "usb" }.associate { it.id to statusValue(ctx, it, 0L) } }
+    val vals = remember(sysVals, now, top, Cfg.lang) { vis.associate { it.id to (sysVals[it.id] ?: statusValue(ctx, it, now)) } }
     val appIcon = remember { runCatching { ctx.packageManager.getApplicationIcon(ctx.packageName).toBitmap(128, 128).asImageBitmap() }.getOrNull() }
     androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
     // ширина полосы известна: подбираем зазоры и размер значков так, чтобы всё поместилось без наложения и обрезки
@@ -340,7 +344,7 @@ internal fun HomeTopBar(
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(lv.left.dp)) {
         if (top.menu) HomeBox(
             shape = androidx.compose.foundation.shape.RoundedCornerShape(barR(14.dp)), bg = barBg(t.tile), edge = barEdge(t.accent), focusReq = menuReq,
-            // долгое нажатие на кнопку меню — недавние (настройки верхней полоски: «Настройки экрана»)
+            // долгое нажатие на кнопку меню - недавние (настройки верхней полоски: «Настройки экрана»)
             onClick = onMenu, onLong = { TopUi.recents.value = true },
         ) {
             if (appIcon != null) androidx.compose.foundation.Image(appIcon, null, Modifier.padding((4f * sc).dp).size((if (big) 38f else 28f).times(sc).dp))
@@ -447,8 +451,8 @@ private fun outlineOf(c: androidx.compose.ui.graphics.Color, behind: Float? = nu
         forcedOutline(c, behind)?.let { return it }
     }
     if (c.luminance() <= 0.2f) return androidx.compose.ui.graphics.Color.Transparent
-    // Авто: сила тёмного контура по яркости фона под строкой (просьба пользователя 4PDA: на светлой картинке чёрная обводка не подходит): светлый фон — мягкая
-    // тень, средний — заметный контур, тёмный — лишь лёгкая тень (светлым значкам там и так видно); фон неизвестен (видео, нет фона) — средний
+    // Авто: сила тёмного контура по яркости фона под строкой (просьба пользователя 4PDA: на светлой картинке чёрная обводка не подходит): светлый фон - мягкая
+    // тень, средний - заметный контур, тёмный - лишь лёгкая тень (светлым значкам там и так видно); фон неизвестен (видео, нет фона) - средний
     val l = BgLum.top
     val a = when {
         l == null -> 0.6f

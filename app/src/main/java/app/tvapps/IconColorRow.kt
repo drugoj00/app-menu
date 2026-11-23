@@ -1,5 +1,6 @@
 package app.tvapps
 
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -87,8 +88,8 @@ internal fun IconColorRow() {
                 .onFocusChanged { focused = it.isFocused }
                 .semantics { contentDescription = label }
                 .clip(RoundedCornerShape(12.dp))
-                .background(if (focused || hover) t.tileFocus else t.tile)
-                .border(if (focused) 3.dp else 1.dp, if (focused) t.accent else t.border, RoundedCornerShape(12.dp))
+                .drawBehind { drawRect(if (focused || hover) t.tileFocus else t.tile) }
+                .focusBorder({ focused }, 3.dp, 1.dp, t.accent, t.border, RoundedCornerShape(12.dp))
                 .focusable()
                 .padding(horizontal = 14.dp, vertical = 12.dp),
         ) {

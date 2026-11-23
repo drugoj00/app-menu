@@ -21,7 +21,7 @@ import kotlin.math.roundToInt
 data class WStyle(
     // размеры, % от автоматического (дата и день недели считаются от размера времени: 0,3 и 0,4)
     val timeSz: Int = 100, val dateSz: Int = 100, val weekSz: Int = 100, val secSz: Int = 100, val tempSz: Int = 100, val infoSz: Int = 100,
-    // цвета ARGB; 0 — как у темы
+    // цвета ARGB; 0 - как у темы
     val cTime: Long = 0L, val cDate: Long = 0L, val cWeek: Long = 0L, val cSec: Long = 0L, val cTemp: Long = 0L, val cNeg: Long = 0L, val cInfo: Long = 0L,
     // часы
     val hide0: Boolean = false,
@@ -130,12 +130,12 @@ data class WStyle(
 
     fun datePattern(): String = (if (weekSep) DATE_WITHOUT else DATE_WITH)[dateFmt.coerceIn(0, FORMATS - 1)]
 
-    /** Цвет элемента: 0 — цвет темы [def]. */
+    /** Цвет элемента: 0 - цвет темы [def]. */
     fun col(argb: Long, def: Color): Color = if (argb == 0L) def else Color(argb.toInt())
 
     fun weight(): FontWeight = if (bold) FontWeight.Bold else FontWeight.Normal
 
-    /** Шрифт цифр и текста виджета; null — как у темы. */
+    /** Шрифт цифр и текста виджета; null - как у темы. */
     fun family(): FontFamily? = when (font) {
         1 -> FontFamily.SansSerif
         2 -> FontFamily.Serif
@@ -177,7 +177,7 @@ internal object Moon {
 internal fun nextAlarmText(ctx: Context, loc: Locale, h12: Boolean): String? = runCatching {
     val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
     val t = am.nextAlarmClock?.triggerTime ?: return null
-    SimpleDateFormat(if (h12) "EEE h:mm a" else "EEE HH:mm", loc).format(Date(t))
+    DFmt.format(if (h12) "EEE h:mm a" else "EEE HH:mm", loc, t)
 }.getOrNull()
 
 /** Папки, где лежат свои шрифты (.ttf, .otf): своя папка программы и «Загрузки/AppMenu/fonts». */

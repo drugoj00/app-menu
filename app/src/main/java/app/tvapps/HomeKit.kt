@@ -48,6 +48,9 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusRequester
@@ -190,7 +193,8 @@ internal fun HomeBox(
     var boxCoords by remember { mutableStateOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
     val snd = rememberClickSound()
     val t = LocalTh.current
-    var focused by remember { mutableStateOf(false) }
+    // 15.1 (плавность): фокус читается только при размещении и рисовании (z-порядок, фон, рамка), поэтому перемещение курсора по «Дому» не перекомпонует плитки
+    val focusedS = remember { mutableStateOf(false) }
     var pending by remember { mutableStateOf(false) }
     var downAt by remember { mutableStateOf(0L) }
     val scope = rememberCoroutineScope()
@@ -202,11 +206,11 @@ internal fun HomeBox(
     val moveKey by rememberUpdatedState(onMoveKey)
     val moveEnd by rememberUpdatedState(onMoveEnd)
     var suppressUntil by remember { mutableStateOf(0L) }
-    val zoomTarget = if (zoomOnFocus && Cfg.focusZoom > 0 && (focused || hover) && !moving) 1f + Cfg.focusZoom / 100f else 1f
+    val zoomTarget = if (zoomOnFocus && Cfg.focusZoom > 0 && (focusedS.value || hover) && !moving) 1f + Cfg.focusZoom / 100f else 1f
     val zoomNow = if (zoomOnFocus) fixedAnimateFloatAsState(zoomTarget, label = "hz").value else 1f
     Box(
         modifier
-            .zIndex(if (focused || hover) 1f else 0f)
+            .layout { m, c -> val pl = m.measure(c); layout(pl.width, pl.height) { pl.place(0, 0, if (focusedS.value || hover) 1f else 0f) } }   // то же, что zIndex, но состояние читается при размещении
             .then(if (zoomNow != 1f) Modifier.graphicsLayer { scaleX = zoomNow; scaleY = zoomNow } else Modifier)      // выбранный элемент выше соседей: рамка не прячется под правым (увеличения плитки нет)
             .then(hm)
             .focusRequester(selfReq)
@@ -248,24 +252,30 @@ internal fun HomeBox(
                     else -> false
                 }
             }
-            .onFocusChanged { focused = it.isFocused; if (memKey != null) { if (it.isFocused) { TileFocus.last = memKey; TileFocus.cur = memKey } else if (TileFocus.cur == memKey) TileFocus.cur = null } }
+            .onFocusChanged { focusedS.value = it.isFocused; if (memKey != null) { if (it.isFocused) { TileFocus.last = memKey; TileFocus.cur = memKey } else if (TileFocus.cur == memKey) TileFocus.cur = null } }
             // неоновый ореол вокруг выбранного (настройка «Неоновый ореол вокруг выбранного»: Нет, Слабое, Сильное): цвет рамки, расходится наружу за край плитки
             .drawBehind {
                 val g = Cfg.selGlow
-                if (g != "none" && (focused || hover) && !moving) {
+                if (g != "none" && (focusedS.value || hover) && !moving) {
                     val outline = shape.createOutline(size, layoutDirection, this)
                     val cr = (outline as? androidx.compose.ui.graphics.Outline.Rounded)?.roundRect?.topLeftCornerRadius?.x ?: 0f
                     drawSelGlow(g, ringColor ?: Cfg.homeRingOr(t.accent), cr)
                 }
             }
             .clip(shape)
-            .background(if (focused || hover) t.tileFocus else bg, shape)
-            .border(
-                // рамка выделения (наведение мышью и выбор пультом одинаково): по умолчанию толщина 2, цвет белый, только у выделенного элемента
-                if (moving) 3.dp else if (focused || hover) (if (ringColor != null && ringWidth > 0) ringWidth.dp else 2.dp) else if (edge != Color.Transparent) 1.5.dp else 0.dp,
-                if (moving) Color(0xFFF59E0B) else if (focused || hover) (ringColor ?: Cfg.homeRingOr(t.accent)) else edge, shape,
-            )
-            .drawWithContent { drawContent(); if (focusTint && !moving && (focused || hover)) drawRect(Color.White.copy(alpha = 0.16f)) }
+            .drawBehind {
+                val c = if (focusedS.value || hover) t.tileFocus else bg
+                if (c.alpha > 0f) drawOutline(shape.createOutline(size, layoutDirection, this), c)
+            }
+            .drawWithContent {
+                drawContent()
+                val f = focusedS.value || hover
+                // рамка выделения (наведение мышью и выбор пультом одинаково): по умолчанию толщина 2, цвет белый, только у выделенного; в покое тонкая рамка «Стекло», если задана
+                val w = if (moving) 3.dp else if (f) (if (ringColor != null && ringWidth > 0) ringWidth.dp else 2.dp) else if (edge != Color.Transparent) 1.5.dp else 0.dp
+                // подсветка выбранного поверх содержимого, затем рамка поверх неё (как в прежнем порядке модификаторов)
+                if (focusTint && !moving && f) drawRect(Color.White.copy(alpha = 0.16f))
+                if (w > 0.dp) insideBorder(shape, kotlin.math.ceil(w.toPx()), if (moving) Color(0xFFF59E0B) else if (f) (ringColor ?: Cfg.homeRingOr(t.accent)) else edge)
+            }
             .mouseSecondary { long() }
             .combinedClickable(
                 onClick = { if (android.os.SystemClock.elapsedRealtime() > suppressUntil) { snd(); click() } },
@@ -337,7 +347,7 @@ class Opt(
     val onClick: (() -> Unit)? = null,
 )
 
-/** Выбор цвета полосой: [argb] 0 — цвет темы; [onPick] получает новый цвет (0 — «Как у темы»). */
+/** Выбор цвета полосой: [argb] 0 - цвет темы; [onPick] получает новый цвет (0 - «Как у темы»). */
 class ColorBarSpec(val argb: Long, val onPick: (Long) -> Unit)
 
 /** Строка выбора цвета: название и справа кнопка «Как у темы», ниже полоса спектра с бегунком. Пульт: влево/вправо меняют оттенок, ОК сбрасывает на цвет темы; касание и мышь: нажать или вести по полосе. */
@@ -345,7 +355,7 @@ class ColorBarSpec(val argb: Long, val onPick: (Long) -> Unit)
 private fun ColorBarRow(o: Opt, req: FocusRequester?) {
     val t = LocalTh.current
     val bar = o.bar!!
-    var focused by remember { mutableStateOf(false) }
+    val focusedS = remember { mutableStateOf(false) }   // 15.1: фокус читается только при рисовании
     val (hm, hover) = rememberHover()
     val gate = remember { StepGate() }
     val hue = remember(bar.argb) { if (bar.argb == 0L) -1f else FloatArray(3).also { android.graphics.Color.colorToHSV(bar.argb.toInt(), it) }[0] }
@@ -368,10 +378,9 @@ private fun ColorBarRow(o: Opt, req: FocusRequester?) {
                     else -> false
                 }
             }
-            .onFocusChanged { focused = it.isFocused }
+            .onFocusChanged { focusedS.value = it.isFocused }
             .clip(RoundedCornerShape(12.dp))
-            .background(if (focused || hover) t.tileFocus else t.tile)
-            .border(if (focused) 3.dp else 1.dp, if (focused) t.accent else t.border, RoundedCornerShape(12.dp))
+            .rowFocusLook(focusedS, hover, t.tileFocus, t.tile, t.accent, t.border)
             .focusable()
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -405,7 +414,7 @@ private fun ColorBarRow(o: Opt, req: FocusRequester?) {
 internal fun OptRow(o: Opt, req: FocusRequester?) {
     if (o.bar != null) { ColorBarRow(o, req); return }
     val t = LocalTh.current
-    var focused by remember { mutableStateOf(false) }
+    val focusedS = remember { mutableStateOf(false) }   // 15.1: фокус читается только при рисовании
     val (hm, hover) = rememberHover()
     val stepper = o.onDec != null && o.onInc != null
     // правило 19: у числового счётчика нажатие на число (ОК на ТВ, касание, щелчок) открывает окно ввода цифр; стрелки и кнопки ‹ › остаются
@@ -426,10 +435,9 @@ internal fun OptRow(o: Opt, req: FocusRequester?) {
                 else if (stepper && ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionRight) { if (gate.ok()) o.onInc?.invoke(); true }
                 else false
             }
-            .onFocusChanged { focused = it.isFocused }
+            .onFocusChanged { focusedS.value = it.isFocused }
             .clip(RoundedCornerShape(12.dp))
-            .background(if (focused || hover) t.tileFocus else t.tile)
-            .border(if (focused) 3.dp else 1.dp, if (focused) t.accent else t.border, RoundedCornerShape(12.dp))
+            .rowFocusLook(focusedS, hover, t.tileFocus, t.tile, t.accent, t.border)
             .combinedClickable(onClick = { if (numeric) numDlg = true else (o.onClick ?: o.onInc)?.invoke() })
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -485,7 +493,7 @@ internal fun ListDialog(title: String, opts: List<Opt>, onClose: () -> Unit, hin
             if (hint.isNotEmpty()) {
                 var hintOpen by remember { mutableStateOf(false) }
                 var hintFocus by remember { mutableStateOf(false) }
-                // 18.11.2026: animateContentSize не принимает свой withContext (как Modifier.animateItem) — полагаемся на AnimScale.forceFull() (Desks.kt)
+                // 18.11.2026: animateContentSize не принимает свой withContext (как Modifier.animateItem) - полагаемся на AnimScale.forceFull() (Desks.kt)
                 Column(Modifier.animateContentSize()) {
                     Row(
                         Modifier.onFocusChanged { hintFocus = it.isFocused }.clip(RoundedCornerShape(8.dp))
@@ -591,7 +599,7 @@ internal fun TextDialog(title: String, initial: String, hint: String = "", onDon
 
 // ------------------------------------------------------------------ переход в системные настройки
 
-/** Пробует открыть системную страницу настроек по очереди; последний вариант — общие настройки. */
+/** Пробует открыть системную страницу настроек по очереди; последний вариант - общие настройки. */
 internal fun openSys(ctx: android.content.Context, vararg actions: String): Boolean {
     for (a in actions.toList() + android.provider.Settings.ACTION_SETTINGS) {
         val ok = runCatching { ctx.startActivity(android.content.Intent(a).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess
@@ -658,7 +666,7 @@ internal object RowBack {
     @Volatile var startOrder: List<String> = emptyList()
 
     /**
-     * Второе «Назад» (13.0, просьба с 4PDA): курсор на плитке, но не на первой карточке первой строки после виджетов (нет виджетов: первой строки) —
+     * Второе «Назад» (13.0, просьба с 4PDA): курсор на плитке, но не на первой карточке первой строки после виджетов (нет виджетов: первой строки) -
      * перевести его туда; true, если переведён. Курсор вне плиток строк или уже там: false, «Назад» работает как прежде.
      */
     fun goStart(): Boolean {
@@ -679,3 +687,66 @@ internal object RowBack {
         return false
     }
 }
+
+
+/**
+ * Фон и рамка строки списка (15.1, плавность): состояние фокуса читается при рисовании, а не в композиции. Раньше смена фокуса перекомпоновывала строку
+ * и меняла цепочку модификаторов (толщина рамки 1 dp / 3 dp), на приставке это давало лишние кадры при каждом нажатии стрелки. Вид прежний:
+ * фон строки скруглением 12 dp, рамка 1 dp (3 dp в фокусе) внутри границ поверх содержимого.
+ */
+internal fun Modifier.rowFocusLook(focused: androidx.compose.runtime.State<Boolean>, hover: Boolean, focusFill: Color, fill: Color, accent: Color, border: Color): Modifier =
+    this.drawBehind {
+        drawRoundRect(if (focused.value || hover) focusFill else fill, cornerRadius = androidx.compose.ui.geometry.CornerRadius(12.dp.toPx()))
+    }.drawWithContent {
+        drawContent()
+        val f = focused.value
+        insideBorder(RoundedCornerShape(12.dp), kotlin.math.ceil((if (f) 3.dp else 1.dp).toPx()), if (f) accent else border)
+    }
+
+/** Рамка внутри границ формы, как у Modifier.border: простое скругление рисуется штрихом внутрь, остальные формы через обрезку по контуру. */
+internal fun androidx.compose.ui.graphics.drawscope.DrawScope.insideBorder(shape: Shape, w: Float, color: Color) {
+    if (w <= 0f) return
+    val outline = shape.createOutline(size, layoutDirection, this)
+    when (outline) {
+        is androidx.compose.ui.graphics.Outline.Rounded -> {
+            val rr = outline.roundRect
+            val simple = rr.topLeftCornerRadius == rr.topRightCornerRadius && rr.topLeftCornerRadius == rr.bottomLeftCornerRadius && rr.topLeftCornerRadius == rr.bottomRightCornerRadius
+            if (simple) {
+                val half = w / 2f
+                drawRoundRect(
+                    color, topLeft = androidx.compose.ui.geometry.Offset(half, half),
+                    size = androidx.compose.ui.geometry.Size(size.width - w, size.height - w),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(maxOf(0f, rr.topLeftCornerRadius.x - half), maxOf(0f, rr.topLeftCornerRadius.y - half)),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(w),
+                )
+            } else {
+                val path = androidx.compose.ui.graphics.Path().apply { addRoundRect(rr) }
+                clipPath(path) { drawPath(path, color, style = androidx.compose.ui.graphics.drawscope.Stroke(w * 2f)) }
+            }
+        }
+        is androidx.compose.ui.graphics.Outline.Rectangle -> {
+            val half = w / 2f
+            drawRect(color, topLeft = androidx.compose.ui.geometry.Offset(half, half), size = androidx.compose.ui.geometry.Size(size.width - w, size.height - w), style = androidx.compose.ui.graphics.drawscope.Stroke(w))
+        }
+        is androidx.compose.ui.graphics.Outline.Generic -> {
+            val path = outline.path
+            clipPath(path) { drawPath(path, color, style = androidx.compose.ui.graphics.drawscope.Stroke(w * 2f)) }
+        }
+    }
+}
+
+/**
+ * Рамка по фокусу, как Modifier.border(if (focused) w else w0, if (focused) c else c0, shape), но состояние [focused] читается при рисовании,
+ * а не в композиции (15.1, плавность): смена фокуса не перекомпоновывает строку и не меняет цепочку модификаторов, перерисовывается одна рамка.
+ * Рамка рисуется поверх содержимого, внутри границ (как у border); толщина 0 не рисуется.
+ */
+internal fun Modifier.focusBorder(focused: () -> Boolean, w: androidx.compose.ui.unit.Dp, w0: androidx.compose.ui.unit.Dp, c: Color, c0: Color, shape: Shape): Modifier =
+    this.drawWithContent {
+        drawContent()
+        val f = focused()
+        val wd = if (f) w else w0
+        if (wd > 0.dp) insideBorder(shape, kotlin.math.ceil(wd.toPx()), if (f) c else c0)
+    }
+
+/** Заливка при фокусе: условие читается при рисовании (15.1, плавность), цвет передаётся готовым (его берут в композиции). */
+internal fun Modifier.focusFillDraw(on: () -> Boolean, color: Color): Modifier = this.drawBehind { if (on()) drawRect(color) }

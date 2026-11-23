@@ -1,6 +1,7 @@
 @file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 package app.tvapps
 
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -185,8 +186,8 @@ fun NetDialog(onClose: () -> Unit) {
                             .then(hm)
                             .onFocusChanged { focused = it.isFocused }
                             .clip(RoundedCornerShape(10.dp))
-                            .background(if (focused || hover) t.tileFocus else t.tile)
-                            .border(if (focused) 3.dp else 0.dp, if (focused) t.accent else Color.Transparent, RoundedCornerShape(10.dp))
+                            .drawBehind { drawRect(if (focused || hover) t.tileFocus else t.tile) }
+                            .focusBorder({ focused }, 3.dp, 0.dp, t.accent, Color.Transparent, RoundedCornerShape(10.dp))
                             .clickable(enabled = !busy) {
                                 scope.launch {
                                     busy = true
