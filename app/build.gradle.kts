@@ -14,8 +14,8 @@ android {
         applicationId = "app.tvapps"
         minSdk = 23
         targetSdk = 34
-        versionCode = 63
-        versionName = "15.0"
+        versionCode = 65
+        versionName = "16.0"
         // ABI НЕ ограничиваем (слово владелицы 06.11): программа должна ставиться на всё, куда ставилась раньше, в том числе на x86-приставки
         // системные строки библиотек (material/compose/activity) только на трёх языках программы
         resourceConfigurations += listOf("ru", "uk", "en")
@@ -76,6 +76,7 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.core:core-ktx:1.13.1")
+    implementation("androidx.recyclerview:recyclerview:1.3.0")   // 16.0: сетка и список «Меню» на RecyclerView (меньше рывков)
     implementation("androidx.annotation:annotation:1.9.1")
     implementation("com.github.MuntashirAkon:libadb-android:3.1.1")
     implementation("org.conscrypt:conscrypt-android:2.5.3")
