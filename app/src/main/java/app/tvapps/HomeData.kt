@@ -148,28 +148,52 @@ object TvInputs {
 
 object Pics {
     private val cache = CacheBudget.track(object : LruCache<String, Bitmap>(CacheBudget.bytes(40)) { override fun sizeOf(k: String, v: Bitmap) = v.byteCount })
-    private val failed = HashSet<String>()
+    /** Адреса, которые не загрузились: время неудачи. Сетевые сбои повторяются через [RETRY_MS] (сразу после включения телевизора сети ещё нет), нечитаемая картинка не повторяется. */
+    private val failedAt = HashMap<String, Long>()
+    private const val RETRY_MS = 20_000L
 
     fun cached(url: String): Bitmap? = cache.get(url)
 
-    /** Скачивает или читает картинку и уменьшает до нужной ширины. Вызывать не из главного потока. */
+    private fun diskFile(ctx: Context, url: String): java.io.File {
+        val h = java.security.MessageDigest.getInstance("MD5").digest(url.toByteArray()).joinToString("") { "%02x".format(it) }
+        return java.io.File(java.io.File(ctx.cacheDir, "posters").also { it.mkdirs() }, h)
+    }
+
+    private fun decode(open: () -> java.io.InputStream, maxW: Int): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        open().use { BitmapFactory.decodeStream(it, null, bounds) }
+        var s = 1
+        while (bounds.outWidth / (s * 2) >= maxW) s *= 2
+        val opts = BitmapFactory.Options().apply { inSampleSize = s }
+        return open().use { BitmapFactory.decodeStream(it, null, opts) }
+    }
+
+    /**
+     * Скачивает или читает картинку и уменьшает до нужной ширины. Вызывать не из главного потока.
+     * 24.11.2026 (vova.vellev на 4PDA: «при перезагрузке телевизора слетают все постеры каналов на Доме»): раньше первая же неудача (сети нет сразу после включения)
+     * навсегда заносила адрес в список неудачных до перезапуска программы, и постеры не возвращались. Теперь скачанные постеры лежат на диске (cache/posters)
+     * и после перезагрузки показываются сразу без сети, а сетевая неудача повторяется через 20 секунд.
+     */
     fun load(ctx: Context, url: String, maxW: Int = 480): Bitmap? {
         cache.get(url)?.let { return it }
-        if (url in failed) return null
-        return runCatching {
-            val u = Uri.parse(url)
-            fun open() = if (u.scheme == "http" || u.scheme == "https") {
-                (URL(url).openConnection() as HttpURLConnection).apply { connectTimeout = 8000; readTimeout = 12000; setRequestProperty("User-Agent", "AppMenu") }.inputStream
-            } else ctx.contentResolver.openInputStream(u)!!
-            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            open().use { BitmapFactory.decodeStream(it, null, bounds) }
-            var s = 1
-            while (bounds.outWidth / (s * 2) >= maxW) s *= 2
-            val opts = BitmapFactory.Options().apply { inSampleSize = s }
-            val bmp = open().use { BitmapFactory.decodeStream(it, null, opts) }
-            if (bmp != null) cache.put(url, bmp) else failed += url
+        synchronized(failedAt) { failedAt[url]?.let { t -> if (System.currentTimeMillis() - t < RETRY_MS) return null } }
+        val u = Uri.parse(url)
+        val web = u.scheme == "http" || u.scheme == "https"
+        val file = if (web) diskFile(ctx, url) else null
+        if (file != null && file.length() > 0) {
+            val b = runCatching { decode({ file.inputStream() }, maxW) }.getOrNull()
+            if (b != null) { cache.put(url, b); return b } else file.delete()
+        }
+        return try {
+            if (web) {
+                val tmp = java.io.File(file!!.path + ".tmp")
+                (URL(url).openConnection() as HttpURLConnection).apply { connectTimeout = 8000; readTimeout = 12000; setRequestProperty("User-Agent", "AppMenu") }.inputStream.use { i -> tmp.outputStream().use { o -> i.copyTo(o) } }
+                if (!tmp.renameTo(file)) { tmp.copyTo(file, true); tmp.delete() }
+            }
+            val bmp = decode({ if (web) file!!.inputStream() else ctx.contentResolver.openInputStream(u)!! }, maxW)
+            if (bmp != null) cache.put(url, bmp) else synchronized(failedAt) { failedAt[url] = Long.MAX_VALUE / 2 }
             bmp
-        }.onFailure { failed += url }.getOrNull()
+        } catch (e: Throwable) { synchronized(failedAt) { failedAt[url] = System.currentTimeMillis() }; null }
     }
 }
 
@@ -225,7 +249,7 @@ data class WDay(val label: String, val code: Int, val max: Int, val min: Int)
 /** Почасовой прогноз: подпись часа («14»), код погоды, температура. */
 data class WHour(val label: String, val code: Int, val temp: Int, val wind: Int = 0, val pop: Int = Int.MIN_VALUE)
 
-/** Погода; feels, hum, press — «нет данных» (NA) у записей из кэша прежних версий; sunrise, sunset — «ЧЧ:ММ» на сегодня. */
+/** Погода; feels, hum, press - «нет данных» (NA) у записей из кэша прежних версий; sunrise, sunset - «ЧЧ:ММ» на сегодня. */
 data class Weather(
     val city: String, val temp: Int, val code: Int, val wind: Int, val days: List<WDay>, val at: Long,
     val feels: Int = NA, val hum: Int = NA, val press: Int = NA, val sunrise: String = "", val sunset: String = "", val hours: List<WHour> = emptyList(),
