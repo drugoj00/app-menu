@@ -1195,4 +1195,7 @@
     <string name="upd_row_wait">Waiting</string>
     <string name="upd_row_done">Installed: %1$s (%2$d)</string>
     <string name="upd_size_mb">%1$s MB</string>
+    <string name="st_bt_turning_on">Turning Bluetooth on</string>
+    <string name="st_bt_turning_off">Turning Bluetooth off</string>
+    <string name="st_bt_fail">Could not change Bluetooth. Long press opens its settings.</string>
 </resources>
