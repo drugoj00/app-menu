@@ -479,7 +479,7 @@ private fun HomeScreen(tick: Int, again: Int) {
                                 }
                             },
                             onTopLong = { dlg = Dlg.Top },
-                            onStatusLong = { dlg = Dlg.Status(it) },
+                            onStatusLong = { if (it == "bt") openBluetoothSettings(ctx) else dlg = Dlg.Status(it) },
                             onStatusMoveKey = { id, k ->
                                 when (k) {
                                     Key.DirectionLeft -> { HomeStore.moveStatus(id, -1); true }

@@ -138,9 +138,47 @@ internal fun statusValue(ctx: Context, s: HStatus, now: Long): SVal = when (s.id
     else -> dateTwoLines(s.opt, now, locale())?.let { SVal(null, null, true, null, it.first, it.second) } ?: SVal(null, DFmt.format(datePattern(s.opt), locale(), now), true)
 }
 
+/** Настройки Bluetooth. На приставках (не Samsung) система ведёт действие ACTION_BLUETOOTH_SETTINGS на «Подключенные устройства», а страница самого Bluetooth (переключатель и устройства) открывается через ADB (am start SubSettings, приложению напрямую недоступно); без ADB и на телефонах обычное действие. */
+internal fun openBluetoothSettings(ctx: Context) {
+    val box = !Build.MANUFACTURER.equals("samsung", ignoreCase = true)      // на Samsung обычное действие открывает нужную страницу сразу
+    val app = ctx.applicationContext
+    if (box && Adb.isConnected) {
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            val out = runCatching { Adb.shell("am start -n com.android.settings/.SubSettings --es :settings:show_fragment com.android.settings.connecteddevice.BluetoothDashboardFragment") }.getOrDefault("")
+            if (out.contains("Error", true) || out.contains("Exception", true) || out.isEmpty()) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                if (!openSys(app, Settings.ACTION_BLUETOOTH_SETTINGS)) android.widget.Toast.makeText(app, app.getString(R.string.home_cant_open), android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+        return
+    }
+    if (!openSys(ctx, Settings.ACTION_BLUETOOTH_SETTINGS)) android.widget.Toast.makeText(ctx, ctx.getString(R.string.home_cant_open), android.widget.Toast.LENGTH_SHORT).show()
+}
+
+/** Включает или выключает Bluetooth: напрямую (Android до 12), иначе через ADB или root (svc bluetooth); итог проверяется чтением состояния. */
+internal fun btToggle(ctx: Context) {
+    val want = !bluetoothOn(ctx)
+    android.widget.Toast.makeText(ctx, ctx.getString(if (want) R.string.st_bt_turning_on else R.string.st_bt_turning_off), android.widget.Toast.LENGTH_SHORT).show()
+    val app = ctx.applicationContext
+    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+        var ok = false
+        if (Build.VERSION.SDK_INT <= 32) ok = runCatching {
+            @Suppress("DEPRECATION", "MissingPermission")
+            val ad = (app.getSystemService(Context.BLUETOOTH_SERVICE) as android.bluetooth.BluetoothManager).adapter
+            @Suppress("DEPRECATION", "MissingPermission")
+            if (want) ad.enable() else ad.disable()
+        }.getOrDefault(false)
+        if (!ok) runCatching { Adb.shell(if (want) "svc bluetooth enable" else "svc bluetooth disable") }
+        var t = 0
+        while (t < 12 && bluetoothOn(app) != want) { delay(500); t++ }
+        if (bluetoothOn(app) != want) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+            android.widget.Toast.makeText(app, app.getString(R.string.st_bt_fail), android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+}
+
 internal fun statusClick(ctx: Context, id: String) {
     val ok = when (id) {
-        "bt" -> openSys(ctx, Settings.ACTION_BLUETOOTH_SETTINGS)
+        "bt" -> { btToggle(ctx); true }      // 24.11.2026 (владелица): нажатие включает и выключает Bluetooth, настройки открываются долгим нажатием
         "net" -> if (netKind(ctx) == 3) openSys(ctx, Settings.ACTION_DATA_ROAMING_SETTINGS, Settings.ACTION_WIRELESS_SETTINGS)
         else if (netKind(ctx) == 2) openSys(ctx, "android.settings.ETHERNET_SETTINGS", Settings.ACTION_WIRELESS_SETTINGS, Settings.ACTION_WIFI_SETTINGS)
         else openSys(ctx, Settings.ACTION_WIFI_SETTINGS, Settings.ACTION_WIRELESS_SETTINGS)

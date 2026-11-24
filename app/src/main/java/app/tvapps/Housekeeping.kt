@@ -33,7 +33,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * 9.0 (код 45): уборка за собой. Временные файлы (скачанные для установки APK, root-install-*.apk, передачи другим установщикам) живут в cache/batch и cache/root-install-*.
+ * 9.0 (код 45): уборка за собой. Временные файлы (скачанные для установки APK, root-install-*.apk, передачи другим установщикам) живут в cache/batch, cache/root-install-* и cache/received (принятые по Wi-Fi, с 16.1).
  * Метод: после установки (успех, отказ или отмена) файл удаляется сразу; всё, что осталось (процесс убит заменой самой программы), подметается при запуске:
  * старше часа либо старше последнего обновления самой программы. Копии версий: одно место (корень из AppBackups.root), не больше двух на приложение.
  */
@@ -43,6 +43,8 @@ object Housekeeping {
     private fun tempItems(ctx: Context): List<File> {
         val out = ArrayList<File>()
         File(ctx.cacheDir, "batch").listFiles()?.let { out += it }
+        // 16.1: файлы, принятые через «Принять файлы по Wi-Fi» (UploadServer.dir = cache/received; сама папка остаётся)
+        File(ctx.cacheDir, "received").listFiles()?.let { out += it }
         ctx.cacheDir.listFiles { f -> f.name.startsWith("root-install-") }?.let { out += it }
         return out
     }

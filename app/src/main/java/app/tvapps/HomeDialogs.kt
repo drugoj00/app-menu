@@ -38,7 +38,7 @@ private fun colorDot(argb: Int): androidx.compose.ui.graphics.ImageBitmap {
     return bm.asImageBitmap()
 }
 
-/** Цвета обводки плитки: 0 — цвет программы (акцент темы), дальше готовые цвета. */
+/** Цвета обводки плитки: 0 - цвет программы (акцент темы), дальше готовые цвета. */
 private val BORDER_COLORS = listOf(0L, 0xFFFFFFFFL, 0xFF000000L, 0xFFEF4444L, 0xFFF97316L, 0xFFFACC15L, 0xFF22C55EL, 0xFF06B6D4L, 0xFF3B82F6L, 0xFFA855F7L, 0xFFEC4899L)
 private val BORDER_NAMES = listOf(
     R.string.bd_c0, R.string.bd_c1, R.string.bd_c2, R.string.bd_c3, R.string.bd_c4, R.string.bd_c5,
@@ -130,8 +130,8 @@ private fun HdItemD(dlg: Dlg.ItemD, e: HdEnv) {
                 "menu" -> stringResource(R.string.home_all_btn); "settings" -> stringResource(R.string.settings); else -> ref
             }
             val opts = buildList {
-                add(Opt(stringResource(R.string.d_program_settings)) { openAppSettings() })      // настройки программы — первой строкой
-                add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома» — второй
+                add(Opt(stringResource(R.string.d_program_settings)) { openAppSettings() })      // настройки программы - первой строкой
+                add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома» - второй
                 if (!auto) {
                     add(Opt(stringResource(R.string.d_move)) { close(); startMove(dlg.itemId) })
                     add(Opt(stringResource(R.string.d_to_row)) { setDlg(Dlg.MoveToRow(dlg.itemId)) })
@@ -242,8 +242,8 @@ private fun HdRowD(dlg: Dlg.RowD, e: HdEnv) {
             val upd = { f: (HRow) -> HRow -> HomeStore.updateRow(row.id, f) }
             val autoNames = listOf("" to stringResource(R.string.auto_none), "fav" to stringResource(R.string.auto_fav), "recent" to stringResource(R.string.auto_recent), "hdmi" to stringResource(R.string.auto_hdmi), "new" to stringResource(R.string.auto_new))
             val opts = buildList {
-                add(Opt(stringResource(R.string.d_program_settings)) { openAppSettings() })      // настройки программы — первой строкой
-                add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома» — второй
+                add(Opt(stringResource(R.string.d_program_settings)) { openAppSettings() })      // настройки программы - первой строкой
+                add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома» - второй
                 add(Opt(stringResource(R.string.row_title), row.title, onClick = { setDlg(Dlg.Rename(row.id)) }))
                 add(Opt(stringResource(R.string.row_title_visible), onOff(row.showTitle, on, off), onClick = { upd { it.copy(showTitle = !it.showTitle) } }))
                 when (row.kind) {
@@ -498,8 +498,8 @@ private fun HdWidgetD(dlg: Dlg.WidgetD, e: HdEnv) {
                 colorDot(if (wci == 0) wAccent.toArgb() else BORDER_COLORS[wci].toInt())
             }
             val opts = buildList {
-                add(Opt(stringResource(R.string.d_program_settings)) { openAppSettings() })      // настройки программы — первой строкой
-                add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома» — второй
+                add(Opt(stringResource(R.string.d_program_settings)) { openAppSettings() })      // настройки программы - первой строкой
+                add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома» - второй
                 add(Opt(stringResource(R.string.wg_type), widgetName(w.type), onClick = { setDlg(Dlg.WidgetType(row.id, dlg.slot)) }))
                 // 16.11.2026: размер сразу под «Видом виджета» (был в конце списка и не виден без прокрутки). 15.11.2026: один понятный выбор размера (Маленький / Средний / Большой) вместо россыпи «высота строки», «масштаб шрифта», «ширина»: пресет задаёт
                 // высоту строки и масштаб шрифта всех виджетов строки разом; прежние значения не меняются, если не нажимать (если числа не совпали с пресетом, написано «Свой»);
@@ -721,15 +721,15 @@ private fun HdStatus(dlg: Dlg.Status, e: HdEnv) {
             val s = HomeStore.layout.top.status.firstOrNull { it.id == dlg.id }
             if (s == null) { close(); return }
             val opts = buildList {
-                add(Opt(stringResource(R.string.d_program_settings)) { openAppSettings() })      // настройки программы — первой строкой
-                add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома» — второй
+                add(Opt(stringResource(R.string.d_program_settings)) { openAppSettings() })      // настройки программы - первой строкой
+                add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома» - второй
                 add(Opt(stringResource(R.string.d_move)) { close(); startMoveStatus(s.id) })
                 if (s.id == "time") {
                     add(Opt(stringResource(R.string.wg_time_fmt), if ((s.opt and 1) != 0) "12 h" else "24 h", onClick = { HomeStore.updateStatus(s.id) { it.copy(opt = it.opt xor 1) } }))
                     add(Opt(stringResource(R.string.wg_seconds), onOff((s.opt and 2) != 0, on, off), onClick = { HomeStore.updateStatus(s.id) { it.copy(opt = it.opt xor 2) } }))
                 }
                 if (s.id == "date") add(Opt(stringResource(R.string.st_date_fmt), dateSample(s.opt.coerceIn(0, 3)), onClick = { HomeStore.updateStatus(s.id) { it.copy(opt = (it.opt + 1) % 4) } }))
-                add(Opt(stringResource(R.string.st_open)) { close(); statusClick(ctx, s.id) })
+                add(Opt(stringResource(R.string.st_open)) { close(); if (s.id == "bt") openBluetoothSettings(ctx) else statusClick(ctx, s.id) })
                 add(Opt(stringResource(R.string.st_hide)) { HomeStore.updateStatus(s.id) { it.copy(visible = false) }; close() })
                 add(Opt(stringResource(R.string.st_top)) { setDlg(Dlg.Top) })
             }
@@ -748,8 +748,8 @@ private fun HdTop(e: HdEnv) {
             // подпись «Вкл/Выкл» кнопки «Док-панель» читается из настроек: окно подписано на счётчик изменений, иначе после нажатия оставалось прежнее значение
             @Suppress("UNUSED_VARIABLE") val dockRev = HomeDock.rev.intValue
             val opts = buildList {
-                add(Opt(stringResource(R.string.d_program_settings)) { openAppSettings() })      // настройки программы — первой строкой
-                add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома» — второй
+                add(Opt(stringResource(R.string.d_program_settings)) { openAppSettings() })      // настройки программы - первой строкой
+                add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома» - второй
                 add(Opt(stringResource(R.string.top_big), onOff(top.big, on, off), onClick = { HomeStore.updateTop { it.copy(big = !it.big) } }))
                 add(Opt(stringResource(R.string.top_recent), onOff(top.recent, on, off), onClick = { HomeStore.updateTop { it.copy(recent = !it.recent) } }))
                 add(Opt(stringResource(R.string.dock_btn), onOff(HomeDock.btn(ctx), on, off), onClick = { HomeDock.setBtn(ctx, !HomeDock.btn(ctx)) }))
@@ -845,7 +845,7 @@ private fun HdBannerStyle(dlg: Dlg.BannerStyle, e: HdEnv) {
                 askHex = false
             }, { askHex = false })
 
-        // предложение: у приложений на «Доме» нет баннера — создать красивые
+        // предложение: у приложений на «Доме» нет баннера - создать красивые
 }
 
 @Composable
