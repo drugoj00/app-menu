@@ -1195,4 +1195,7 @@
     <string name="upd_row_wait">Очікує</string>
     <string name="upd_row_done">Встановлено: %1$s (%2$d)</string>
     <string name="upd_size_mb">%1$s МБ</string>
+    <string name="st_bt_turning_on">Bluetooth вмикається</string>
+    <string name="st_bt_turning_off">Bluetooth вимикається</string>
+    <string name="st_bt_fail">Не вдалося перемкнути Bluetooth. Довге натискання відкриває його налаштування.</string>
 </resources>
