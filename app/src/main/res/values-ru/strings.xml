@@ -1079,6 +1079,14 @@
     <string name="dock_btn">Кнопка «Док-панель» в верхней строке</string>
     <string name="dock_btn_h">Показывает или скрывает док и переводит в него фокус; долгое нажатие открывает меню верхней полоски. По умолчанию включена.</string>
     <string name="dock_bg_auto">По теме</string>
+    <string name="dock_style">Вид плиток</string>
+    <string name="dock_st_icons">Значки</string>
+    <string name="dock_st_banners">Баннеры</string>
+    <string name="dock_bn_vis">Баннеров на экране</string>
+    <string name="dock_bn_size">Размер баннера</string>
+    <string name="dock_bg_glass">Стекло прозрачное</string>
+    <string name="dock_bg_frost">Стекло матовое</string>
+    <string name="dock_bg_none">Без подложки</string>
     <string name="dock_radius">Закругление</string>
     <string name="dock_sort">Сортировка</string>
     <string name="dock_s0">Свой порядок</string>
