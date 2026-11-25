@@ -25,7 +25,25 @@ import androidx.compose.ui.input.pointer.pointerInput
 fun rememberHover(): Pair<Modifier, Boolean> {
     val src = remember { MutableInteractionSource() }
     val hovered by src.collectIsHoveredAsState()
-    return Modifier.hoverable(src).pointerHoverIcon(PointerIcon.Hand) to hovered
+    return Modifier.hoverable(src).pointerHoverIcon(PointerIcon.Hand) to (hovered && !HoverGate.muted.value)
+}
+
+/**
+ * 25.11.2026 (замечание Евгения: убрал стрелку над виджетом, а выделение осталось): когда указатель аэромыши гаснет, Android не сообщает об уходе
+ * наведения, и подсветка висела вместе с курсором пульта. Стрелка пульта гасит подсветку наведения, первое движение мыши возвращает её.
+ */
+object HoverGate {
+    val muted = androidx.compose.runtime.mutableStateOf(false)
+    fun onKey(ev: android.view.KeyEvent) {
+        if (ev.action != android.view.KeyEvent.ACTION_DOWN) return
+        val k = ev.keyCode
+        if (k == android.view.KeyEvent.KEYCODE_DPAD_UP || k == android.view.KeyEvent.KEYCODE_DPAD_DOWN ||
+            k == android.view.KeyEvent.KEYCODE_DPAD_LEFT || k == android.view.KeyEvent.KEYCODE_DPAD_RIGHT) muted.value = true
+    }
+    fun onMotion(ev: android.view.MotionEvent) {
+        val a = ev.actionMasked
+        if (muted.value && (a == android.view.MotionEvent.ACTION_HOVER_MOVE || a == android.view.MotionEvent.ACTION_HOVER_ENTER)) muted.value = false
+    }
 }
 
 /** Правая кнопка мыши. Ставится раньше обычных нажатий в цепочке модификаторов, чтобы перехватить событие первой. */

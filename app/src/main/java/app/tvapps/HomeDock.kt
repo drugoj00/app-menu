@@ -147,20 +147,30 @@ object HomeDock {
     /** Ширина баннера в dp: экран делится на число видимых баннеров и умножается на размер. */
     /** 17.3: во сколько раз «Дом» уменьшил ряды, чтобы уместиться над доком (пишет FitHeight); док берёт ту же ширину, что и ряды. */
     val fitScale = androidx.compose.runtime.mutableFloatStateOf(1f)
+    /**
+     * 25.11.2026 (замечание Евгения: «баннеры обрезаются»): ширина экрана из resources.configuration не учитывает плотность, в которой рисуется «Дом»
+     * (масштаб интерфейса, уменьшение в FixedFont на приставках с узким в dp экраном), поэтому баннеров помещалось не столько, сколько выбрано.
+     * [uiW]: фактическая ширина дока в его dp (пишет HomeDockHost); [uiCfg]: настройки экрана той же композиции (по ним «Дом» выбирает боковые поля).
+     */
+    @Volatile var uiCfg: android.content.res.Configuration? = null
+    val uiW = androidx.compose.runtime.mutableFloatStateOf(0f)
+    private fun cfg(c: Context) = uiCfg ?: c.resources.configuration
+    private fun widthDp(c: Context): Float = uiW.floatValue.takeIf { it > 0f } ?: cfg(c).screenWidthDp.toFloat()
     /** Боковые поля «Дома» в dp (как в HomeActivity): ряды и док выровнены по ним. */
-    fun sidePadDp(c: Context): Int = if (c.resources.configuration.smallestScreenWidthDp < 600) 10 else 32
+    fun sidePadDp(c: Context): Int = if (cfg(c).smallestScreenWidthDp < 600) 10 else 32
     /** Боковой отступ полосы баннеров: поля «Дома» плюс то, что ряды сузились при уменьшении. */
     fun bnSideDp(c: Context, fit: Float = fitScale.floatValue): Float {
-        val side = sidePadDp(c); val w = c.resources.configuration.screenWidthDp
+        val side = sidePadDp(c); val w = widthDp(c)
         return side + (w - 2 * side) * (1f - fit.coerceIn(0.5f, 1f)) / 2f
     }
     /** Ширина ячейки баннера (баннер + воздух между баннерами) в dp. */
     fun bnSlotDp(c: Context, fit: Float = fitScale.floatValue): Float {
-        val side = sidePadDp(c); val w = c.resources.configuration.screenWidthDp
-        return ((w - 2 * side) * fit.coerceIn(0.5f, 1f) - 16f) / bnVis(c) * bnSize(c) / 100f   // 16 dp: поля внутри плашки, чтобы N баннеров помещались целиком
+        val side = sidePadDp(c); val w = widthDp(c); val n = bnVis(c)
+        // 16 dp: поля внутри плашки; 2 dp на ячейку: зазор самих ячеек; так N баннеров помещаются целиком
+        return ((w - 2 * side) * fit.coerceIn(0.5f, 1f) - 16f - 2f * n) / n * bnSize(c) / 100f
     }
-    /** Воздух между баннерами: около 16% ячейки (как на картинке), не меньше 10 dp. */
-    fun bnGapDp(c: Context, fit: Float = fitScale.floatValue): Int = maxOf(10f, bnSlotDp(c, fit) * 0.16f).toInt()
+    /** Воздух между баннерами: 17% ячейки, не меньше 10 dp: выбранный баннер (увеличен в 1,2 раза) остаётся внутри своей ячейки и не заезжает на край плашки. */
+    fun bnGapDp(c: Context, fit: Float = fitScale.floatValue): Int = kotlin.math.ceil(maxOf(10f, bnSlotDp(c, fit) * 0.17f)).toInt()
     fun bnWidthDp(c: Context, fit: Float = fitScale.floatValue): Int = (bnSlotDp(c, fit) - bnGapDp(c, fit)).toInt().coerceAtLeast(56)
     /** Фон дока: по умолчанию в режиме баннеров «без подложки» (как на картинке), иначе прежний. */
     fun bgEff(c: Context): Int = if (banners(c) && !sp(c).contains("dock_bg")) 5 else bg(c)
@@ -182,6 +192,9 @@ object HomeDock {
     @Volatile var allOpenedAt = 0L
     fun labelSp(c: Context) = sp(c).getInt("dock_label_sp", 10)
     fun setLabelSp(c: Context, v: Int) { sp(c).edit().putInt("dock_label_sp", v.coerceIn(8, 16)).apply(); rev.intValue++ }
+    /** 18.1: «вниз» на значке дока открывает все приложения (по умолчанию да); выключено: ничего не происходит, экран не меняется. */
+    fun downOpens(c: Context) = sp(c).getBoolean("dock_down_opens", true)
+    fun setDownOpens(c: Context, v: Boolean) { sp(c).edit().putBoolean("dock_down_opens", v).apply(); rev.intValue++ }
     fun scrollbar(c: Context) = sp(c).getBoolean("dock_scrollbar", false)
     fun setScrollbar(c: Context, v: Boolean) { sp(c).edit().putBoolean("dock_scrollbar", v).apply(); rev.intValue++ }
     /** Приложения, которые не показываются в доке (ни выбранные, ни автодобавление, ни недавние); отдельно от общего «Скрытые приложения». */
@@ -231,6 +244,7 @@ fun HomeDockHost() {
         val r = PulsarDock.register(ctx)
         onDispose { runCatching { ctx.unregisterReceiver(r) } }
     }
+    HomeDock.uiCfg = androidx.compose.ui.platform.LocalConfiguration.current
     if (!HomeDock.on(ctx)) return
     val t = LocalTh.current
     // список приложений «Дома» не является состоянием Compose: перечитываем его, пока экран открыт (иначе док появлялся только после переключения)
@@ -276,12 +290,29 @@ fun HomeDockHost() {
         else leaveVia(ctx, 1) { runCatching { ctx.startActivity(Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
         Unit
     }
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+        val realW = maxWidth.value
+        androidx.compose.runtime.SideEffect { if (kotlin.math.abs(HomeDock.uiW.floatValue - realW) > 0.5f) HomeDock.uiW.floatValue = realW }
         Box(Modifier.fillMaxWidth().padding(horizontal = if (bnOn) HomeDock.bnSideDp(ctx).dp else 0.dp).padding(bottom = (HomeDock.bottom(ctx) + PulsarDock.heightDp(ctx)).dp).clip(RoundedCornerShape(dockRad.dp)).then(if (glass) Modifier.background(glassBrush).border(1.2.dp, androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.60f), Color.White.copy(alpha = 0.10f))), RoundedCornerShape(dockRad.dp)) else if (noBg) Modifier else Modifier.background(barBg))
             // долгое нажатие на пустом месте дока: меню дока (значки обрабатывают своё долгое нажатие сами)
             .pointerInput(Unit) { detectTapGestures(onLongPress = { barMenu = true }) }, contentAlignment = align) {
             val dockScroll = rememberScrollState()
-            Row(Modifier.horizontalScroll(dockScroll).padding(horizontal = 8.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+            // баннеры: видимая часть ровно в N целых ячеек (по центру), прокрутка идёт по ячейкам, обрезанных баннеров по краям нет
+            val viewW = if (bnOn) (minOf(items.size + rec.size, HomeDock.bnVis(ctx)) * (cellW + 2)) else 0
+            val rowMod = if (bnOn) Modifier.padding(horizontal = 8.dp).width(viewW.dp).horizontalScroll(dockScroll).padding(vertical = 3.dp)
+                else Modifier.horizontalScroll(dockScroll).padding(horizontal = 8.dp, vertical = 3.dp)
+            // на ТВ Compose по умолчанию держит выбранный элемент ближе к середине, и по краям оставались половинки баннеров:
+            // в режиме баннеров лента сдвигается ровно настолько, чтобы выбранная ячейка стала целиком видна (всегда на целую ячейку)
+            val edgePx = with(LocalDensity.current) { 1.dp.toPx() }
+            val defSpec = androidx.compose.foundation.gestures.LocalBringIntoViewSpec.current
+            val bivSpec = remember(bnOn, edgePx, defSpec) {
+                if (!bnOn) defSpec else object : androidx.compose.foundation.gestures.BringIntoViewSpec {
+                    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float =
+                        if (offset - edgePx < 0f) offset - edgePx else if (offset + size + edgePx > containerSize) offset + size + edgePx - containerSize else 0f
+                }
+            }
+            androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides bivSpec) {
+            Row(rowMod, verticalAlignment = Alignment.CenterVertically) {
                 @Composable
                 fun Cell(e: Entry, idx: Int, movable: Boolean) {
                     var focused by remember { mutableStateOf(false) }
@@ -301,8 +332,10 @@ fun HomeDockHost() {
                                 if (ok && ev.type == KeyEventType.KeyDown && ev.nativeKeyEvent.repeatCount >= 1 && !longKey) { longKey = true; menuFor = e; return@onPreviewKeyEvent true }
                                 if (ok && ev.type == KeyEventType.KeyUp && longKey) { longKey = false; return@onPreviewKeyEvent true }
                                 if (ev.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                                // клавиша «Меню» («Инфо») на ячейке дока: меню ячейки (убрать из дока, настройки дока)
+                                if ((ev.key == Key.Menu || ev.key == Key.Info) && ev.nativeKeyEvent.repeatCount == 0) { menuFor = e; return@onPreviewKeyEvent true }
                                 // «вниз» с дока: остальные приложения в стекле, фокус центра освобождается
-                                if (ev.key == Key.DirectionDown) { if (PulsarDock.heightDp(ctx) > 0) PulsarDock.focusDock(ctx) else openAll(); true } else false
+                                if (ev.key == Key.DirectionDown) { if (PulsarDock.heightDp(ctx) > 0) PulsarDock.focusDock(ctx) else if (HomeDock.downOpens(ctx)) openAll(); true } else false
                             }
                             .then(if (bnOn) Modifier.zIndex(if (focused) 1f else 0f) else Modifier.clip(RoundedCornerShape(10.dp)))
                             .background(if (HomeDock.moving.value == e.pkg) t.accent.copy(alpha = 0.55f) else if (focused && !bnOn) t.accent else Color.Transparent)
@@ -370,9 +403,11 @@ fun HomeDockHost() {
                 items.forEachIndexed { idx, e -> androidx.compose.runtime.key("d" + e.pkg) { Cell(e, idx, true) } }
                 if (rec.isNotEmpty()) {
                     // разделитель между основной секцией и недавними
-                    Box(Modifier.padding(horizontal = 6.dp).width(1.dp).height((iconDp + 8).dp).background(txt.copy(alpha = 0.3f)))
+                    // в режиме баннеров разделителя нет: он сдвигал бы ячейки и крайний баннер обрезался
+                    if (!bnOn) Box(Modifier.padding(horizontal = 6.dp).width(1.dp).height((iconDp + 8).dp).background(txt.copy(alpha = 0.3f)))
                     rec.forEach { e -> androidx.compose.runtime.key("r" + e.pkg) { Cell(e, -1, false) } }
                 }
+            }
             }
             // полоса прокрутки дока (настройка «Полоса прокрутки дока»): видна, когда значки не помещаются
             if (HomeDock.scrollbar(ctx) && dockScroll.maxValue > 0) Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).drawBehind {

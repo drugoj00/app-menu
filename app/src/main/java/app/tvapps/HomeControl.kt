@@ -228,13 +228,26 @@ object HomeControl {
         setAlias(ctx, true)
         if (!setDefault(ctx) && currentHome(ctx) != ctx.packageName) { return "no_default" }
         val done = mutableListOf<String>()
+        val gone = mutableSetOf<String>()
         for (p in others) {
+            // 18.1: на части приставок прошивка на загрузке заново включает замороженный родной экран (Alice UX, журнал Евгения 25.11.2026):
+            // по выбору в настройках родной экран удаляется для пользователя, так что на загрузке запускать нечего; не вышло: замораживаем как раньше
+            if (Cfg.hardRemove) {
+                val rm = runCatching { Adb.shell("pm uninstall -k --user 0 $p") }.getOrDefault("")
+                if (rm.contains("Success", true)) { done += p; gone += p; continue }
+                Log.w("TVApps", "не удалился $p: ${rm.take(200)}")
+            }
             val out = runCatching { Adb.shell("pm disable-user --user 0 $p") }.getOrDefault("")
             if (out.contains("disabled", true)) done += p else Log.w("TVApps", "не отключился $p: ${out.take(200)}")
         }
         if (done.isEmpty()) return "no_disable"
+        Cfg.changeHardGone(Cfg.hardGone + gone)
         Cfg.changeHardOff(Cfg.hardOff + done)
         writeRestoreFile(ctx)
+        // Android 7 (журнал Евгения 25.11.2026, 7.1.2): после отключения чужого экрана система сбрасывает «главный экран по умолчанию»
+        // («Result set changed, dropping preferred activity»), и проверка сразу возвращала родной экран. Назначаем себя ещё раз.
+        var tries = 0
+        while (currentHome(ctx) != ctx.packageName && tries++ < 3) { setDefault(ctx); kotlinx.coroutines.delay(700) }
         // проверка: главным остался только этот экран; иначе сразу возвращаем всё как было
         if (currentHome(ctx).let { it != ctx.packageName }) {
             hardOff(ctx)
@@ -250,8 +263,23 @@ object HomeControl {
         if (!Adb.isConnected) return "no_adb"
         val left = mutableSetOf<String>()
         for (p in list) {
+            if (p in Cfg.hardGone) {
+                // удалённый для пользователя родной экран возвращается из прошивки
+                var ins = runCatching { Adb.shell("pm install-existing --user 0 $p") }.getOrDefault("")
+                var ok = ins.contains("installed", true) || ins.contains("Success", true)
+                if (!ok) {
+                    // Android 7 и старше: команды install-existing нет, ставим файл из прошивки (его путь виден и у удалённого для пользователя пакета)
+                    val line = runCatching { Adb.shell("pm list packages -u -f") }.getOrDefault("").lineSequence().map { it.trim() }.firstOrNull { it.endsWith("=$p") }
+                    val apk = line?.removePrefix("package:")?.removeSuffix("=$p")
+                    if (!apk.isNullOrBlank() && apk.startsWith("/") && !apk.contains(' ') && !apk.contains(';')) {
+                        ins = runCatching { Adb.shell("pm install -r --user 0 $apk") }.getOrDefault("")
+                        ok = ins.contains("Success", true)
+                    }
+                }
+                if (ok) Cfg.changeHardGone(Cfg.hardGone - p) else Log.w("TVApps", "не вернулся $p: ${ins.take(200)}")
+            }
             val out = runCatching { Adb.shell("pm enable --user 0 $p") }.getOrDefault("")
-            if (!out.contains("enabled", true)) left += p
+            if (p in Cfg.hardGone || (!out.contains("enabled", true) && !out.contains("already", true))) left += p
         }
         Cfg.changeHardOff(left)
         // назначаем прежний родной экран главным
@@ -265,7 +293,7 @@ object HomeControl {
     /** Команды возврата в файле на устройстве: пригодится, если программа не открывается. Только ASCII: оболочка не принимает кириллицу. */
     private suspend fun writeRestoreFile(ctx: Context) {
         val lines = listOf("Restore the built-in home screen (App Menu). Run from a computer:") +
-            Cfg.hardOff.map { "adb shell pm enable --user 0 $it" } +
+            Cfg.hardOff.flatMap { if (it in Cfg.hardGone) listOf("adb shell pm install-existing --user 0 $it", "adb shell pm list packages -u -f   (Android 7: no install-existing; take the apk path of $it from this list and run: adb shell pm install -r --user 0 <path>)", "adb shell pm enable --user 0 $it") else listOf("adb shell pm enable --user 0 $it") } +
             listOf("adb shell pm clear-preferred-activities ${ctx.packageName}")
         val args = lines.joinToString(" ") { "'" + it.replace("'", "") + "'" }
         runCatching { Adb.shell("printf '%s\n' $args > $RESTORE_FILE") }

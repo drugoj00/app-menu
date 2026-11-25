@@ -52,6 +52,11 @@ internal fun HomeHardBlock() {
             }
         }
     }
+    SectionHint(stringResource(R.string.home_hard_remove_h))
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Chip(stringResource(R.string.home_hard_remove), Cfg.hardRemove) { Cfg.changeHardRemove(!Cfg.hardRemove) }
+    }
+    if (Cfg.hardRemove) Text(stringResource(R.string.home_hard_remove_warn, HomeControl.toDisable(ctx).joinToString(", ")), color = t.accent, fontSize = 13.sp)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Chip(stringResource(R.string.home_hard_btn), Cfg.hardOff.isNotEmpty()) {
             if (busy) return@Chip
@@ -62,7 +67,7 @@ internal fun HomeHardBlock() {
                 others.isEmpty() -> Toast.makeText(ctx, ctx.getString(R.string.home_hard_no_others), Toast.LENGTH_LONG).show()
                 now - armedAt > 15_000 -> {
                     armedAt = now
-                    Toast.makeText(ctx, ctx.getString(R.string.home_hard_confirm, others.joinToString(", ")), Toast.LENGTH_LONG).show()
+                    Toast.makeText(ctx, ctx.getString(R.string.home_hard_confirm, others.joinToString(", ")) + (if (Cfg.hardRemove) " " + ctx.getString(R.string.home_hard_remove_warn, others.joinToString(", ")) else ""), Toast.LENGTH_LONG).show()
                 }
                 else -> {
                     armedAt = 0L

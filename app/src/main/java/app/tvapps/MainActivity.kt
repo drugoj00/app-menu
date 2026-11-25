@@ -201,8 +201,19 @@ class MainActivity : ComponentActivity(), HasFx {
     override val fx = ScreenFx()
     private val resumeTick = mutableIntStateOf(0)
 
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) SysBars.apply(this)
+    }
+
+    override fun dispatchGenericMotionEvent(ev: android.view.MotionEvent): Boolean {
+        HoverGate.onMotion(ev)
+        return super.dispatchGenericMotionEvent(ev)
+    }
+
     override fun dispatchKeyEvent(ev: android.view.KeyEvent): Boolean {
         if (ev.action == android.view.KeyEvent.ACTION_DOWN) AppsMem.lastKeyAt = System.currentTimeMillis()
+        HoverGate.onKey(ev)
         if (Voice.onKey(this, ev)) return true
         // 15.0: быстрые действия на кнопках пульта
         if (QuickActions.onKey(this, ev)) return true

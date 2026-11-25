@@ -214,7 +214,7 @@ internal fun HomeRowsView(
         Row(Modifier.padding(start = 6.dp, top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             // кнопка нужна только когда не осталось ни одной строки (иначе нечем вернуть); обычно «Добавить строку» — в долгом меню значка и строки
             // строк не осталось: подсказка-плитка (ОК, касание или долгое нажатие открывают то же меню, что долгое нажатие на пустом месте)
-            if (layout.rows.isEmpty()) HomeBox(Modifier.padding(4.dp), bg = LocalTh.current.tile, onClick = { onDlg(Dlg.Empty) }, onLong = { onDlg(Dlg.Empty) }) {
+            if (layout.rows.isEmpty() && !HomeDock.on(ctx)) HomeBox(Modifier.padding(4.dp), bg = LocalTh.current.tile, onClick = { onDlg(Dlg.Empty) }, onLong = { onDlg(Dlg.Empty) }) {
                 Text(stringResource(R.string.empty_hint), color = LocalTh.current.text, fontSize = 15.sp, modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp))
             }
         }

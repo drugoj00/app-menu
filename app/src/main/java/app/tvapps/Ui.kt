@@ -265,7 +265,7 @@ fun hintSp(v: Int): androidx.compose.ui.unit.TextUnit {
  */
 @Composable
 fun HDialog(onDismissRequest: () -> Unit, properties: androidx.compose.ui.window.DialogProperties = androidx.compose.ui.window.DialogProperties(), content: @Composable () -> Unit) {
-    androidx.compose.ui.window.Dialog(onDismissRequest = onDismissRequest, properties = properties) { MouseDragInDialog(); CompositionLocalProvider(LocalChipReg provides null) { UiScale.ExtraScale { HalfUi { TvBoost { MotionPop { content() } } } } } }
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismissRequest, properties = properties) { DialogBars(); MouseDragInDialog();CompositionLocalProvider(LocalChipReg provides null) { UiScale.ExtraScale { HalfUi { TvBoost { MotionPop { content() } } } } } }
 }
 
 /**

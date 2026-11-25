@@ -259,16 +259,39 @@ object SysBars {
         // прежняя общая настройка "sys_bars" переносится в обе
         return p.getInt(key(nav), p.getInt("sys_bars", 0))
     }
-    fun set(ctx: Context, nav: Boolean, v: Int) { ctx.getSharedPreferences("tvapps", Context.MODE_PRIVATE).edit().putInt(key(nav), v).apply() }
+    /** Растёт при смене настройки: открытые окна-диалоги заново применяют панели. */
+    val tick = androidx.compose.runtime.mutableIntStateOf(0)
+    fun set(ctx: Context, nav: Boolean, v: Int) { ctx.getSharedPreferences("tvapps", Context.MODE_PRIVATE).edit().putInt(key(nav), v).apply(); tick.intValue++ }
     fun hidden(ctx: Context, nav: Boolean): Boolean = when (get(ctx, nav)) { 1 -> false; 2 -> true; else -> TopMode.isTv(ctx) }
 
     /** Применить к окну: каждая из панелей скрывается (появляется по свайпу от края) или показывается отдельно. */
     fun apply(act: android.app.Activity) {
-        val c = androidx.core.view.WindowInsetsControllerCompat(act.window, act.window.decorView)
         val hs = hidden(act, false); val hn = hidden(act, true)
         androidx.core.view.WindowCompat.setDecorFitsSystemWindows(act.window, !(hs && hn))
+        applyWindow(act, act.window)
+    }
+
+    /** То же для любого окна (и окна-диалога). На Android до 11 строке состояния добавляется флаг «на весь экран»: часть прошивок TV Box иначе её не прячет. */
+    @Suppress("DEPRECATION")
+    fun applyWindow(ctx: Context, w: android.view.Window) {
+        val c = androidx.core.view.WindowInsetsControllerCompat(w, w.decorView)
+        val hs = hidden(ctx, false); val hn = hidden(ctx, true)
+        if (android.os.Build.VERSION.SDK_INT < 30) {
+            if (hs) w.addFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN) else w.clearFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
+        }
         c.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         if (hs) c.hide(androidx.core.view.WindowInsetsCompat.Type.statusBars()) else c.show(androidx.core.view.WindowInsetsCompat.Type.statusBars())
         if (hn) c.hide(androidx.core.view.WindowInsetsCompat.Type.navigationBars()) else c.show(androidx.core.view.WindowInsetsCompat.Type.navigationBars())
     }
+}
+
+/** Окно-диалог на Android 7-10 заново показывает системные панели: прячет их так же, как «Дом», и сразу после смены настройки. */
+@Composable
+fun DialogBars() {
+    if (android.os.Build.VERSION.SDK_INT >= 30) return
+    val view = androidx.compose.ui.platform.LocalView.current
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    @Suppress("UNUSED_VARIABLE") val t = SysBars.tick.intValue
+    val w = (view.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window ?: return
+    androidx.compose.runtime.SideEffect { SysBars.applyWindow(ctx, w) }
 }

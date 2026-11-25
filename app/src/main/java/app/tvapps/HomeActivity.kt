@@ -81,6 +81,7 @@ class HomeActivity : ComponentActivity(), HasFx {
     // кнопка микрофона на пульте или аэромыши (клавиши «Поиск», «Голосовой ассистент», «Ассистент»)
     override fun dispatchKeyEvent(ev: android.view.KeyEvent): Boolean {
         if (ev.action == android.view.KeyEvent.ACTION_DOWN) AppsMem.lastKeyAt = System.currentTimeMillis()
+        HoverGate.onKey(ev)
         // 24.11.2026: «Назад» отменяет окно «Установить через…» и закрывает окно «Установка…», даже если окно потеряло фокус
         if (ev.keyCode == android.view.KeyEvent.KEYCODE_BACK && ev.action == android.view.KeyEvent.ACTION_UP && (InstallerPick.cancelPending() || SelfUpd.closeIfInstalling())) return true
         return HomeDock.moveKey(this, ev) || HomeDock.onKey(this, ev) || Voice.onKey(this, ev) || QuickActions.onKey(this, ev) || super.dispatchKeyEvent(ev)
@@ -176,6 +177,17 @@ class HomeActivity : ComponentActivity(), HasFx {
         super.onPause()
         fx.onPause()
         HomeControl.noteVisible(this, false)
+    }
+
+    // Android 7-10 возвращает системные панели после окон и системных всплывашек: прячем снова, когда окно получило фокус
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) SysBars.apply(this)
+    }
+
+    override fun dispatchGenericMotionEvent(ev: android.view.MotionEvent): Boolean {
+        HoverGate.onMotion(ev)
+        return super.dispatchGenericMotionEvent(ev)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -513,6 +525,7 @@ private fun HomeScreen(tick: Int, again: Int) {
                         androidx.compose.foundation.layout.BoxWithConstraints(Modifier.weight(1f)) {
                         // док занимает нижнюю полосу: область прокрутки заканчивается над ним, плитки нижней строки не прячутся под док
                         @Suppress("UNUSED_VARIABLE") val dockRev0 = HomeDock.rev.intValue
+                        HomeDock.uiCfg = androidx.compose.ui.platform.LocalConfiguration.current     // ширина дока в тех же dp, что и экран
                         // «Оставлять» (по умолчанию): под док зарезервировано место, ряды сдвинуты (зазоры между рядами уменьшены на высоту дока) и док их не перекрывает;
                         // «Закрывать после запуска»: док появляется поверх рядов, места под него нет
                         val dockKeep = HomeDock.on(ctx) && !HomeDock.closeAfter(ctx)

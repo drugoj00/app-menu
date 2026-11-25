@@ -211,6 +211,7 @@ fun MotionPop(content: @Composable () -> Unit) {
 fun MotionDialog(onDismissRequest: () -> Unit, properties: androidx.compose.ui.window.DialogProperties = androidx.compose.ui.window.DialogProperties(), content: @Composable () -> Unit) {
     // 20.11.2026: окно получает свою плотность, поэтому «Размер интерфейса» (ExtraScale) применяется здесь же; в портрете телефона окна крупнее (LocalDialogBoost)
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismissRequest, properties = properties) {
+        DialogBars()
         UiScale.ExtraScale {
             val boost = if (isNarrow() && androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT) 1.2f else 1f
             androidx.compose.runtime.CompositionLocalProvider(LocalDialogBoost provides boost) { MotionPop(content) }

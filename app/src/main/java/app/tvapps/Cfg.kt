@@ -132,6 +132,10 @@ object Cfg {
     var hardOff by mutableStateOf<Set<String>>(emptySet()); private set
     /** Главные экраны, которые железный режим должен оставить включёнными. null: выбора не было, тогда отключаются только системные. */
     var hardKeep by mutableStateOf<Set<String>?>(null); private set
+    /** 18.1: железный режим удаляет родной экран для пользователя («pm uninstall --user 0», файл остаётся в прошивке), а не замораживает его. */
+    var hardRemove by mutableStateOf(false); private set
+    /** Родные экраны, удалённые (а не отключённые) железным режимом: возвращаются командой install-existing. */
+    var hardGone by mutableStateOf<Set<String>>(emptySet()); private set
     /** Скрытые каналы приложений («пакет:номер»). */
     var hiddenChannels by mutableStateOf<Set<String>>(emptySet()); private set
     /** Город для карточки погоды в «Доме»; пусто: карточки нет. */
@@ -232,6 +236,8 @@ object Cfg {
         iconPackStyle = sp.getBoolean("icon_pack_style", false)
         nativeHome = sp.getString("native_home", "") ?: ""
         hardOff = sp.getStringSet("home_hard_off", emptySet())?.toSet() ?: emptySet()
+        hardRemove = sp.getBoolean("home_hard_remove", false)
+        hardGone = sp.getStringSet("home_hard_gone", emptySet())?.toSet() ?: emptySet()
         hardKeep = if (sp.getBoolean("home_hard_keep_set", false)) sp.getStringSet("home_hard_keep", emptySet())?.toSet() ?: emptySet() else null
         hiddenChannels = sp.getStringSet("hidden_channels", emptySet())?.toSet() ?: emptySet()
         weatherCity = sp.getString("weather_city", "") ?: ""
@@ -323,6 +329,8 @@ object Cfg {
     }
     fun lastLaunch(pkg: String): Long = sp.getLong("t_$pkg", 0L)
     fun changeHardKeep(v: Set<String>) { hardKeep = v; sp.edit().putStringSet("home_hard_keep", v).putBoolean("home_hard_keep_set", true).apply() }
+    fun changeHardRemove(v: Boolean) { hardRemove = v; sp.edit().putBoolean("home_hard_remove", v).apply() }
+    fun changeHardGone(v: Set<String>) { hardGone = v; sp.edit().putStringSet("home_hard_gone", v).apply() }
     fun changeHardOff(v: Set<String>) { hardOff = v; sp.edit().putStringSet("home_hard_off", v).apply() }
     fun changeNativeHome(v: String) { nativeHome = v; sp.edit().putString("native_home", v).apply() }
     fun changeReturnTo(v: String) { returnTo = v; sp.edit().putString("return_to", v).apply() }

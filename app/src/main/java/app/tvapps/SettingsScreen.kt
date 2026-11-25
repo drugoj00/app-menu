@@ -1304,6 +1304,7 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                         SwitchRow(stringResource(R.string.dock_auto), HomeDock.auto(ctx), listOf(stringResource(R.string.dock_auto_h))) { HomeDock.setAuto(ctx, it) }
                         SwitchRow(stringResource(R.string.dock_close_after), HomeDock.closeAfter(ctx), listOf(stringResource(R.string.dock_close_after_h))) { HomeDock.setCloseAfter(ctx, it) }
                         SwitchRow(stringResource(R.string.dock_scroll), HomeDock.scrollbar(ctx), listOf(stringResource(R.string.dock_scroll_h))) { HomeDock.setScrollbar(ctx, it) }
+                        SwitchRow(stringResource(R.string.dock_down), HomeDock.downOpens(ctx), listOf(stringResource(R.string.dock_down_h))) { HomeDock.setDownOpens(ctx, it) }
                         SwitchRow(stringResource(R.string.dock_btn), HomeDock.btn(ctx), listOf(stringResource(R.string.dock_btn_h))) { HomeDock.setBtn(ctx, it) }
                     } }
                     if (rvl.next(3)) { Section(stringResource(R.string.dock_key)) {
