@@ -777,7 +777,7 @@
     <string name="hint_more">Пояснение</string>
     <string name="home_auto_add_hint">Установленные приложения сами добавляются на «Дом» в строку «Новые приложения». Выключено: добавляются вручную.</string>
     <string name="home_auto_add_title">Новые приложения на «Доме»</string>
-    <string name="home_keep_hint">Какие главные экраны отключать: выделенные будут отключены, остальные останутся включёнными (между ними можно переключаться). По умолчанию выделены только встроенные системные.</string>
+    <string name="home_keep_hint">Какие главные экраны отключать: выделенные будут отключены, остальные останутся включёнными (между ними можно переключаться). По умолчанию выделены только встроенные системные. Если родной экран приставки (например Alice UX) не отключается, выделите его здесь.</string>
     <string name="home_module_need_menu">Нельзя выключить «Дом» и меню одновременно: сначала включите меню</string>
     <string name="home_new_apps_row">Новые приложения</string>
     <string name="home_ring_title">Цвет рамки выделения</string>
@@ -1206,4 +1206,9 @@
     <string name="st_bt_turning_on">Bluetooth включается</string>
     <string name="st_bt_turning_off">Bluetooth выключается</string>
     <string name="st_bt_fail">Не удалось переключить Bluetooth. Долгое нажатие открывает его настройки.</string>
+    <string name="home_hard_remove">Железный режим: удалять родной экран, а не замораживать</string>
+    <string name="home_hard_remove_h">На некоторых приставках прошивка на загрузке заново включает замороженный родной экран. С этим пунктом он удаляется для твоего пользователя (файл остаётся в прошивке) и возвращается кнопкой «ВЕРНУТЬ РОДНОЙ ЭКРАН». Действует при следующем включении железного режима.</string>
+    <string name="dock_down">Вниз с дока открывает все приложения</string>
+    <string name="dock_down_h">Выключено: «вниз» на значке дока ничего не делает, экран не меняется.</string>
+    <string name="home_hard_remove_warn">Внимание: родной экран (%1$s) будет УДАЛЁН для твоего пользователя. Если приставка не загрузится, выполни с компьютера по ADB: adb shell pm install-existing --user 0 ПАКЕТ (Android 8 и новее), на Android 7: adb shell pm list packages -u -f, затем adb shell pm install -r --user 0 ПУТЬ_К_APK, затем adb shell pm enable --user 0 ПАКЕТ. Эти команды есть и в файле /sdcard/tvapps_home_restore.txt. Файл остаётся в прошивке, и сброс настроек тоже вернёт экран.</string>
 </resources>
