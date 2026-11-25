@@ -777,7 +777,7 @@
     <string name="hint_more">Пояснення</string>
     <string name="home_auto_add_hint">Встановлені застосунки самі додаються на «Дім» у рядок «Нові застосунки». Вимкнено: додаються вручну.</string>
     <string name="home_auto_add_title">Нові застосунки на «Домі»</string>
-    <string name="home_keep_hint">Які головні екрани вимикати: виділені буде вимкнено, решта залишиться ввімкненою (між ними можна перемикатися). Типово виділено лише вбудовані системні.</string>
+    <string name="home_keep_hint">Які головні екрани вимикати: виділені буде вимкнено, решта залишиться ввімкненою (між ними можна перемикатися). Типово виділено лише вбудовані системні. Якщо рідний екран приставки (наприклад Alice UX) не вимикається, виділіть його тут.</string>
     <string name="home_module_need_menu">Не можна вимкнути «Дім» і меню одночасно: спершу ввімкніть меню</string>
     <string name="home_new_apps_row">Нові застосунки</string>
     <string name="home_ring_title">Колір рамки виділення</string>
@@ -1206,4 +1206,9 @@
     <string name="st_bt_turning_on">Bluetooth вмикається</string>
     <string name="st_bt_turning_off">Bluetooth вимикається</string>
     <string name="st_bt_fail">Не вдалося перемкнути Bluetooth. Довге натискання відкриває його налаштування.</string>
+    <string name="home_hard_remove">Залізний режим: видаляти рідний екран, а не заморожувати</string>
+    <string name="home_hard_remove_h">На деяких приставках прошивка на завантаженні знову вмикає заморожений рідний екран. З цим пунктом він видаляється для твого користувача (файл лишається в прошивці) і повертається кнопкою «ПОВЕРНУТИ РІДНИЙ ЕКРАН». Діє при наступному вмиканні залізного режиму.</string>
+    <string name="dock_down">Вниз із дока відкриває всі застосунки</string>
+    <string name="dock_down_h">Вимкнено: «вниз» на значку дока нічого не робить, екран не змінюється.</string>
+    <string name="home_hard_remove_warn">Увага: рідний екран (%1$s) буде ВИДАЛЕНО для твого користувача. Якщо приставка не завантажиться, виконай з комп\'ютера через ADB: adb shell pm install-existing --user 0 ПАКЕТ (Android 8 і новіше), на Android 7: adb shell pm list packages -u -f, потім adb shell pm install -r --user 0 ШЛЯХ_ДО_APK, потім adb shell pm enable --user 0 ПАКЕТ. Ці команди є і у файлі /sdcard/tvapps_home_restore.txt. Файл лишається в прошивці, і скидання налаштувань теж поверне екран.</string>
 </resources>
