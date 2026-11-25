@@ -777,7 +777,7 @@
     <string name="hint_more">Explanation</string>
     <string name="home_auto_add_hint">New installed apps are added to the “New apps” row on Home by themselves. When off, apps are added by hand.</string>
     <string name="home_auto_add_title">New apps on Home</string>
-    <string name="home_keep_hint">Which home screens to turn off: highlighted ones are turned off, the rest stay on (you can switch between them). By default only built-in system ones are highlighted.</string>
+    <string name="home_keep_hint">Which home screens to turn off: highlighted ones are turned off, the rest stay on (you can switch between them). By default only built-in system ones are highlighted. If the built-in home screen of your box (for example Alice UX) does not switch off, select it here.</string>
     <string name="home_module_need_menu">Home and the menu cannot both be turned off: turn on the menu first</string>
     <string name="home_new_apps_row">New apps</string>
     <string name="home_ring_title">Selection frame colour</string>
@@ -1206,4 +1206,9 @@
     <string name="st_bt_turning_on">Turning Bluetooth on</string>
     <string name="st_bt_turning_off">Turning Bluetooth off</string>
     <string name="st_bt_fail">Could not change Bluetooth. Long press opens its settings.</string>
+    <string name="home_hard_remove">Iron mode: remove the built-in home screen instead of freezing it</string>
+    <string name="home_hard_remove_h">Some boxes turn a frozen built-in home screen back on at boot. When this is on, it is removed for your user instead (the file stays in the firmware) and comes back with the RESTORE button. Applies the next time iron mode is switched on.</string>
+    <string name="dock_down">Down from the dock opens all apps</string>
+    <string name="dock_down_h">Off: Down on a dock icon does nothing and the screen does not change.</string>
+    <string name="home_hard_remove_warn">Warning: the built-in home screen (%1$s) will be REMOVED for your user. If the box does not start, run from a computer over ADB: adb shell pm install-existing --user 0 PACKAGE (Android 8+), on Android 7: adb shell pm list packages -u -f, then adb shell pm install -r --user 0 PATH_TO_APK, then adb shell pm enable --user 0 PACKAGE. The commands are also in /sdcard/tvapps_home_restore.txt. The file stays in the firmware, and a factory reset also brings it back.</string>
 </resources>
