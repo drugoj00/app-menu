@@ -1079,6 +1079,14 @@
     <string name="dock_btn">“Dock panel” button in the top bar</string>
     <string name="dock_btn_h">Shows or hides the dock and moves the focus into it; a long press opens the top bar menu. On by default.</string>
     <string name="dock_bg_auto">By theme</string>
+    <string name="dock_style">Tile style</string>
+    <string name="dock_st_icons">Icons</string>
+    <string name="dock_st_banners">Banners</string>
+    <string name="dock_bn_vis">Banners on screen</string>
+    <string name="dock_bn_size">Banner size</string>
+    <string name="dock_bg_glass">Clear glass</string>
+    <string name="dock_bg_frost">Frosted glass</string>
+    <string name="dock_bg_none">No backdrop</string>
     <string name="dock_radius">Corner rounding</string>
     <string name="dock_sort">Sort</string>
     <string name="dock_s0">Own order</string>
