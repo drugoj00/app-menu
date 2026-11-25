@@ -272,6 +272,8 @@ object SelfUpd {
 
     /** Закрыть окно «Установка…» (кнопка «Закрыть» и «Назад»): установка в фоне может закончиться позже, тогда результат не показывается. */
     fun closeInstalling() { token++; if (state is St.Installing) state = null }
+    /** Закрывает окно «Установка…», если оно открыто (клавиши «Назад», «Домой»); true, если было что закрывать. */
+    fun closeIfInstalling(): Boolean { if (state !is St.Installing) return false; closeInstalling(); return true }
 
     @Volatile private var curInfo = ""
     @Volatile private var curMethod = ""
@@ -464,7 +466,16 @@ private fun NotesDialog(c: UpdCand) {
                     .focusable()
                     .verticalScroll(sc).padding(end = ScrollbarMath.RESERVE_DP.dp),
             ) {
-                Text(text.ifBlank { stringResource(R.string.notes_none) }, color = t.text, fontSize = 15.sp)
+                val shown = text.ifBlank { stringResource(R.string.notes_none) }
+                if (NotesLinks.has(shown)) {
+                    val ann = NotesLinks.annotated(shown, t.accent)
+                    val nctx = androidx.compose.ui.platform.LocalContext.current
+                    androidx.compose.foundation.text.ClickableText(ann, style = androidx.compose.ui.text.TextStyle(color = t.text, fontSize = 15.sp), onClick = { off ->
+                        ann.getStringAnnotations(NotesLinks.TAG, off, off).firstOrNull()?.let { a ->
+                            runCatching { nctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(a.item)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                        }
+                    })
+                } else Text(shown, color = t.text, fontSize = 15.sp)
             }
             Chip(stringResource(R.string.close), true, Modifier.focusRequester(first)) { SelfUpd.notes = null }
         }

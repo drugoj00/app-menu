@@ -81,6 +81,8 @@ class HomeActivity : ComponentActivity(), HasFx {
     // кнопка микрофона на пульте или аэромыши (клавиши «Поиск», «Голосовой ассистент», «Ассистент»)
     override fun dispatchKeyEvent(ev: android.view.KeyEvent): Boolean {
         if (ev.action == android.view.KeyEvent.ACTION_DOWN) AppsMem.lastKeyAt = System.currentTimeMillis()
+        // 24.11.2026: «Назад» отменяет окно «Установить через…» и закрывает окно «Установка…», даже если окно потеряло фокус
+        if (ev.keyCode == android.view.KeyEvent.KEYCODE_BACK && ev.action == android.view.KeyEvent.ACTION_UP && (InstallerPick.cancelPending() || SelfUpd.closeIfInstalling())) return true
         return HomeDock.moveKey(this, ev) || HomeDock.onKey(this, ev) || Voice.onKey(this, ev) || QuickActions.onKey(this, ev) || super.dispatchKeyEvent(ev)
     }
 
@@ -179,6 +181,7 @@ class HomeActivity : ComponentActivity(), HasFx {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         if (intent.categories?.contains(Intent.CATEGORY_HOME) == true) MemoryCleaner.onHome(this)
+        if (intent.categories?.contains(Intent.CATEGORY_HOME) == true) { InstallerPick.cancelPending(); SelfUpd.closeIfInstalling() }      // 24.11.2026: «Домой» снимает зависшие окна установки
         // «Домой» из другой программы: на «Дом», в начало и курсор на первый элемент;
         // «Домой» на самом «Доме» (мы уже здесь): в начало, а если уже в начале, то открывается меню приложений
         // «Домой на Доме» (мы уже на «Доме», меню поверх нет и «Назад» из меню не нажимали): открывается меню; иначе просто вернулись на «Дом»
@@ -519,12 +522,14 @@ private fun HomeScreen(tick: Int, again: Int) {
                         Column(Modifier.fillMaxSize().padding(bottom = dockPad).nestedScroll(swipeMenu).verticalScroll(scroll)) {
                             // поля сверху и снизу: выбранный элемент увеличивается и не должен обрезаться краем прокручиваемой области
                             @Suppress("UNUSED_VARIABLE") val dockRev = HomeDock.rev.intValue
+                            FitHeight(viewH, dockKeep) {
                             Column(Modifier.padding(top = 10.dp, bottom = 10.dp)) {
                                 HomeRowsView(
                                     layoutShown, apps, tick, refreshTick, movingItem, firstReq,
                                     openApp = openApp, openMenu = { openMenu() }, onDlg = { dlg = it }, onMoveEnd = { movingItem = null }, onMoveStart = { dlg = null; movingItem = it },
                                     panelH = (viewH - 40.dp).coerceAtLeast(260.dp),
                                 )
+                            }
                             }
                         }
                         }

@@ -85,7 +85,7 @@ sealed interface Dlg {
     data class WidgetEdge(val rowId: String, val slot: Int) : Dlg
     data class WidgetType(val rowId: String, val slot: Int) : Dlg
     data class WidgetCity(val rowId: String, val slot: Int) : Dlg
-    /** Вид часов и погоды: part - раздел настроек (пусто: список разделов). */
+    /** Вид часов и погоды: part — раздел настроек (пусто: список разделов). */
     data class WidgetStyle(val rowId: String, val slot: Int, val part: String = "") : Dlg
     data class WidgetRestore(val rowId: String, val slot: Int) : Dlg
     data class Status(val id: String) : Dlg
@@ -158,12 +158,12 @@ internal fun programsFor(row: HRow, channels: List<ChRow>): List<ChProgram> {
 internal fun HomeRowsView(
     layout: HLayout, apps: List<Entry>, tick: Int, refreshTick: Int, movingItem: String?, firstReq: FocusRequester,
     openApp: (Entry) -> Unit, openMenu: () -> Unit, onDlg: (Dlg?) -> Unit, onMoveEnd: () -> Unit, onMoveStart: (String) -> Unit = {},
-    /** Высота панели «Все приложения» (видимая область «Дома»); 0 - панель не показывается. */
+    /** Высота панели «Все приложения» (видимая область «Дома»); 0 — панель не показывается. */
     panelH: androidx.compose.ui.unit.Dp = 0.dp,
 ) {
     val ctx = LocalContext.current
     val byPkg = remember(apps) { apps.associateBy { it.pkg } }
-    // панель «Все приложения» стоит под последней строкой виджетов (нет виджетов - в конце)
+    // панель «Все приложения» стоит под последней строкой виджетов (нет виджетов — в конце)
     val panelOn = Cfg.homeAllPanel && panelH > 0.dp
     // панель занимает остаток видимой области под строками над ней (на первом экране «Дома» помещается целиком), но не ниже 300 dp
     var panelTopPx by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
@@ -212,7 +212,7 @@ internal fun HomeRowsView(
         if (panelOn && layout.rows.isEmpty()) AllAppsPanel(apps, panelEff, openApp, onDlg)
         // кнопка «Добавить строку» всегда в конце: без неё нечем вернуть строки, если стёрли все
         Row(Modifier.padding(start = 6.dp, top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            // кнопка нужна только когда не осталось ни одной строки (иначе нечем вернуть); обычно «Добавить строку» - в долгом меню значка и строки
+            // кнопка нужна только когда не осталось ни одной строки (иначе нечем вернуть); обычно «Добавить строку» — в долгом меню значка и строки
             // строк не осталось: подсказка-плитка (ОК, касание или долгое нажатие открывают то же меню, что долгое нажатие на пустом месте)
             if (layout.rows.isEmpty()) HomeBox(Modifier.padding(4.dp), bg = LocalTh.current.tile, onClick = { onDlg(Dlg.Empty) }, onLong = { onDlg(Dlg.Empty) }) {
                 Text(stringResource(R.string.empty_hint), color = LocalTh.current.text, fontSize = 15.sp, modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp))
@@ -221,7 +221,7 @@ internal fun HomeRowsView(
     }
 }
 
-/** Название строки: пустое - места над строкой нет; «невидимое» - место остаётся, текста не видно. */
+/** Название строки: пустое — места над строкой нет; «невидимое» — место остаётся, текста не видно. */
 @Composable
 private fun RowTitle(row: HRow, onDlg: (Dlg?) -> Unit) {
     val t = LocalTh.current
@@ -277,7 +277,7 @@ private fun AppsRow(
     }
     val state = androidx.compose.foundation.lazy.rememberLazyListState()
     val lastReq = remember { FocusRequester() }
-    // «Назад» на пульте: курсор в этой строке не на первой плитке - вернуть на первую (RowBack)
+    // «Назад» на пульте: курсор в этой строке не на первой плитке — вернуть на первую (RowBack)
     val rowScope = androidx.compose.runtime.rememberCoroutineScope()
     androidx.compose.runtime.DisposableEffect(row.id, els.first().item.id) {
         val fk = row.id + "|" + els.first().item.id
@@ -534,7 +534,7 @@ private fun CardsRow(
     }
     val state = androidx.compose.foundation.lazy.rememberLazyListState()
     val lastReq = remember { FocusRequester() }
-    // «Назад» на пульте: курсор в этой строке карточек не на первой - вернуть на первую (RowBack)
+    // «Назад» на пульте: курсор в этой строке карточек не на первой — вернуть на первую (RowBack)
     val rowScope = androidx.compose.runtime.rememberCoroutineScope()
     val progRef = androidx.compose.runtime.rememberUpdatedState(programs)
     androidx.compose.runtime.DisposableEffect(row.id, programs.first().kind.toString() + "|" + programs.first().id) {
@@ -702,7 +702,7 @@ internal fun TileDragOverlay(scroll: androidx.compose.foundation.ScrollState) {
 }
 
 /**
- * Наименьшая ширина плитки ряда «Дома» при масштабе 1 (под значком стоит подпись). Раньше была 84 dp для любого размера: у мелких значков (40-56 dp)
+ * Наименьшая ширина плитки ряда «Дома» при масштабе 1 (под значком стоит подпись). Раньше была 84 dp для любого размера: у мелких значков (40–56 dp)
  * рамка выделения выходила вдвое шире значка («плитка при выделении гораздо крупнее значка», 4PDA, flint1965, 21.11.2026). Теперь ширина
  * растёт с размером значка и не превышает прежние 84 dp.
  */

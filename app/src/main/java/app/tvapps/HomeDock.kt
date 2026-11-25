@@ -13,6 +13,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.horizontalScroll
@@ -132,6 +134,38 @@ object HomeDock {
     fun setSort(c: Context, v: Int) { sp(c).edit().putInt("dock_sort", v).apply(); rev.intValue++ }
     fun radius(c: Context) = sp(c).getInt("dock_radius", 0)
     fun setRadius(c: Context, v: Int) { sp(c).edit().putInt("dock_radius", v.coerceIn(0, 30)).apply(); rev.intValue++ }
+    /** 17.2 (просьба Евгения 24.11.2026): вид плиток дока: 0 значки (как раньше), 1 баннеры приложений (как на «Доме»). */
+    fun style(c: Context) = sp(c).getInt("dock_style", 0)
+    fun setStyle(c: Context, v: Int) { sp(c).edit().putInt("dock_style", v).apply(); rev.intValue++ }
+    fun banners(c: Context) = style(c) == 1
+    /** Сколько баннеров помещается в полосе одновременно (5-8); остальные прокручиваются вправо и влево. */
+    fun bnVis(c: Context) = sp(c).getInt("dock_bn_vis", 6)
+    fun setBnVis(c: Context, v: Int) { sp(c).edit().putInt("dock_bn_vis", v.coerceIn(5, 8)).apply(); rev.intValue++ }
+    /** Размер баннера в процентах от места под него (50-100). */
+    fun bnSize(c: Context) = sp(c).getInt("dock_bn_size", 90)
+    fun setBnSize(c: Context, v: Int) { sp(c).edit().putInt("dock_bn_size", v.coerceIn(50, 100)).apply(); rev.intValue++ }
+    /** Ширина баннера в dp: экран делится на число видимых баннеров и умножается на размер. */
+    /** 17.3: во сколько раз «Дом» уменьшил ряды, чтобы уместиться над доком (пишет FitHeight); док берёт ту же ширину, что и ряды. */
+    val fitScale = androidx.compose.runtime.mutableFloatStateOf(1f)
+    /** Боковые поля «Дома» в dp (как в HomeActivity): ряды и док выровнены по ним. */
+    fun sidePadDp(c: Context): Int = if (c.resources.configuration.smallestScreenWidthDp < 600) 10 else 32
+    /** Боковой отступ полосы баннеров: поля «Дома» плюс то, что ряды сузились при уменьшении. */
+    fun bnSideDp(c: Context, fit: Float = fitScale.floatValue): Float {
+        val side = sidePadDp(c); val w = c.resources.configuration.screenWidthDp
+        return side + (w - 2 * side) * (1f - fit.coerceIn(0.5f, 1f)) / 2f
+    }
+    /** Ширина ячейки баннера (баннер + воздух между баннерами) в dp. */
+    fun bnSlotDp(c: Context, fit: Float = fitScale.floatValue): Float {
+        val side = sidePadDp(c); val w = c.resources.configuration.screenWidthDp
+        return ((w - 2 * side) * fit.coerceIn(0.5f, 1f) - 16f) / bnVis(c) * bnSize(c) / 100f   // 16 dp: поля внутри плашки, чтобы N баннеров помещались целиком
+    }
+    /** Воздух между баннерами: около 16% ячейки (как на картинке), не меньше 10 dp. */
+    fun bnGapDp(c: Context, fit: Float = fitScale.floatValue): Int = maxOf(10f, bnSlotDp(c, fit) * 0.16f).toInt()
+    fun bnWidthDp(c: Context, fit: Float = fitScale.floatValue): Int = (bnSlotDp(c, fit) - bnGapDp(c, fit)).toInt().coerceAtLeast(56)
+    /** Фон дока: по умолчанию в режиме баннеров «без подложки» (как на картинке), иначе прежний. */
+    fun bgEff(c: Context): Int = if (banners(c) && !sp(c).contains("dock_bg")) 5 else bg(c)
+    fun bnHeightDp(c: Context, fit: Float = fitScale.floatValue): Int = bnWidthDp(c, fit) * 9 / 16
+    fun hasAlign(c: Context) = sp(c).contains("dock_align")
     fun recents(c: Context) = sp(c).getBoolean("dock_recents", false)
     fun setRecents(c: Context, v: Boolean) { sp(c).edit().putBoolean("dock_recents", v).apply(); rev.intValue++ }
     fun recentN(c: Context) = sp(c).getInt("dock_recent_n", 3)
@@ -183,7 +217,7 @@ object HomeDock {
     }
 
     /** Высота дока в dp (чтобы строки «Дома» не уезжали под него). */
-    fun heightDp(c: Context): Int = icon(c) + (if (labels(c)) (labelSp(c) * 13 / 10 + 7) else 0) + 12 + bottom(c)
+    fun heightDp(c: Context): Int = PulsarDock.heightDp(c) + (if (banners(c)) bnHeightDp(c, 1f) * 5 / 4 + 22 + bottom(c) else icon(c) + (if (labels(c)) (labelSp(c) * 13 / 10 + 7) else 0) + 12 + bottom(c))
 }
 
 /** Док поверх «Дома» у нижнего края. Ставится после содержимого экрана. */
@@ -192,25 +226,43 @@ object HomeDock {
 fun HomeDockHost() {
     val ctx = LocalContext.current
     @Suppress("UNUSED_VARIABLE") val rv = HomeDock.rev.intValue
+    // 17.3: слушаем Pulsar (его нижняя панель) и поднимаем док выше неё
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        val r = PulsarDock.register(ctx)
+        onDispose { runCatching { ctx.unregisterReceiver(r) } }
+    }
     if (!HomeDock.on(ctx)) return
     val t = LocalTh.current
     // список приложений «Дома» не является состоянием Compose: перечитываем его, пока экран открыт (иначе док появлялся только после переключения)
     var all by remember { mutableStateOf(AppsMem.list) }
-    androidx.compose.runtime.LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(600); if (AppsMem.list !== all) all = AppsMem.list } }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        var n = 0
+        try {
+            while (true) { kotlinx.coroutines.delay(600); if (AppsMem.list !== all) all = AppsMem.list; PulsarDock.refresh(); if (n++ % 5 == 0) PulsarDock.announce(ctx, true) }
+        } finally { PulsarDock.announce(ctx, false) }
+    }
     val items = HomeDock.shown(ctx, all)
     if (items.isEmpty()) return
     val rec = if (HomeDock.recents(ctx)) HomeDock.recentApps(ctx, all, items.map { it.pkg }.toSet()) else emptyList()
-    val light = when (HomeDock.bg(ctx)) { 1 -> true; 2 -> !t.dark; else -> false }
+    val light = when (HomeDock.bgEff(ctx)) { 1 -> true; 2 -> !t.dark; else -> false }
     val alpha = (100 - HomeDock.transp(ctx)).coerceIn(0, 100) / 100f
     val barBg = (if (light) Color(0xFFF5F5F5) else Color(0xFF101418)).copy(alpha = alpha)
     val txt = if (light) Color(0xFF111111) else Color.White
     // тёмные подписи только на светлой панели, которая достаточно непрозрачна; иначе светлые с тёмной тенью (на прозрачной панели под ней картинка, обычно тёмная внизу)
     val darkLabels = light && HomeDock.transp(ctx) < 60
     val iconDp = HomeDock.icon(ctx)
+    // 17.2: «стекло» (bg 3 прозрачное, 4 матовое): светлая дымка с тонкой рамкой; баннеры вместо значков
+    val bgm = HomeDock.bgEff(ctx)
+    val glass = bgm == 3 || bgm == 4
+    val noBg = bgm == 5
+    val bnOn = HomeDock.banners(ctx)
+    val cellW = if (bnOn) HomeDock.bnWidthDp(ctx) + HomeDock.bnGapDp(ctx) else iconDp + 26
+    val dockRad = if ((glass || bnOn) && HomeDock.radius(ctx) == 0) 22 else HomeDock.radius(ctx)
+    val glassBrush = androidx.compose.ui.graphics.Brush.verticalGradient(if (bgm == 4) listOf(Color.White.copy(alpha = 0.34f), Color.White.copy(alpha = 0.18f)) else listOf(Color.White.copy(alpha = 0.20f), Color.White.copy(alpha = 0.07f)))
     val showLabels = HomeDock.labels(ctx)
-    val align = when (HomeDock.align(ctx)) { 0 -> Alignment.CenterStart; 2 -> Alignment.CenterEnd; else -> Alignment.Center }
+    val align = when (if (bnOn && !HomeDock.hasAlign(ctx)) 1 else HomeDock.align(ctx)) { 0 -> Alignment.CenterStart; 2 -> Alignment.CenterEnd; else -> Alignment.Center }
     val sel = androidx.compose.runtime.rememberCoroutineScope()
-    val cellPx = with(LocalDensity.current) { (iconDp + 26).dp.toPx() }
+    val cellPx = with(LocalDensity.current) { cellW.dp.toPx() }
     var menuFor by remember { mutableStateOf<Entry?>(null) }
     var barMenu by remember { mutableStateOf(false) }
     val firstReq = remember { androidx.compose.ui.focus.FocusRequester() }
@@ -225,7 +277,7 @@ fun HomeDockHost() {
         Unit
     }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
-        Box(Modifier.fillMaxWidth().padding(bottom = HomeDock.bottom(ctx).dp).clip(RoundedCornerShape(HomeDock.radius(ctx).dp)).background(barBg)
+        Box(Modifier.fillMaxWidth().padding(horizontal = if (bnOn) HomeDock.bnSideDp(ctx).dp else 0.dp).padding(bottom = (HomeDock.bottom(ctx) + PulsarDock.heightDp(ctx)).dp).clip(RoundedCornerShape(dockRad.dp)).then(if (glass) Modifier.background(glassBrush).border(1.2.dp, androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.60f), Color.White.copy(alpha = 0.10f))), RoundedCornerShape(dockRad.dp)) else if (noBg) Modifier else Modifier.background(barBg))
             // долгое нажатие на пустом месте дока: меню дока (значки обрабатывают своё долгое нажатие сами)
             .pointerInput(Unit) { detectTapGestures(onLongPress = { barMenu = true }) }, contentAlignment = align) {
             val dockScroll = rememberScrollState()
@@ -240,7 +292,7 @@ fun HomeDockHost() {
                     var lpAt by remember { mutableStateOf(0L) }          // момент долгого касания: отпускание после него не запускает приложение
                     var longKey by remember { mutableStateOf(false) }    // долгое ОК на пульте уже открыло меню
                     Column(
-                        Modifier.padding(horizontal = 1.dp).width((iconDp + 26).dp)
+                        Modifier.padding(horizontal = 1.dp).width(cellW.dp)
                             .then(if (idx == 0) Modifier.focusRequester(firstReq) else Modifier)
                             .focusRequester(cellReq)
                             .onFocusChanged { focused = it.isFocused; if (it.isFocused) { if (e.pkg !in HomeDock.focusedPkgs) HomeDock.focusedPkgs.add(e.pkg) } else HomeDock.focusedPkgs.remove(e.pkg) }
@@ -250,10 +302,10 @@ fun HomeDockHost() {
                                 if (ok && ev.type == KeyEventType.KeyUp && longKey) { longKey = false; return@onPreviewKeyEvent true }
                                 if (ev.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                                 // «вниз» с дока: остальные приложения в стекле, фокус центра освобождается
-                                if (ev.key == Key.DirectionDown) { openAll(); true } else false
+                                if (ev.key == Key.DirectionDown) { if (PulsarDock.heightDp(ctx) > 0) PulsarDock.focusDock(ctx) else openAll(); true } else false
                             }
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(if (HomeDock.moving.value == e.pkg) t.accent.copy(alpha = 0.55f) else if (focused) t.accent else Color.Transparent)
+                            .then(if (bnOn) Modifier.zIndex(if (focused) 1f else 0f) else Modifier.clip(RoundedCornerShape(10.dp)))
+                            .background(if (HomeDock.moving.value == e.pkg) t.accent.copy(alpha = 0.55f) else if (focused && !bnOn) t.accent else Color.Transparent)
                             .then(if (HomeDock.moving.value == e.pkg) Modifier.border(3.dp, t.accent, RoundedCornerShape(10.dp)) else Modifier)
                             .pointerInput(e.pkg, movable) {
                                 // долгое касание, затем тянуть влево или вправо: значок переезжает на соседнее место; без движения: меню значка
@@ -277,17 +329,40 @@ fun HomeDockHost() {
                                 )
                             }
                             .combinedClickable(
+                                // баннер в фокусе сам увеличивается: стандартная серая подсветка ячейки позади него не нужна
+                                interactionSource = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                indication = if (bnOn) null else androidx.compose.foundation.LocalIndication.current,
                                 onClick = {
                                     if (HomeDock.moving.value == e.pkg) HomeDock.moving.value = null
                                     else if (System.currentTimeMillis() - lpAt > 900)
                                         ctx.packageManager.getLaunchIntentForPackage(e.pkg)?.let { Cfg.countLaunch(e.pkg); runCatching { ctx.startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }; HomeDock.afterLaunch(ctx) }
                                 },
                             )
-                            .padding(horizontal = 4.dp, vertical = 3.dp),
+                            .padding(horizontal = 4.dp, vertical = if (bnOn) (6 + HomeDock.bnHeightDp(ctx) * 0.12f).dp else 3.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
+                        if (bnOn) {
+                            // 17.2: баннер приложения (как плитка на «Доме»); у приложения без баннера: значок на тёмной плитке с подписью
+                            val bw = HomeDock.bnWidthDp(ctx); val bh = HomeDock.bnHeightDp(ctx)
+                            val banner by androidx.compose.runtime.produceState<android.graphics.Bitmap?>(Banners.peek(e.pkg), e.pkg) {
+                                if (value == null && !Banners.isNone(e.pkg)) value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { Banners.load(ctx, e) }
+                            }
+                            val bscale by androidx.compose.animation.core.animateFloatAsState(if (focused) 1.2f else 1f, label = "dockBn")
+                            Box(Modifier.size(bw.dp, bh.dp).graphicsLayer { scaleX = bscale; scaleY = bscale }
+                                .clip(RoundedCornerShape(12.dp)).background(Color.Black.copy(alpha = 0.30f)), contentAlignment = Alignment.Center) {
+                                val bb = banner
+                                if (bb != null) Image(bb.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                                else Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Image(bmp, null, Modifier.size((bh * 0.5f).dp))
+                                    Text(e.label, color = Color.White, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 4.dp))
+                                }
+                                // как у плиток «Дома» (картинка Евгения): тонкий скруглённый контур цвета акцента поверх баннера и лёгкая подсветка
+                                if (focused) Box(Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.10f)))
+                            }
+                        } else {
                         Image(bmp, null, Modifier.size(iconDp.dp))
-                        if (showLabels) Text(e.label, color = if (focused || !darkLabels) Color.White else txt, fontSize = HomeDock.labelSp(ctx).sp,
+                        }
+                        if (!bnOn && showLabels) Text(e.label, color = if (focused || !darkLabels) Color.White else txt, fontSize = HomeDock.labelSp(ctx).sp,
                             // мягкая тень контрастного цвета: подпись читается на любой картинке и при прозрачной панели
                             style = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(if (focused || !darkLabels) Color.Black.copy(alpha = 0.9f) else Color.White.copy(alpha = 0.9f), androidx.compose.ui.geometry.Offset(0f, 1f), 5f)), maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
                     }

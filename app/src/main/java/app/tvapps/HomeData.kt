@@ -249,7 +249,7 @@ data class WDay(val label: String, val code: Int, val max: Int, val min: Int)
 /** Почасовой прогноз: подпись часа («14»), код погоды, температура. */
 data class WHour(val label: String, val code: Int, val temp: Int, val wind: Int = 0, val pop: Int = Int.MIN_VALUE)
 
-/** Погода; feels, hum, press - «нет данных» (NA) у записей из кэша прежних версий; sunrise, sunset - «ЧЧ:ММ» на сегодня. */
+/** Погода; feels, hum, press — «нет данных» (NA) у записей из кэша прежних версий; sunrise, sunset — «ЧЧ:ММ» на сегодня. */
 data class Weather(
     val city: String, val temp: Int, val code: Int, val wind: Int, val days: List<WDay>, val at: Long,
     val feels: Int = NA, val hum: Int = NA, val press: Int = NA, val sunrise: String = "", val sunset: String = "", val hours: List<WHour> = emptyList(),

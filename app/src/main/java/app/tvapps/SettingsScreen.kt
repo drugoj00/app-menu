@@ -1277,13 +1277,19 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                     } }
                     // блок «Вид»: расположение, размеры, подписи, фон и прозрачность рядом
                     if (rvl.next(10)) { Section(stringResource(R.string.dock_look)) {
-                        Text(stringResource(R.string.dock_align), color = t.sub, fontSize = hintSp(13), modifier = Modifier.padding(top = 2.dp))
+                        Text(stringResource(R.string.dock_style), color = t.sub, fontSize = hintSp(13), modifier = Modifier.padding(top = 2.dp))
+                        Options(listOf(0 to stringResource(R.string.dock_st_icons), 1 to stringResource(R.string.dock_st_banners)), HomeDock.style(ctx)) { HomeDock.setStyle(ctx, it) }
+                        if (HomeDock.banners(ctx)) {
+                            CounterRow(stringResource(R.string.dock_bn_vis), HomeDock.bnVis(ctx), 5..8, "") { HomeDock.setBnVis(ctx, it) }
+                            CounterRow(stringResource(R.string.dock_bn_size), HomeDock.bnSize(ctx), 50..100, "%") { HomeDock.setBnSize(ctx, it) }
+                        }
+                        Text(stringResource(R.string.dock_align), color = t.sub, fontSize = hintSp(13), modifier = Modifier.padding(top = 6.dp))
                         Options(listOf(0 to stringResource(R.string.dock_al_l), 1 to stringResource(R.string.dock_al_c), 2 to stringResource(R.string.dock_al_r)), HomeDock.align(ctx)) { HomeDock.setAlign(ctx, it) }
                         CounterRow(stringResource(R.string.dock_icon), HomeDock.icon(ctx), 24..72, "dp") { HomeDock.setIcon(ctx, it) }
                         SwitchRow(stringResource(R.string.dock_labels), HomeDock.labels(ctx), emptyList()) { HomeDock.setLabels(ctx, it) }
                         if (HomeDock.labels(ctx)) CounterRow(stringResource(R.string.dock_label_sp), HomeDock.labelSp(ctx), 8..16, "sp") { HomeDock.setLabelSp(ctx, it) }
                         Text(stringResource(R.string.dock_bg), color = t.sub, fontSize = hintSp(13), modifier = Modifier.padding(top = 6.dp))
-                        Options(listOf(1 to stringResource(R.string.dock_bg_light), 0 to stringResource(R.string.dock_bg_dark), 2 to stringResource(R.string.dock_bg_auto)), HomeDock.bg(ctx)) { HomeDock.setBg(ctx, it) }
+                        Options(listOf(1 to stringResource(R.string.dock_bg_light), 0 to stringResource(R.string.dock_bg_dark), 2 to stringResource(R.string.dock_bg_auto), 3 to stringResource(R.string.dock_bg_glass), 4 to stringResource(R.string.dock_bg_frost), 5 to stringResource(R.string.dock_bg_none)), HomeDock.bgEff(ctx)) { HomeDock.setBg(ctx, it) }
                         CounterRow(stringResource(R.string.dock_transp), HomeDock.transp(ctx), 0..100, "%") { HomeDock.setTransp(ctx, it) }
                         Options(listOf(0 to "0 %", 25 to "25 %", 50 to "50 %", 75 to "75 %", 100 to "100 %"), HomeDock.transp(ctx)) { HomeDock.setTransp(ctx, it) }
                         CounterRow(stringResource(R.string.dock_bottom), HomeDock.bottom(ctx), 0..60, "dp") { HomeDock.setBottom(ctx, it) }

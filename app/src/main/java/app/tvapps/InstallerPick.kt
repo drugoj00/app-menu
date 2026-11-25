@@ -118,8 +118,14 @@ object InstallerPick {
     private suspend fun ask(name: String, opts: List<Opt>): Pair<String, Boolean>? = lock.withLock {
         val d = CompletableDeferred<Pair<String, Boolean>?>()
         withContext(Dispatchers.Main) { req = Req(name, opts, d) }
-        try { d.await() } finally { withContext(Dispatchers.Main) { req = null } }
+        android.util.Log.i("TVApps", "установщик: окно выбора показано для " + name)
+        // 24.11.2026 (Евгений, Android 6: «снова ставится не хочет, не выходит по Назад и Домой»): окно выбора, потерянное при пересоздании окна «Дома»,
+        // раньше висело вечно и держало замок: все следующие установки молча ждали его. Теперь отказ через 3 минуты, а «Назад» и «Домой» отменяют выбор сразу.
+        try { kotlinx.coroutines.withTimeoutOrNull(180_000L) { d.await() } } finally { d.complete(null); withContext(Dispatchers.Main) { req = null }; android.util.Log.i("TVApps", "установщик: окно выбора закрыто") }
     }
+
+    /** Отменяет открытое окно «Установить через…» (клавиши «Назад», «Домой»). */
+    fun cancelPending(): Boolean { val r = req ?: return false; r.done.complete(null); return true }
 
     /** Какой установщик взять: окно (если включено «Спрашивать»), иначе запомненный, а если он недоступен, ADB при наличии, иначе системный. null — отказ. */
     suspend fun choose(ctx: Context, name: String, count: Int, sample: File?): String? {

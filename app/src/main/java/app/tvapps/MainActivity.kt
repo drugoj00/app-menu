@@ -208,6 +208,7 @@ class MainActivity : ComponentActivity(), HasFx {
         if (QuickActions.onKey(this, ev)) return true
         // «Назад» обрабатываем здесь, до списка: иначе первое нажатие после запуска из «Дома» гасилось списком и меню не закрывалось
         if (ev.keyCode == android.view.KeyEvent.KEYCODE_BACK) {
+            if (ev.action == android.view.KeyEvent.ACTION_UP && !ev.isCanceled && (InstallerPick.cancelPending() || SelfUpd.closeIfInstalling())) return true
             if (ev.action == android.view.KeyEvent.ACTION_UP && !ev.isCanceled) onBackPressedDispatcher.onBackPressed()
             return true
         }
