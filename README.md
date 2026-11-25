@@ -14,15 +14,16 @@ App Menu replaces the stock app list with a big grid made for a remote and for t
 
 ## Download
 
-**Version 17.0.** [AppMenu-17.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
+**Version 18.0.** [AppMenu-18.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `82608f99fde29f926ed3e387e01a13cda8cbcfe4ae98c93dda30e1a4fc6860f6`
+SHA-256: `936ada1b4b45141553a814a435d82bbebb7f908fbcca4e96a4e5c69be0442e1d`
 
-## What's new in 17.0
+## What's new in 18.0
 
-- Clean copies and temp files also removes files received over Wi-Fi
-- Bluetooth icon: tap turns it on and off
-- Long press on the Bluetooth icon opens its settings
+- Interacts with [Pulsar](https://4pda.to/forum/index.php?showtopic=1128758&view=findpost&p=146189101): the Menu dock moves up above the Pulsar panel, focus passes between them
+- New dock at the bottom of Home: banner tiles, 5 to 8, adjustable size, the selected one is larger
+- Dock background: clear glass, frosted glass, no backdrop
+- The dock matches the width of the Home rows, rows above the dock are not cut off
 - Bug fixes
 
 ## Features
@@ -59,7 +60,7 @@ SHA-256: `82608f99fde29f926ed3e387e01a13cda8cbcfe4ae98c93dda30e1a4fc6860f6`
 
 ## Quick start
 
-1. Download AppMenu-17.0.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
+1. Download AppMenu-18.0.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
 2. Open it: apps are launched with OK or a tap, a long press (or holding OK, or the Menu key) opens the action card. To use it instead of the stock menu turn on “Launcher mode” in Settings.
 3. To act on other apps connect ADB: Settings → “Connect ADB”. Android 9 and older TV boxes with network ADB connect by themselves. Android 11+: turn on the “App Menu” service in Accessibility once, press “Connect automatically”. Android 10 and older: run adb tcpip 5555 once from a computer (repeat after a reboot). With root none of this is needed: allow root for the app once and it connects by itself.
 
