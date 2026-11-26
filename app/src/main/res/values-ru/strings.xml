@@ -1333,4 +1333,12 @@
     <string name="align_center">По центру</string>
     <string name="align_right">Справа</string>
     <string name="row_inherit">Новые как у остальных в строке</string>
+    <string name="home_start_title">Открывать «Дом» при запуске</string>
+    <string name="home_start_hint">При запуске программы значком открывается «Дом», а не «Приложения». «Приложения» остаются на кнопке меню.</string>
+    <string name="nt_ongoing">Постоянные уведомления не убираются: %1$d (VPN, музыка, служебные)</string>
+    <string name="nt_clear_all_zero">Очистить все</string>
+    <string name="notif_ongoing_title">Показывать постоянные уведомления</string>
+    <string name="notif_ongoing_hint">Постоянные уведомления (VPN, музыка, служебные) система не даёт убрать. По умолчанию они скрыты в окне уведомлений и в цифре колокольчика.</string>
+    <string name="nt_show_hidden">Показать скрытые (%1$d)</string>
+    <string name="nt_hide_hidden">Не показывать скрытые</string>
 </resources>
