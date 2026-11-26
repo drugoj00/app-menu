@@ -1333,4 +1333,12 @@
     <string name="align_center">По центру</string>
     <string name="align_right">Праворуч</string>
     <string name="row_inherit">Нові як в інших у рядку</string>
+    <string name="home_start_title">Відкривати «Дім» під час запуску</string>
+    <string name="home_start_hint">Під час запуску програми значком відкривається «Дім», а не «Застосунки». «Застосунки» лишаються на кнопці меню.</string>
+    <string name="nt_ongoing">Постійні сповіщення не прибираються: %1$d (VPN, музика, службові)</string>
+    <string name="nt_clear_all_zero">Очистити все</string>
+    <string name="notif_ongoing_title">Показувати постійні сповіщення</string>
+    <string name="notif_ongoing_hint">Постійні сповіщення (VPN, музику, службові) система не дозволяє прибрати. За замовчуванням вони приховані у вікні сповіщень і в цифрі дзвінка.</string>
+    <string name="nt_show_hidden">Показати приховані (%1$d)</string>
+    <string name="nt_hide_hidden">Не показувати приховані</string>
 </resources>
