@@ -146,8 +146,15 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
             </intent-filter>
         </receiver>
+        <!-- будильники (Alarms.kt): срабатывание, окно поверх блокировки, выбор своего звука для сигнала каждый час -->
+        <receiver android:name=".AlarmReceiver" android:exported="false" />
+        <activity android:name=".AlarmActivity" android:exported="false" android:launchMode="singleInstance" android:excludeFromRecents="true" android:showWhenLocked="true" android:turnScreenOn="true" android:theme="@style/Theme.TVApps.Fast"
+            android:configChanges="orientation|screenSize|keyboardHidden|keyboard|navigation|uiMode|screenLayout|smallestScreenSize|density|fontScale" />
+        <activity android:name=".SoundPickActivity" android:exported="false" android:theme="@android:style/Theme.Translucent.NoTitleBar" android:excludeFromRecents="true" />
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.files"
