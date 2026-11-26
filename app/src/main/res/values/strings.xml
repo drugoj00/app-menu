@@ -1333,4 +1333,7 @@
     <string name="align_center">Center</string>
     <string name="align_right">Right</string>
     <string name="row_inherit">New ones like the others in the row</string>
+    <string name="home_start_title">Open Home at launch</string>
+    <string name="home_start_hint">When the app is started from its icon, Home opens instead of Apps. Apps stay on the menu button.</string>
+    <string name="nt_ongoing">Ongoing notifications cannot be cleared: %1$d (VPN, music, system)</string>
 </resources>
