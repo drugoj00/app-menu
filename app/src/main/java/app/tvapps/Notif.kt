@@ -26,6 +26,22 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 
+/**
+ * 26.11.2026 (владелица: «жму колокольчик, экран затемняется и всё»): окна верхней полоски читают общие флаги [TopUi], а «Дом» и «Приложения» живут одновременно,
+ * поэтому окно открывалось и в той activity, что на заднем плане (вторая подложка затемнения). Теперь окно показывает только та activity, которая сейчас на экране.
+ */
+@Composable
+fun rememberOnScreen(): Boolean {
+    val owner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    var on by remember(owner) { mutableStateOf(owner.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) }
+    androidx.compose.runtime.DisposableEffect(owner) {
+        val ob = androidx.lifecycle.LifecycleEventObserver { _, _ -> on = owner.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED) }
+        owner.lifecycle.addObserver(ob)
+        onDispose { owner.lifecycle.removeObserver(ob) }
+    }
+    return on
+}
+
 /** Окна верхней полоски «Дома»: открыты ли «Недавние» и «Уведомления» (рисует HomeActivity). */
 object TopUi {
     val recents = mutableStateOf(false)
@@ -60,11 +76,16 @@ class NotifService : NotificationListenerService() {
 
         private fun shown(s: StatusBarNotification, self: String) =
             s.packageName != self && (s.notification.flags and Notification.FLAG_GROUP_SUMMARY) == 0 &&
+                s.packageName !in Cfg.notifHidden &&
                 (s.notification.extras.getCharSequence(Notification.EXTRA_TITLE) != null || s.notification.extras.getCharSequence(Notification.EXTRA_TEXT) != null)
 
         /** Активные уведомления (без наших и без «сводок» групп), новые сверху. */
-        fun list(ctx: Context): List<StatusBarNotification> =
-            runCatching { instance?.activeNotifications?.filter { shown(it, ctx.packageName) }?.sortedByDescending { it.postTime } }.getOrNull().orEmpty()
+        fun list(ctx: Context, withHidden: Boolean = false): List<StatusBarNotification> =
+            runCatching { instance?.activeNotifications?.filter { if (withHidden) shownAny(it, ctx.packageName) else shown(it, ctx.packageName) }?.sortedByDescending { it.postTime } }.getOrNull().orEmpty()
+
+        private fun shownAny(s: StatusBarNotification, self: String) =
+            s.packageName != self && (s.notification.flags and Notification.FLAG_GROUP_SUMMARY) == 0 &&
+                (s.notification.extras.getCharSequence(Notification.EXTRA_TITLE) != null || s.notification.extras.getCharSequence(Notification.EXTRA_TEXT) != null)
 
         fun count(ctx: Context): Int = list(ctx).size
         val connected get() = instance != null
@@ -135,9 +156,9 @@ class NotifService : NotificationListenerService() {
 
 private data class NItem(val key: String, val app: String, val icon: Drawable?, val title: String, val text: String, val time: Long, val sbn: StatusBarNotification)
 
-private fun load(ctx: Context): List<NItem> {
+private fun load(ctx: Context, withHidden: Boolean = false): List<NItem> {
     val pm = ctx.packageManager
-    return NotifService.list(ctx).map { s ->
+    return NotifService.list(ctx, withHidden).map { s ->
         val ex = s.notification.extras
         val app = runCatching { pm.getApplicationLabel(pm.getApplicationInfo(s.packageName, 0)).toString() }.getOrDefault(s.packageName)
         val icon = runCatching { pm.getApplicationIcon(s.packageName) }.getOrNull()
@@ -153,10 +174,14 @@ fun NotificationsDialog(onClose: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val items = remember { mutableStateListOf<NItem>() }
+    var showHidden by remember { mutableStateOf(false) }
+    var lastEye by remember { mutableStateOf(0L) }
     var connected by remember { mutableStateOf(NotifService.connected) }
     var trying by remember { mutableStateOf(false) }
     // при открытии без доступа пробуем включить его сами (root или ADB по Wi-Fi), список обновляется раз в секунду
-    LaunchedEffect(Unit) {
+    // 26.11.2026 (владелица: «надо закрыть окно и открыть, чтобы изменилось»): цикл перезапускается при каждом скрытии или показе, и список перечитывается сразу
+    val hiddenNow = Cfg.notifHidden
+    LaunchedEffect(showHidden, hiddenNow) {
         if (!NotifService.connected && !trying) {
             trying = true
             runCatching { Adb.shell("cmd notification allow_listener " + NotifService.component(ctx).flattenToString(), 8000) }
@@ -165,7 +190,7 @@ fun NotificationsDialog(onClose: () -> Unit) {
         }
         while (true) {
             connected = NotifService.connected
-            val n = load(ctx)
+            val n = load(ctx, showHidden)
             items.clear(); items.addAll(n)
             delay(1000)
         }
@@ -179,12 +204,15 @@ fun NotificationsDialog(onClose: () -> Unit) {
                 onClose()
             }))
         } else if (items.isEmpty()) {
+            // 26.11.2026 (владелица, X98plus gost: «пусто и показать нет»): все уведомления скрыты глазком, кнопка «Показать скрытые» нужна и в пустом списке
+            val hiddenAll0 = NotifService.list(ctx, true).count { it.packageName in Cfg.notifHidden }
             add(Opt(stringResource(R.string.nt_none), "", onClick = { onClose() }))
+            if (hiddenAll0 > 0 || showHidden) add(Opt(stringResource(if (showHidden) R.string.nt_hide_hidden else R.string.nt_show_hidden, hiddenAll0), "", removeIcon = if (showHidden) HIcons.eyeOff else HIcons.eye, onRemove = { val now = android.os.SystemClock.elapsedRealtime(); if (now - lastEye > 500L) { lastEye = now; showHidden = !showHidden } }, onClick = { val now = android.os.SystemClock.elapsedRealtime(); if (now - lastEye > 500L) { lastEye = now; showHidden = !showHidden } }))
         } else {
             val clearable = items.filter { it.sbn.isClearable }
-            val ongoing = items.size - clearable.size
+            val hiddenAll = remember(items.size, showHidden, Cfg.notifHidden) { NotifService.list(ctx, true).count { it.packageName in Cfg.notifHidden } }
             // 26.11.2026 (st0p0r на 4PDA): кнопка убирает всё, что система позволяет убрать; постоянные уведомления (VPN, музыка, служебные) не смахиваются, об этом сказано в списке
-            if (clearable.isNotEmpty()) add(Opt(stringResource(R.string.nt_clear_all, clearable.size), "", danger = true, onClick = {
+            add(Opt(stringResource(if (clearable.isNotEmpty()) R.string.nt_clear_all else R.string.nt_clear_all_zero, clearable.size), "", danger = true, onClick = {
                 // каждое уведомление снимается по ключу (общий «снять все» на части прошивок пропускает часть), затем список и цифра пересчитываются
                 val svc = NotifService.instance
                 clearable.forEach { c -> runCatching { svc?.cancelNotification(c.key) } }
@@ -192,12 +220,13 @@ fun NotificationsDialog(onClose: () -> Unit) {
                 items.removeAll { it.sbn.isClearable }
                 NotifService.refreshBadgeNow()
             }))
-            if (ongoing > 0) add(Opt(stringResource(R.string.nt_ongoing, ongoing), "", onClick = {}))
             items.forEach { n ->
                 add(Opt(
                     n.app + (if (n.title.isNotBlank()) ": " + n.title else "") + (if (n.text.isNotBlank()) "\n" + n.text else ""),
                     fmt.format(Date(n.time)),
                     icon = n.icon?.let { runCatching { it.toBitmap(64, 64).asImageBitmap() }.getOrNull() },
+                    removeIcon = if (n.sbn.packageName in Cfg.notifHidden) HIcons.eyeOff else HIcons.eye,
+                    onRemove = { val now = android.os.SystemClock.elapsedRealtime(); if (now - lastEye > 500L) { lastEye = now; val willHide = n.sbn.packageName !in Cfg.notifHidden; Cfg.toggleNotifHidden(n.sbn.packageName); if (willHide) showHidden = false } },   // скрыли: строка сразу пропадает, режим «показать скрытые» выключается
                     onClick = {
                         val pi = n.sbn.notification.contentIntent
                         val ok = pi != null && runCatching { pi.send(); true }.getOrDefault(false)
@@ -207,6 +236,7 @@ fun NotificationsDialog(onClose: () -> Unit) {
                     },
                 ))
             }
+            if (hiddenAll > 0 || showHidden) add(Opt(stringResource(if (showHidden) R.string.nt_hide_hidden else R.string.nt_show_hidden, hiddenAll), "", removeIcon = if (showHidden) HIcons.eyeOff else HIcons.eye, onRemove = { val now = android.os.SystemClock.elapsedRealtime(); if (now - lastEye > 500L) { lastEye = now; showHidden = !showHidden } }, onClick = { val now = android.os.SystemClock.elapsedRealtime(); if (now - lastEye > 500L) { lastEye = now; showHidden = !showHidden } }))
         }
     }
     ListDialog(stringResource(R.string.nt_title), opts, onClose, hint = if (connected) "" else stringResource(R.string.nt_hint))

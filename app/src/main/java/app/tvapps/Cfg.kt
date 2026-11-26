@@ -72,6 +72,8 @@ object Cfg {
     var homeAutoAdd by mutableStateOf(true); private set
     /** 26.11.2026 (st0p0r на 4PDA): при запуске программы значком открывать «Дом», а не «Приложения» */
     var startHome by mutableStateOf(false); private set
+    /** 26.11.2026 (владелица): программы, уведомления которых скрыты в окне и в цифре колокольчика (глазок справа у строки); показать скрытые можно в самом окне */
+    var notifHidden by mutableStateOf<Set<String>>(emptySet()); private set
     /** Фон плиток значков: true — прозрачный (по умолчанию), false — карточки. */
     var transparentTiles by mutableStateOf(true); private set
     /** Папки значков. */
@@ -248,6 +250,7 @@ object Cfg {
         homeModule = sp.getBoolean("home_module", true)
         homeAutoAdd = sp.getBoolean("home_auto_add", true)
         startHome = sp.getBoolean("start_home", false)
+        notifHidden = sp.getStringSet("notif_hidden", emptySet()).orEmpty().toSet()
         menuModule = sp.getBoolean("menu_module", true)
         // оба модуля выключены быть не могут (остались от прежних версий): меню включается
         if (!homeModule && !menuModule) { menuModule = true; sp.edit().putBoolean("menu_module", true).apply() }
@@ -309,6 +312,7 @@ object Cfg {
     fun changeMenuModule(v: Boolean) { if (!v && !homeModule) return; menuModule = v; sp.edit().putBoolean("menu_module", v).apply() }
     /** Меню выключено и это допустимо (есть «Дом»): запуски меню без особой просьбы открывают «Дом». */
     val menuOff: Boolean get() = !menuModule && homeModule
+    fun toggleNotifHidden(pkg: String) { notifHidden = if (pkg in notifHidden) notifHidden - pkg else notifHidden + pkg; sp.edit().putStringSet("notif_hidden", notifHidden).apply(); runCatching { NotifService.refreshBadgeNow() } }
     fun changeStartHome(v: Boolean) { startHome = v; sp.edit().putBoolean("start_home", v).apply() }
     fun changeHomeAutoAdd(v: Boolean) { homeAutoAdd = v; sp.edit().putBoolean("home_auto_add", v).apply() }
     fun changeHomeModule(v: Boolean) { homeModule = v; sp.edit().putBoolean("home_module", v).apply() }

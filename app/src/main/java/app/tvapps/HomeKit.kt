@@ -338,6 +338,8 @@ class Opt(
     val icon: ImageBitmap? = null,
     /** справа крестик: убрать этот пункт (например, из «Недавних») */
     val onRemove: (() -> Unit)? = null,
+    /** вместо крестика справа зелёный значок (глазок, перечёркнутый глазок) */
+    val removeIcon: androidx.compose.ui.graphics.vector.ImageVector? = null,
     /** картинка широкая (превью баннера 16:9), а не маленький значок */
     val wide: Boolean = false,
     /** выбор цвета полосой спектра; «Как у темы» справа от названия (стрелки меняют оттенок, ОК: как у темы) */
@@ -508,14 +510,18 @@ internal fun OptRow(o: Opt, req: FocusRequester?) {
         o.onRemove?.let { rm ->
             var cf by remember { mutableStateOf(false) }
             Box(
-                Modifier.size(34.dp).clip(androidx.compose.foundation.shape.CircleShape).background(if (cf) t.accent else Color.Transparent)
+                Modifier.size(34.dp).clip(androidx.compose.foundation.shape.CircleShape).background(if (cf) (if (o.removeIcon != null) Color(0xFF22C55E) else t.accent) else Color.Transparent)
                     .focusRequester(rmReq)
                     .onPreviewKeyEvent { ev ->
                         if (ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionLeft) { runCatching { rowReq.requestFocus() }; true } else false
                     }
                     .onFocusChanged { cf = it.isFocused }.clickable { rm() },
                 contentAlignment = Alignment.Center,
-            ) { Text("✕", color = if (cf) t.bg else t.sub, fontSize = 15.sp) }
+            ) {
+                val ri = o.removeIcon
+                if (ri != null) androidx.compose.material3.Icon(ri, null, tint = if (cf) t.bg else Color(0xFF22C55E), modifier = Modifier.size(22.dp))
+                else Text("✕", color = if (cf) t.bg else t.sub, fontSize = 15.sp)
+            }
         }
     }
 }

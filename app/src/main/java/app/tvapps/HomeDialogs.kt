@@ -749,6 +749,8 @@ private fun HdStatus(dlg: Dlg.Status, e: HdEnv) {
                 add(Opt(stringResource(R.string.d_program_settings)) { openAppSettings() })      // настройки программы
                 add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома»
                 add(Opt(stringResource(R.string.d_move)) { close(); startMoveStatus(s.id) })
+                // 26.11.2026 (владелица, X98plus gost: «не могу выключить часы по центру»): выключатель сразу вверху меню, а не только в конце как «Скрыть»
+                add(Opt(stringResource(R.string.ord_show), onOff(s.visible, on, off), onClick = { HomeStore.updateStatus(s.id) { it.copy(visible = !it.visible) } }))
                 if (s.id == "time" || s.id == "cclock") {
                     add(Opt(stringResource(R.string.wg_time_fmt), if ((s.opt and 1) != 0) "12 h" else "24 h", onClick = { HomeStore.updateStatus(s.id) { it.copy(opt = it.opt xor 1) } }))
                     add(Opt(stringResource(R.string.wg_seconds), onOff((s.opt and 2) != 0, on, off), onClick = { HomeStore.updateStatus(s.id) { it.copy(opt = it.opt xor 2) } }))
@@ -1128,9 +1130,10 @@ private fun HdOrder(e: HdEnv) {
     val opts = buildList {
         val styleNames = listOf(R.string.top_style_0, R.string.top_style_1).map { stringResource(it) }
         add(Opt(stringResource(R.string.top_style), styleNames[if (top.style >= 1) 1 else 0], onClick = { HomeStore.updateTop { it.copy(style = if (it.style >= 1) 0 else 1) } }))
-        if (top.style >= 1) add(Opt(stringResource(R.string.plate_alpha), top.plateAlpha.toString() + "%",
-            { HomeStore.updateTop { it.copy(plateAlpha = (it.plateAlpha - 5).coerceAtLeast(0)) } }, { HomeStore.updateTop { it.copy(plateAlpha = (it.plateAlpha + 5).coerceAtMost(100)) } },
-            onClick = { HomeStore.updateTop { it.copy(plateAlpha = if (it.plateAlpha >= 100) 0 else it.plateAlpha + 10) } }, range = 0..100))
+        // 26.11.2026 (владелица): «прозрачность»: 0% непрозрачная, 100% совсем прозрачная; хранится по-прежнему непрозрачность (plateAlpha)
+        if (top.style >= 1) add(Opt(stringResource(R.string.plate_alpha), (100 - top.plateAlpha).toString() + "%",
+            { HomeStore.updateTop { it.copy(plateAlpha = (it.plateAlpha + 5).coerceAtMost(100)) } }, { HomeStore.updateTop { it.copy(plateAlpha = (it.plateAlpha - 5).coerceAtLeast(0)) } },
+            onClick = { HomeStore.updateTop { it.copy(plateAlpha = if (it.plateAlpha <= 0) 100 else (it.plateAlpha - 10).coerceAtLeast(0)) } }, range = 0..100))
         // цвет значков и кнопок верхней строки (тот же, что «Цвет значков строки состояния» в настройках программы): быстрый выбор из строки
         val icPos = Cfg.statusIconPos
         val icNames = listOf(R.string.ic_c_auto, R.string.ic_c_white, R.string.ic_c_black, R.string.ic_c_red, R.string.ic_c_yellow, R.string.ic_c_green, R.string.ic_c_cyan, R.string.ic_c_blue, R.string.ic_c_pink).map { stringResource(it) }

@@ -1551,8 +1551,9 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
     }
     }
 
-    if (TopUi.notifs.value) NotificationsDialog { TopUi.notifs.value = false }
-    if (TopUi.recents.value) RecentsDialog(apps, { e -> Cfg.countLaunch(e.pkg); runCatching { ctx.startActivity(e.launch) } }) { TopUi.recents.value = false }
+    val topOnScreen = rememberOnScreen()
+    if (topOnScreen && TopUi.notifs.value) NotificationsDialog { TopUi.notifs.value = false }
+    if (topOnScreen && TopUi.recents.value) RecentsDialog(apps, { e -> Cfg.countLaunch(e.pkg); runCatching { ctx.startActivity(e.launch) } }) { TopUi.recents.value = false }
     if (deskMenu) HalfUi {
         DeskMenuDialog(
             pagesList.ifEmpty { Desks.list.map { DeskPage(it.id, "", emptyList(), false) } },

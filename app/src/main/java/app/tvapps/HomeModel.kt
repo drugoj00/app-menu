@@ -122,7 +122,7 @@ data class HTop(
     val clean: Boolean = true,       // кнопка «Очистка памяти» после «Недавних» (нет ключа в сохранённой раскладке: включена)
     val order: List<String> = emptyList(),   // 20.0: порядок ВСЕХ элементов строки (кнопки, поиск, значки, пустые места sp1...); пусто: прежний порядок
     val scale: Int = 100,                    // 20.0: размер строки, % (70-150)
-    val plateAlpha: Int = 45,                // 20.0: прозрачность подложки строки, % (0 совсем прозрачная, 100 чёрная)
+    val plateAlpha: Int = 45,                // 20.0: непрозрачность подложки строки, % (0 совсем прозрачная, 100 чёрная); в окне показывается как прозрачность наоборот (0% непрозрачная)
     val style: Int = 0,                      // 20.0: вид строки: 0 раздельные кнопки, 1 общая подложка справа, 2 подложка и поиск иконкой
 )
 
@@ -684,5 +684,20 @@ object HomeBgFiles {
         lastFail = if (it is OutOfMemoryError) "mem" else "read"
         android.util.Log.w("TVApps", "фон (видео): " + it.javaClass.simpleName + ": " + it.message)
         false
+    }
+}
+
+
+/**
+ * 26.11.2026 (владелица: «банер должен исчезнуть сразу после удаления приложения по долгому нажатию»): пакеты, которые только что удалены. «Дом» сразу прячет их плитки,
+ * не дожидаясь, пока список приложений перечитается (на слабых устройствах это секунды).
+ */
+object GonePkgs {
+    val set = androidx.compose.runtime.mutableStateListOf<String>()
+    fun add(pkg: String) { if (pkg !in set) set.add(pkg) }
+    fun remove(pkg: String) { set.remove(pkg) }
+    fun check(ctx: android.content.Context, pkg: String) {
+        val alive = runCatching { ctx.packageManager.getPackageInfo(pkg, 0); true }.getOrDefault(false)
+        if (alive) remove(pkg) else add(pkg)
     }
 }

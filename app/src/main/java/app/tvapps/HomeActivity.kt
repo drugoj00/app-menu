@@ -102,6 +102,12 @@ class HomeActivity : ComponentActivity(), HasFx {
     private val pkgRefresh = Runnable { AppsMem.stamp = 0L; resumeTick.intValue++ }
     private val pkgReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(c: android.content.Context, i: Intent) {
+            // плитка удалённого приложения исчезает сразу
+            val pk = i.data?.schemeSpecificPart
+            if (pk != null) {
+                if (i.action == Intent.ACTION_PACKAGE_REMOVED && !i.getBooleanExtra(Intent.EXTRA_REPLACING, false)) GonePkgs.add(pk)
+                else if (i.action == Intent.ACTION_PACKAGE_ADDED) GonePkgs.remove(pk)
+            }
             AppsMem.stamp = 0L
             if (AppsMem.holdReload) return
             pkgHandler.removeCallbacks(pkgRefresh); pkgHandler.postDelayed(pkgRefresh, 2000L)
@@ -175,7 +181,11 @@ class HomeActivity : ComponentActivity(), HasFx {
         if (android.os.Build.VERSION.SDK_INT >= 26) Thread {
             runCatching {
                 val seq = AppsMem.pkgSeq
-                if (seq >= 0 && packageManager.getChangedPackages(seq)?.packageNames?.isNotEmpty() == true) { AppsMem.stamp = 0L; runOnUiThread { resumeTick.intValue++ } }
+                val ch = if (seq >= 0) packageManager.getChangedPackages(seq)?.packageNames.orEmpty() else emptyList()
+                if (ch.isNotEmpty()) {
+                    ch.forEach { p -> GonePkgs.check(this, p) }      // удалённые прячутся сразу, до перечитывания списка
+                    AppsMem.stamp = 0L; runOnUiThread { resumeTick.intValue++ }
+                }
             }
         }.start()
         // 12.0: доступ к уведомлениям выдан, а служба не подключена (колокольчик остался бы без числа): просим систему подключить её заново
@@ -573,9 +583,10 @@ private fun HomeScreen(tick: Int, again: Int) {
                 }
             }
             TileDragOverlay(scroll)
-            if (TopUi.recents.value) RecentsDialog(apps, openApp) { TopUi.recents.value = false }
-            if (TopUi.notifs.value) NotificationsDialog { TopUi.notifs.value = false }
-            if (TopUi.hdmi.value) HdmiDialog { TopUi.hdmi.value = false }
+            val topOnScreen = rememberOnScreen()
+            if (topOnScreen && TopUi.recents.value) RecentsDialog(apps, openApp) { TopUi.recents.value = false }
+            if (topOnScreen && TopUi.notifs.value) NotificationsDialog { TopUi.notifs.value = false }
+            if (topOnScreen && TopUi.hdmi.value) HdmiDialog { TopUi.hdmi.value = false }
             LaunchedEffect(TopUi.emptyMenu.value) { if (TopUi.emptyMenu.value) { TopUi.emptyMenu.value = false; if (dlg == null) dlg = Dlg.Empty } }
             ownTilePick?.let { tid ->
                 FilePickDialog("image", onPick = { uri ->

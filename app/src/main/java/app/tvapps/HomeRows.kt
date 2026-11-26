@@ -263,7 +263,7 @@ private fun AppsRow(
     @Suppress("UNUSED_VARIABLE") val dep = Cfg.launchTick
     val manual = row.items.mapNotNull { it ->
         when (it.kind) {
-            "app" -> byPkg[it.ref]?.let { e -> El(it, e, null, false) }
+            "app" -> byPkg[it.ref]?.takeIf { e -> e.pkg !in GonePkgs.set }?.let { e -> El(it, e, null, false) }
             "hdmi" -> El(it, null, inputs.firstOrNull { i -> i.id == it.ref } ?: TvIn(it.ref, it.label, true), false)
             else -> El(it, null, null, false)
         }
