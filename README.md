@@ -16,16 +16,14 @@ App Menu replaces the stock app list with a big grid made for a remote and for t
 
 **Version 21.0.** [AppMenu-21.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `7e2a57761ef13f88b336c8b9a551213d198d55088ff85f1c777b3cdf03510fa2`
+SHA-256: `576408c8de852aa6d74cf6bea962a5aef7ea29c9ce4fb826982a1983ceb2b447`
 
 ## What's new in 21.0
 
-- Own banner color and Home background color are picked with a hue strip, no code to type
-- An app without its own banner picture in a banner row sits on a card and looks like a banner
-- A long OK on the remote, like a long mouse press, opens the menu; "Move" is chosen in it. After "Move" you do not have to hold the tile: grab it with the mouse or finger and drag, with the arrows on the remote, Back finishes
-- A banner added to a row immediately gets the same look (corner rounding, background, shadow, outline) as most of the others. It is turned on in the row settings: "New ones like the others in the row"
-- New row setting: "Stretch to the edges" or "Keep the size" with the buttons "Left", "Center", "Right". The distance between tiles does not change
-- New apps no longer land in a banner row, they go to a separate row of icons
+- Own banner and Home background color are picked with a strip; a new banner in a row looks like the others
+- Row setting: "Stretch to the edges" or "Keep the size" left, center, right; "Move" without holding, a long OK opens the menu
+- Notifications: the green eye hides an app, "Show hidden" is at the bottom; "Clear all" removes everything the system allows; dimming without a window is fixed
+- Date without a repeated month, plate transparency 0% is opaque, setting "Open Home at launch", "Show" at the top of the top-bar item menu
 - Bug fixes
 
 ## Features
