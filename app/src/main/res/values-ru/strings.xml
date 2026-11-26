@@ -1324,4 +1324,13 @@
     <string name="hour_own_cuckoo">Свой звук кукушки</string>
     <string name="hour_own_chime">Свой звук курантов</string>
     <string name="hour_own_none">по умолчанию</string>
+    <string name="bn_color_icon_btn">По значку</string>
+    <string name="bg_hue_bar">Оттенок фона</string>
+    <string name="bn_color_bar">Свой цвет</string>
+    <string name="align_stretch">Растянуть до краёв</string>
+    <string name="align_keep">Не менять размер</string>
+    <string name="align_left">Слева</string>
+    <string name="align_center">По центру</string>
+    <string name="align_right">Справа</string>
+    <string name="row_inherit">Новые как у остальных в строке</string>
 </resources>
