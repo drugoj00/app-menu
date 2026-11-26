@@ -18,3 +18,11 @@ The code in App Menu is written separately; only protocols, endpoints and the re
 - Обои и видео-обои из интернета: Wikimedia Commons (у каждого файла своя свободная лицензия, показываются автор и лицензия), NASA Image and Video Library / NASA APOD (записи без поля copyright), Openverse (только CC0 и CC-BY), по желанию пользователя с его ключом Pexels, Unsplash и Pixabay (ссылка на автора и источник по условиям сервисов). Ключей разработчика в программе нет.
 - Wallpapers and video wallpapers from the internet: Wikimedia Commons (each file has its own free license; author and license are shown), NASA Image and Video Library / NASA APOD (entries without a copyright field), Openverse (CC0 and CC-BY only); with the user's own key Pexels, Unsplash and Pixabay (credit to the author and the source as the services require). The app contains no developer keys.
 - Погода со своим ключом пользователя: Visual Crossing, Weatherbit, Meteoblue, AccuWeather (ключ вводится самим пользователем, по умолчанию пусто, ответы кэшируются).
+
+## Sounds of the hourly signal (clock on the Home screen, 20.0)
+
+The recordings in `app/src/main/res/raw/` are used under Creative Commons licenses (source: Wikimedia Commons); they are separate works and keep their own licenses:
+
+- `cuckoo_call.wav`: a fragment of "Schlag Kuckucksuhr Beispiel 01" (audio of a cuckoo clock) by **HNH**, CC BY-SA 3.0 - https://commons.wikimedia.org/wiki/File:Schlag_Kuckucksuhr_Beispiel_01.ogv (trimmed, filtered, volume adjusted).
+- `bell_strike.wav`: a fragment of "Samariter Church bell I (Es) 01" by **Pete w. View**, CC BY-SA 4.0 - https://commons.wikimedia.org/wiki/File:Samariter_Church_bell_I_(Es)_01.ogg (trimmed, faded, volume adjusted).
+

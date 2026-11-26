@@ -14,18 +14,21 @@ App Menu replaces the stock app list with a big grid made for a remote and for t
 
 ## Download
 
-**Version 19.0.** [AppMenu-19.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
+**Version 20.0.** [AppMenu-20.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `fbe7a954f96bbd5475fb4900e75db13b189022be9b04b70acac5ba2fdc26d5dc`
+SHA-256: `56d3e163d3c0d128ea42069443ce7d5e28b34ec7c8d47cee95d4b6acf89d0ae2`
 
-## What's new in 19.0
+## What's new in 20.0
 
-- Iron mode: the built-in home screen can be removed instead of frozen. It helps when the firmware starts the built-in home screen again after a reboot (Alice UX and similar). Before switching it on the app shows a warning and the restore commands
-- If the built-in home screen does not switch off, select it in the list of screens
-- The dock shows exactly the chosen number of banners, the edge ones are not cut off
-- The MENU key on a dock icon or banner opens its menu: remove from the dock, dock settings
-- New setting: Down from the dock opens all apps
-- The "No rows" hint is not shown while the dock is on
+- Top bar as one block: order, size and visibility of any item. Settings open with a long press on any bar item (clock, date, search)
+- Bar style: separate buttons or one plate with adjustable transparency; icon and button color of your choice
+- Clock in the center: digits or an analog dial, seconds, 4 sizes, dial background and hand colors
+- Every-hour signal: chimes or spoken. Working hours, volume, own sound, test
+- Alarms with memory: days of the week, sound, 10 more minutes. They are saved and re-armed after the device restarts and after the app is updated
+- Outline and glass background for any Home row: set separately for each row
+- The search bar is highlighted when you reach it with the remote
+- Automatic cache cleaning for chosen apps: after you leave the app and when the device turns on. If permissions are missing, a window with a button to the settings opens
+- The banner of an uninstalled app disappears from Home at once
 - Bug fixes
 
 ## Features
@@ -62,7 +65,7 @@ SHA-256: `fbe7a954f96bbd5475fb4900e75db13b189022be9b04b70acac5ba2fdc26d5dc`
 
 ## Quick start
 
-1. Download AppMenu-19.0.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
+1. Download AppMenu-20.0.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
 2. Open it: apps are launched with OK or a tap, a long press (or holding OK, or the Menu key) opens the action card. To use it instead of the stock menu turn on “Launcher mode” in Settings.
 3. To act on other apps connect ADB: Settings → “Connect ADB”. Android 9 and older TV boxes with network ADB connect by themselves. Android 11+: turn on the “App Menu” service in Accessibility once, press “Connect automatically”. Android 10 and older: run adb tcpip 5555 once from a computer (repeat after a reboot). With root none of this is needed: allow root for the app once and it connects by itself.
 
