@@ -283,7 +283,7 @@ class MainActivity : ComponentActivity(), HasFx {
         WallNet.autoRefresh(this)
         asHome = intent?.categories?.contains(Intent.CATEGORY_HOME) == true
         // меню выключено в настройках: без особой просьбы (настройки, поиск) сразу открывается «Дом», сетка не грузится
-        if (menuOffRedirect(intent)) { openHomeInstead(this); return }
+        if (menuOffRedirect(intent) || startHomeRedirect(intent)) { openHomeInstead(this); return }
         if (asHome) MemoryCleaner.onHome(this)
         NavReq.read(intent)
         if (intent?.getBooleanExtra(UpdOpen.EXTRA, false) == true) UpdOpen.requested = true
@@ -349,7 +349,7 @@ class MainActivity : ComponentActivity(), HasFx {
         val secondHome = isHome && onScreen
         super.onNewIntent(intent)
         setIntent(intent)
-        if (menuOffRedirect(intent)) { openHomeInstead(this); return }
+        if (menuOffRedirect(intent) || startHomeRedirect(intent)) { openHomeInstead(this); return }
         NavReq.read(intent)
         if (intent.getBooleanExtra(UpdOpen.EXTRA, false)) UpdOpen.requested = true
         asHome = isHome
@@ -2020,6 +2020,11 @@ internal fun AppTile(
 
 /** Возврат на экран «Дом»: он живёт в своей задаче, поэтому открывается сразу. */
 /** Меню выключено, а запрос не про настройки и не про поиск: нужен «Дом». */
+/** Запуск значком программы (не из «Дома», не по особой просьбе) при включённой настройке «Открывать "Дом" при запуске». */
+internal fun startHomeRedirect(i: Intent?): Boolean =
+    Cfg.startHome && Cfg.homeModule && i?.categories?.let { Intent.CATEGORY_LAUNCHER in it || Intent.CATEGORY_LEANBACK_LAUNCHER in it } == true &&
+        i.getStringExtra("screen").isNullOrEmpty() && i.getStringExtra("q").isNullOrEmpty() && !i.getBooleanExtra("open_search", false) && !i.getBooleanExtra("from_home", false)
+
 internal fun menuOffRedirect(i: Intent?): Boolean =
     Cfg.menuOff && i?.getStringExtra("screen").isNullOrEmpty() && i?.getStringExtra("q").isNullOrEmpty() && i?.getBooleanExtra("open_search", false) != true
 

@@ -91,7 +91,7 @@ internal fun datePattern(opt: Int): String {
 
 /** Две строки даты верхней полосы (день недели; месяц и число) для режима «длинная дата»; для коротких режимов null. Язык задаётся явно. */
 internal fun dateTwoLines(opt: Int, now: Long, loc: Locale): Pair<String, String>? =
-    if ((opt and 3) == 3) Pair(cap(DFmt.format("EEEE", loc, now)), cap(DFmt.format("LLLL", loc, now)) + " " + DFmt.format(if (dateYear(opt)) "dd.MM.yyyy" else "dd.MM", loc, now))
+    if ((opt and 3) == 3) Pair(cap(DFmt.format("EEEE", loc, now)), cap(DFmt.format("LLLL", loc, now)) + " " + DFmt.format(if (dateYear(opt)) "d, yyyy" else "d", loc, now))   // 26.11.2026 (st0p0r на 4PDA): месяц не повторяется цифрами
     else null
 
 /** Одна строка даты по режиму (для образца в настройках и для коротких режимов). */

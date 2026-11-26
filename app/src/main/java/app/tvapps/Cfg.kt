@@ -70,6 +70,8 @@ object Cfg {
     var homeAllGlass by androidx.compose.runtime.mutableStateOf("mid"); private set
     /** Новые установленные приложения сами попадают на «Дом» (строка «Новые приложения»). */
     var homeAutoAdd by mutableStateOf(true); private set
+    /** 26.11.2026 (st0p0r на 4PDA): при запуске программы значком открывать «Дом», а не «Приложения» */
+    var startHome by mutableStateOf(false); private set
     /** Фон плиток значков: true — прозрачный (по умолчанию), false — карточки. */
     var transparentTiles by mutableStateOf(true); private set
     /** Папки значков. */
@@ -245,6 +247,7 @@ object Cfg {
         returnTo = sp.getString("return_to", "menu") ?: "menu"
         homeModule = sp.getBoolean("home_module", true)
         homeAutoAdd = sp.getBoolean("home_auto_add", true)
+        startHome = sp.getBoolean("start_home", false)
         menuModule = sp.getBoolean("menu_module", true)
         // оба модуля выключены быть не могут (остались от прежних версий): меню включается
         if (!homeModule && !menuModule) { menuModule = true; sp.edit().putBoolean("menu_module", true).apply() }
@@ -306,6 +309,7 @@ object Cfg {
     fun changeMenuModule(v: Boolean) { if (!v && !homeModule) return; menuModule = v; sp.edit().putBoolean("menu_module", v).apply() }
     /** Меню выключено и это допустимо (есть «Дом»): запуски меню без особой просьбы открывают «Дом». */
     val menuOff: Boolean get() = !menuModule && homeModule
+    fun changeStartHome(v: Boolean) { startHome = v; sp.edit().putBoolean("start_home", v).apply() }
     fun changeHomeAutoAdd(v: Boolean) { homeAutoAdd = v; sp.edit().putBoolean("home_auto_add", v).apply() }
     fun changeHomeModule(v: Boolean) { homeModule = v; sp.edit().putBoolean("home_module", v).apply() }
     fun changeWeatherCity(v: String) { weatherCity = v.trim(); sp.edit().putString("weather_city", weatherCity).apply() }

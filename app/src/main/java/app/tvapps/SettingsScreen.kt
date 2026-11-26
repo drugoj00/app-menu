@@ -1213,6 +1213,7 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                 if (g == "home" || query.isNotBlank()) {
                     if (rvl.next(1)) { BlockHead("hm_a", stringResource(R.string.blk_hm_a), openBlk, query.isNotBlank()) }
                     if ("hm_a" in openBlk || query.isNotBlank()) {
+                    if (rvl.next(1)) { SwitchRow(stringResource(R.string.home_start_title), Cfg.startHome, listOf(stringResource(R.string.home_start_hint))) { Cfg.changeStartHome(it) } }
                     if (rvl.next(1)) { SwitchRow(stringResource(R.string.home_auto_add_title), Cfg.homeAutoAdd, listOf(stringResource(R.string.home_auto_add_hint))) { Cfg.changeHomeAutoAdd(it) } }
                     // оформление верхней строки и выделения на «Доме» (по умолчанию вид прежний; выбор применяется сразу; пояснения свёрнуты под названием)
                     if (rvl.next(2)) { Section(stringResource(R.string.top_outline)) {

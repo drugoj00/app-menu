@@ -52,6 +52,12 @@ class NotifService : NotificationListenerService() {
 
         @Volatile private var lastRebind = 0L
 
+        /** Пересчитать цифру колокольчика сразу (после «Очистить все»). */
+        fun refreshBadgeNow() {
+            val inst = instance ?: return
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ inst.refreshBadgePublic() }, 400L)
+        }
+
         private fun shown(s: StatusBarNotification, self: String) =
             s.packageName != self && (s.notification.flags and Notification.FLAG_GROUP_SUMMARY) == 0 &&
                 (s.notification.extras.getCharSequence(Notification.EXTRA_TITLE) != null || s.notification.extras.getCharSequence(Notification.EXTRA_TEXT) != null)
@@ -102,6 +108,7 @@ class NotifService : NotificationListenerService() {
     }
 
     /** Пересчитывает число для колокольчика по текущему списку (главный поток). */
+    fun refreshBadgePublic() = refreshBadge()
     private fun refreshBadge() {
         val n = runCatching { list(this).size }.getOrDefault(0)
         if (badge.intValue != n) badge.intValue = n
@@ -174,7 +181,18 @@ fun NotificationsDialog(onClose: () -> Unit) {
         } else if (items.isEmpty()) {
             add(Opt(stringResource(R.string.nt_none), "", onClick = { onClose() }))
         } else {
-            add(Opt(stringResource(R.string.nt_clear_all, items.size), "", danger = true, onClick = { runCatching { NotifService.instance?.cancelAllNotifications() }; onClose() }))
+            val clearable = items.filter { it.sbn.isClearable }
+            val ongoing = items.size - clearable.size
+            // 26.11.2026 (st0p0r на 4PDA): кнопка убирает всё, что система позволяет убрать; постоянные уведомления (VPN, музыка, служебные) не смахиваются, об этом сказано в списке
+            if (clearable.isNotEmpty()) add(Opt(stringResource(R.string.nt_clear_all, clearable.size), "", danger = true, onClick = {
+                // каждое уведомление снимается по ключу (общий «снять все» на части прошивок пропускает часть), затем список и цифра пересчитываются
+                val svc = NotifService.instance
+                clearable.forEach { c -> runCatching { svc?.cancelNotification(c.key) } }
+                runCatching { svc?.cancelAllNotifications() }
+                items.removeAll { it.sbn.isClearable }
+                NotifService.refreshBadgeNow()
+            }))
+            if (ongoing > 0) add(Opt(stringResource(R.string.nt_ongoing, ongoing), "", onClick = {}))
             items.forEach { n ->
                 add(Opt(
                     n.app + (if (n.title.isNotBlank()) ": " + n.title else "") + (if (n.text.isNotBlank()) "\n" + n.text else ""),
