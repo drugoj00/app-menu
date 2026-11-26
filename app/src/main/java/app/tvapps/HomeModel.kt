@@ -98,6 +98,10 @@ data class HRow(
     val outR: Int = 12,
     /** 20.0: фон строки как у дока: 0 нет, 1 стекло прозрачное, 2 стекло матовое, 3 тёмный */
     val bgMode: Int = 0,
+    /** 26.11.2026 (владелица): если плиток мало и строка не заполнена: 0 растянуть плитки до краёв, 1 слева, 2 по центру, 3 справа (размер плиток не меняется) */
+    val align: Int = 0,
+    /** 26.11.2026 (владелица): новые элементы строки берут оформление (скругление, фон, тень, обводка) у остальных элементов этой строки */
+    val inherit: Boolean = true,
 )
 
 /** Значок состояния в верхней полоске: bt, net, usb, time, date. */
@@ -151,7 +155,7 @@ private fun JSONObject.toWidget() = HWidget(optString("t", "weather"), optString
 
 private fun HRow.toJson() = JSONObject().put("id", id).put("t", title).put("st", showTitle).put("k", kind)
     .put("it", JSONArray(items.map { it.toJson() })).put("a", auto).put("c", count).put("s", size).put("as", aspect)
-    .put("sl", JSONArray(slots.map { it.toJson() })).put("lb", labels).put("im", itemMode).put("gp", gap).put("ft", fit).put("wr", wrap).put("pl", perLine).put("sp", JSONArray(spare.map { it.toJson() })).put("ow", outW).put("oc", outC).put("or", outR).put("bm", bgMode)
+    .put("sl", JSONArray(slots.map { it.toJson() })).put("lb", labels).put("im", itemMode).put("gp", gap).put("ft", fit).put("wr", wrap).put("pl", perLine).put("sp", JSONArray(spare.map { it.toJson() })).put("ow", outW).put("oc", outC).put("or", outR).put("bm", bgMode).put("al", align).put("inh", inherit)
 
 private fun JSONObject.toRow(): HRow {
     val its = optJSONArray("it")?.let { a -> (0 until a.length()).map { a.getJSONObject(it).toItem() } } ?: emptyList()
@@ -161,7 +165,7 @@ private fun JSONObject.toRow(): HRow {
         optInt("c", 10), optInt("s", 72), optString("as", "16:9"), sl, optBoolean("lb", true), optString("im", "banner"),
         optInt("gp", 8), optBoolean("ft", true), optBoolean("wr", false), optInt("pl", 0),
         optJSONArray("sp")?.let { a -> (0 until a.length()).map { a.getJSONObject(it).toWidget() } } ?: emptyList(),
-        outW = optInt("ow", 0), outC = optLong("oc", 0L), outR = optInt("or", 12), bgMode = optInt("bm", 0).coerceIn(0, 3),
+        outW = optInt("ow", 0), outC = optLong("oc", 0L), outR = optInt("or", 12), bgMode = optInt("bm", 0).coerceIn(0, 3), align = optInt("al", 0).coerceIn(0, 3), inherit = optBoolean("inh", true),
     )
 }
 
@@ -380,10 +384,13 @@ object HomeStore {
 
     /** Новый значок получает оформление строки (скругление, фон, тень, обводка, вид), как у уже стоящих там значков. */
     fun addItem(rowId: String, item: HItem) = updateRow(rowId) { r ->
-        val ref = r.items.firstOrNull { it.id != item.id }
-        val styled = if (ref == null) item else item.copy(
-            mode = ref.mode, radius = ref.radius, bg = ref.bg, shadow = ref.shadow,
-            borderW = ref.borderW, borderC = ref.borderC, borderHover = ref.borderHover,
+        // 26.11.2026 (владелица: «добавляю баннер, и опять настраивать скругления»): новый элемент берёт оформление, которое у большинства элементов строки
+        // (раньше брался только первый, и он мог отличаться от остальных)
+        val others = r.items.filter { it.id != item.id }
+        fun <T> major(f: (HItem) -> T): T = others.groupingBy(f).eachCount().maxByOrNull { it.value }!!.key
+        val styled = if (others.isEmpty() || !r.inherit) item else item.copy(
+            mode = major { it.mode }, radius = major { it.radius }, bg = major { it.bg }, shadow = major { it.shadow },
+            borderW = major { it.borderW }, borderC = major { it.borderC }, borderHover = major { it.borderHover },
         )
         r.copy(items = r.items + styled)
     }
@@ -535,7 +542,9 @@ object HomeStore {
         val placed = layout.rows.flatMap { it.items }.filter { it.kind == "app" }.map { it.ref }.toSet()
         val add = fresh.filter { it !in placed }
         if (add.isEmpty()) return
-        val row = layout.rows.firstOrNull { it.id == sp.getString("home_newrow_id", "") }
+        // 26.11.2026 (владелица: добавленные сами приложения попали в её строку баннеров): строка «Новые приложения» принимает только значки;
+        // если её превратили в строку баннеров (или она получила автозаполнение), новые приложения идут в свежую строку значков
+        val row = layout.rows.firstOrNull { it.id == sp.getString("home_newrow_id", "") && it.itemMode == "icon" && it.auto.isEmpty() }
         if (row != null) {
             for (p in add) addItem(row.id, HItem(newId("i"), "app", p, mode = "icon", showLabel = true))
         } else {

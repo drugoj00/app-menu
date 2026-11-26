@@ -430,7 +430,7 @@ private fun HomeScreen(tick: Int, again: Int) {
             val ok = HomeImg.save(ctx, id, uri)
             val row = HomeStore.rowOfItem(id)
             if (ok && row != null) HomeStore.updateItem(row.id, id) { it.copy(img = true) }
-            Toast.makeText(ctx, ctx.getString(if (ok) R.string.icon_saved else R.string.failed), Toast.LENGTH_SHORT).show()
+            if (!ok) Toast.makeText(ctx, ctx.getString(R.string.failed), Toast.LENGTH_SHORT).show()
         }
     }
     val openApp: (Entry) -> Unit = { e ->
@@ -583,19 +583,13 @@ private fun HomeScreen(tick: Int, again: Int) {
                     val ok = HomeImg.save(ctx, tid, uri)
                     val row = HomeStore.rowOfItem(tid)
                     if (ok && row != null) HomeStore.updateItem(row.id, tid) { it.copy(img = true) }
-                    Toast.makeText(ctx, ctx.getString(if (ok) R.string.icon_saved else R.string.failed), Toast.LENGTH_SHORT).show()
+                    if (!ok) Toast.makeText(ctx, ctx.getString(R.string.failed), Toast.LENGTH_SHORT).show()
                 }, onSystem = {
                     ownTilePick = null
                     runCatching { imgPicker.launch("image/*") }.onFailure { pickFor = null; Toast.makeText(ctx, ctx.getString(R.string.icon_no_picker), Toast.LENGTH_LONG).show() }
                 }, onClose = { ownTilePick = null; pickFor = null })
             }
-            // подсказка режима перемещения: тонкая полупрозрачная плашка внизу, не закрывает поле
-            if (movingItem != null || movingStatus != null) androidx.compose.material3.Text(
-                androidx.compose.ui.res.stringResource(R.string.home_move_bar), color = androidx.compose.ui.graphics.Color.White,
-                fontSize = androidx.compose.ui.unit.TextUnit(13f, androidx.compose.ui.unit.TextUnitType.Sp),
-                modifier = Modifier.align(androidx.compose.ui.Alignment.BottomCenter).padding(bottom = 6.dp)
-                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp)).background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.55f)).padding(horizontal = 12.dp, vertical = 4.dp),
-            )
+            // 26.11.2026 (владелица): плашка-подсказка режима перемещения внизу убрана, как и тосты об успехе
             HomeDialogs(
                 dlg, apps, { dlg = it },
                 startMove = { movingItem = it }, startMoveStatus = { movingStatus = it },

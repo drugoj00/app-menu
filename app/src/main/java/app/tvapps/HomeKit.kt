@@ -283,8 +283,8 @@ internal fun HomeBox(
             )
             .onGloballyPositioned { boxCoords = it }
             .then(
-                if (dragStart != null && dragMove != null && dragEnd != null) Modifier.pointerInput(Unit) {
-                    tileDragGesture({ boxCoords }, { suppressUntil = android.os.SystemClock.elapsedRealtime() + 700; long() }, dragStart, dragMove, dragEnd)
+                if (dragStart != null && dragMove != null && dragEnd != null) Modifier.pointerInput(moving) {
+                    tileDragGesture({ boxCoords }, { suppressUntil = android.os.SystemClock.elapsedRealtime() + 700; long() }, dragStart, dragMove, dragEnd, moving)
                 } else Modifier.pointerInput(Unit) {
                     var acc = 0f
                     detectDragGesturesAfterLongPress(
@@ -342,13 +342,58 @@ class Opt(
     val wide: Boolean = false,
     /** выбор цвета полосой спектра; «Как у темы» справа от названия (стрелки меняют оттенок, ОК: как у темы) */
     val bar: ColorBarSpec? = null,
+    /** строка из нескольких кнопок-вариантов в ряд */
+    val choices: ChoiceSpec? = null,
     /** допустимые значения числового счётчика «‹ число ›» (правило 19): нужны окну ввода для проверки; null: без проверки */
     val range: IntRange? = null,
     val onClick: (() -> Unit)? = null,
 )
 
+/** Строка с несколькими кнопками-вариантами в ряд ([selected] -1: ни один не выбран). Пульт: влево и вправо меняют вариант; касание и мышь: нажать на кнопку. */
+class ChoiceSpec(val labels: List<String>, val selected: Int, val onPick: (Int) -> Unit)
+
+@Composable
+private fun ChoiceRow(o: Opt, req: FocusRequester?) {
+    val t = LocalTh.current
+    val ch = o.choices!!
+    val focusedS = remember { mutableStateOf(false) }
+    val (hm, hover) = rememberHover()
+    val gate = remember { StepGate() }
+    Column(
+        Modifier.fillMaxWidth()
+            .then(hm)
+            .then(if (req != null) Modifier.focusRequester(req) else Modifier)
+            .onPreviewKeyEvent { ev ->
+                if (OkShield.eats(ev)) return@onPreviewKeyEvent true
+                if (ev.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                when (ev.key) {
+                    Key.DirectionLeft -> { if (gate.ok()) ch.onPick((if (ch.selected < 0) 1 else ch.selected - 1).coerceIn(0, ch.labels.lastIndex)); true }
+                    Key.DirectionRight -> { if (gate.ok()) ch.onPick((if (ch.selected < 0) 1 else ch.selected + 1).coerceIn(0, ch.labels.lastIndex)); true }
+                    else -> false
+                }
+            }
+            .onFocusChanged { focusedS.value = it.isFocused }
+            .clip(RoundedCornerShape(12.dp))
+            .rowFocusLook(focusedS, hover, t.tileFocus, t.tile, t.accent, t.border)
+            .focusable()
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(o.label, color = t.text, style = Typo.iconLabel(), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            ch.labels.forEachIndexed { i, l ->
+                val on = i == ch.selected
+                Text(l, color = if (on) t.bg else t.text, fontSize = 14.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 1,
+                    modifier = Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(if (on) t.accent else Color.Transparent)
+                        .border(1.dp, if (on) t.accent else t.border, RoundedCornerShape(14.dp))
+                        .clickable { ch.onPick(i) }.padding(horizontal = 8.dp, vertical = 8.dp))
+            }
+        }
+    }
+}
+
 /** Выбор цвета полосой: [argb] 0 - цвет темы; [onPick] получает новый цвет (0 - «Как у темы»). */
-class ColorBarSpec(val argb: Long, val onPick: (Long) -> Unit)
+class ColorBarSpec(val argb: Long, val resetRes: Int = R.string.ws_like_theme, val sat: Float = 1f, val value: Float = 1f, val onPick: (Long) -> Unit)
 
 /** Строка выбора цвета: название и справа кнопка «Как у темы», ниже полоса спектра с бегунком. Пульт: влево/вправо меняют оттенок, ОК сбрасывает на цвет темы; касание и мышь: нажать или вести по полосе. */
 @Composable
@@ -361,9 +406,9 @@ private fun ColorBarRow(o: Opt, req: FocusRequester?) {
     val hue = remember(bar.argb) { if (bar.argb == 0L) -1f else FloatArray(3).also { android.graphics.Color.colorToHSV(bar.argb.toInt(), it) }[0] }
     val pick = { h: Float ->
         val hh = ((h % 360f) + 360f) % 360f
-        bar.onPick(android.graphics.Color.HSVToColor(floatArrayOf(hh, 1f, 1f)).toLong() and 0xFFFFFFFFL)
+        bar.onPick(android.graphics.Color.HSVToColor(floatArrayOf(hh, bar.sat, bar.value)).toLong() and 0xFFFFFFFFL)
     }
-    val spectrum = remember { androidx.compose.ui.graphics.Brush.horizontalGradient((0..12).map { Color.hsv((it * 30f) % 360f, 1f, 1f) }) }
+    val spectrum = remember(bar.sat, bar.value) { androidx.compose.ui.graphics.Brush.horizontalGradient((0..12).map { Color.hsv((it * 30f) % 360f, bar.sat, bar.value) }) }
     Column(
         Modifier.fillMaxWidth()
             .then(hm)
@@ -387,7 +432,7 @@ private fun ColorBarRow(o: Opt, req: FocusRequester?) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(o.label, color = t.text, style = Typo.iconLabel(), modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(androidx.compose.ui.res.stringResource(R.string.ws_like_theme), color = if (bar.argb == 0L) t.bg else t.sub, fontSize = 13.sp,
+            Text(androidx.compose.ui.res.stringResource(bar.resetRes), color = if (bar.argb == 0L) t.bg else t.sub, fontSize = 13.sp,
                 modifier = Modifier.clip(RoundedCornerShape(14.dp)).background(if (bar.argb == 0L) t.accent else Color.Transparent)
                     .border(1.dp, if (bar.argb == 0L) t.accent else t.border, RoundedCornerShape(14.dp))
                     .clickable { bar.onPick(0L) }.padding(horizontal = 12.dp, vertical = 4.dp))
@@ -405,7 +450,7 @@ private fun ColorBarRow(o: Opt, req: FocusRequester?) {
             val cx = (if (hue < 0f) 0.5f else hue / 360f).coerceIn(0.03f, 0.97f) * size.width
             val cy = size.height / 2f
             drawCircle(Color.White, size.height * 0.62f, androidx.compose.ui.geometry.Offset(cx, cy))
-            drawCircle(if (hue < 0f) Color(0xFFB0B0B0) else Color.hsv(hue, 1f, 1f), size.height * 0.46f, androidx.compose.ui.geometry.Offset(cx, cy))
+            drawCircle(if (hue < 0f) Color(0xFFB0B0B0) else Color.hsv(hue, bar.sat, bar.value), size.height * 0.46f, androidx.compose.ui.geometry.Offset(cx, cy))
         }
     }
 }
@@ -413,6 +458,7 @@ private fun ColorBarRow(o: Opt, req: FocusRequester?) {
 @Composable
 internal fun OptRow(o: Opt, req: FocusRequester?) {
     if (o.bar != null) { ColorBarRow(o, req); return }
+    if (o.choices != null) { ChoiceRow(o, req); return }
     val t = LocalTh.current
     val focusedS = remember { mutableStateOf(false) }   // 15.1: фокус читается только при рисовании
     val (hm, hover) = rememberHover()
@@ -619,11 +665,13 @@ private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.tileDrag
     start: (androidx.compose.ui.geometry.Offset) -> Unit,
     move: (androidx.compose.ui.geometry.Offset) -> Unit,
     end: (androidx.compose.ui.geometry.Offset) -> Unit,
+    immediate: Boolean = false,
 ) = awaitEachGesture {
     val down = awaitFirstDown(requireUnconsumed = false)
     if (down.type == androidx.compose.ui.input.pointer.PointerType.Mouse && currentEvent.buttons.isSecondaryPressed) return@awaitEachGesture
     val slop = viewConfiguration.touchSlop
-    val early = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+    // 26.11.2026 (владелица): после «Переместить» держать не нужно, плитка берётся сразу: нажал и повёл (мышью или пальцем)
+    val early = if (immediate) null else withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
         while (true) {
             val ev = awaitPointerEvent()
             val ch = ev.changes.firstOrNull { it.id == down.id } ?: return@withTimeoutOrNull true
@@ -643,7 +691,7 @@ private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.tileDrag
         if (!started && (ch.position - down.position).getDistance() > slop) { started = true; start(root(ch.position)) }
         if (started) { ch.consume(); move(root(ch.position)) }
     }
-    if (started) end(root(last)) else onLong()
+    if (started) end(root(last)) else if (!immediate) onLong()
 }
 
 

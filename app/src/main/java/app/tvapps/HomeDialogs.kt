@@ -254,8 +254,11 @@ private fun HdRowD(dlg: Dlg.RowD, e: HdEnv) {
                     "apps" -> {
                         add(Opt(stringResource(R.string.row_size_icons), "${row.size}", { upd { it.copy(size = (it.size - 1).coerceAtLeast(32)) } }, { upd { it.copy(size = (it.size + 1).coerceAtMost(180)) } }, range = 32..180))
                         add(Opt(stringResource(R.string.row_fit), onOff(row.fit, on, off), onClick = { upd { it.copy(fit = !it.fit) } }))
+                        add(Opt(stringResource(R.string.align_stretch), if (row.align == 0) "✓" else "", onClick = { upd { it.copy(align = 0) } }))
+                        add(Opt(stringResource(R.string.align_keep), choices = ChoiceSpec(listOf(stringResource(R.string.align_left), stringResource(R.string.align_center), stringResource(R.string.align_right)), if (row.align in 1..3) row.align - 1 else -1) { i -> upd { it.copy(align = i + 1) } }))
                         if (row.fit) add(Opt(stringResource(R.string.row_perline), if (row.perLine == 0) stringResource(R.string.perline_auto) else "${row.perLine}", { upd { it.copy(perLine = (it.perLine - 1).coerceAtLeast(0)) } }, { upd { it.copy(perLine = (it.perLine + 1).coerceAtMost(40)) } }, range = 0..40))
                         add(Opt(stringResource(R.string.row_wrap), onOff(row.wrap, on, off), onClick = { upd { it.copy(wrap = !it.wrap) } }))
+                        add(Opt(stringResource(R.string.row_inherit), onOff(row.inherit, on, off), onClick = { upd { it.copy(inherit = !it.inherit) } }))
                         add(Opt(stringResource(R.string.row_itemmode), if (row.itemMode == "banner") stringResource(R.string.look_banner) else stringResource(R.string.look_icon), onClick = {
                             val m = if (row.itemMode == "banner") "icon" else "banner"
                             upd { r -> r.copy(itemMode = m, items = r.items.map { i -> i.copy(mode = m, showLabel = m == "icon") }) }
@@ -271,6 +274,8 @@ private fun HdRowD(dlg: Dlg.RowD, e: HdEnv) {
                     "cards" -> {
                         add(Opt(stringResource(R.string.row_size_cards), "${row.size}", { upd { it.copy(size = (it.size - 1).coerceAtLeast(50)) } }, { upd { it.copy(size = (it.size + 1).coerceAtMost(260)) } }, range = 50..260))
                         add(Opt(stringResource(R.string.row_fit), onOff(row.fit, on, off), onClick = { upd { it.copy(fit = !it.fit) } }))
+                        add(Opt(stringResource(R.string.align_stretch), if (row.align == 0) "✓" else "", onClick = { upd { it.copy(align = 0) } }))
+                        add(Opt(stringResource(R.string.align_keep), choices = ChoiceSpec(listOf(stringResource(R.string.align_left), stringResource(R.string.align_center), stringResource(R.string.align_right)), if (row.align in 1..3) row.align - 1 else -1) { i -> upd { it.copy(align = i + 1) } }))
                         if (row.fit) add(Opt(stringResource(R.string.row_perline), if (row.perLine == 0) stringResource(R.string.perline_auto) else "${row.perLine}", { upd { it.copy(perLine = (it.perLine - 1).coerceAtLeast(0)) } }, { upd { it.copy(perLine = (it.perLine + 1).coerceAtMost(40)) } }, range = 0..40))
                         add(Opt(stringResource(R.string.row_source), onClick = { setDlg(Dlg.CardSource(row.id)) }, value = sourceName(ctx, row.auto)))
                         if (row.auto.startsWith("cat:")) add(Opt(stringResource(R.string.cq_menu), row.auto.substringAfter('|', ""), onClick = { setDlg(Dlg.CatQuery(row.id, row.auto.removePrefix("cat:").substringBefore('|'))) }))
@@ -839,7 +844,6 @@ private fun HdBannerStyle(dlg: Dlg.BannerStyle, e: HdEnv) {
             // цвет баннера: 0 по значку, 1..10 готовые цвета, последний свой (код #RRGGBB)
             var bci by remember(item.id) { mutableStateOf(0) }
             var bcCustom by remember(item.id) { mutableStateOf<Int?>(null) }
-            var askHex by remember(item.id) { mutableStateOf(false) }
             val color: Int? = if (bci == BORDER_COLORS.size) bcCustom else if (bci == 0) null else BORDER_COLORS[bci].toInt()
             val previews by produceState<List<androidx.compose.ui.graphics.ImageBitmap>>(emptyList(), item.id, color) {
                 value = withContext(Dispatchers.Default) { (0 until BannerGen.STYLES).map { BannerGen.make(ctx, entry, it, color).asImageBitmap() } }
@@ -851,23 +855,21 @@ private fun HdBannerStyle(dlg: Dlg.BannerStyle, e: HdEnv) {
                 add(Opt(stringResource(R.string.bn_color), colorName,
                     { bci = (bci + total - 1) % total; if (bci == BORDER_COLORS.size && bcCustom == null) bci = BORDER_COLORS.size - 1 },
                     { bci = (bci + 1) % total; if (bci == BORDER_COLORS.size && bcCustom == null) bci = 0 }))
-                add(Opt(stringResource(R.string.bn_color_hex), onClick = { askHex = true }))
+                // 26.11.2026 (слово владелицы: «откуда я знаю цифры»): свой цвет полоской оттенков, без кода #RRGGBB
+                add(Opt(stringResource(R.string.bn_color_bar), bar = ColorBarSpec(
+                    if (bci == BORDER_COLORS.size) ((bcCustom ?: 0).toLong() and 0xFFFFFFFFL) else 0L,
+                    resetRes = R.string.bn_color_icon_btn,
+                ) { c -> if (c == 0L) bci = 0 else { bcCustom = c.toInt(); bci = BORDER_COLORS.size } }))
                 for (s in 0 until BannerGen.STYLES) {
                     add(Opt(stringResource(names[s]), icon = previews.getOrNull(s), wide = true, onClick = {
                         val ok = BannerGen.apply(ctx, dlg.rowId, item, entry, s, color)
-                        Toast.makeText(ctx, ctx.getString(if (ok) R.string.bn_done else R.string.failed), Toast.LENGTH_SHORT).show()
+                        if (!ok) Toast.makeText(ctx, ctx.getString(R.string.failed), Toast.LENGTH_SHORT).show()   // 26.11.2026: тост об успехе убран
                         back()
                     }))
                 }
             }
             ListDialog(stringResource(R.string.bn_pick), opts, back)
-            if (askHex) TextDialog(stringResource(R.string.bn_color_hex), "", stringResource(R.string.bn_color_hint), { v ->
-                val hx = v.trim().removePrefix("#")
-                val parsed = runCatching { (0xFF000000L or hx.toLong(16)).toInt() }.getOrNull()
-                if (parsed != null && hx.length == 6) { bcCustom = parsed; bci = BORDER_COLORS.size }
-                else Toast.makeText(ctx, ctx.getString(R.string.failed), Toast.LENGTH_SHORT).show()
-                askHex = false
-            }, { askHex = false })
+
 
         // предложение: у приложений на «Доме» нет баннера — создать красивые
 }
@@ -896,7 +898,6 @@ private fun HdBannerOffer(dlg: Dlg.BannerOffer, e: HdEnv) {
                             val bmp = withContext(Dispatchers.Default) { runCatching { BannerGen.make(ctx, e, 0) }.getOrNull() }
                             if (bmp != null && HomeImg.saveBitmap(ctx, it.id, bmp)) { HomeStore.updateItem(rowId, it.id) { x -> x.copy(img = true) }; n++ }
                         }
-                        Toast.makeText(ctx, ctx.getString(R.string.bn_done_n, n), Toast.LENGTH_SHORT).show()
                     }
                 },
                 Opt(stringResource(R.string.bn_later)) { close() },
@@ -984,15 +985,12 @@ internal fun BgDialogHost(menu: Boolean, onClose: () -> Unit) {
             )
             val opts = presets.map { (c, n) ->
                 Opt(stringResource(n), if (bg.type == "color" && bg.color == c) "✓" else "") { put(bg.copy(type = "color", color = c)); step = "main" }
-            } + Opt(stringResource(R.string.bg_hex), "#%06X".format(bg.color and 0xFFFFFF)) { step = "hex" }
+            } + Opt(stringResource(R.string.bg_hue_bar), bar = ColorBarSpec(
+                if (bg.type == "color") bg.color else 0L,
+                resetRes = R.string.c_dark, sat = 0.6f, value = 0.34f,
+            ) { c -> put(bg.copy(type = "color", color = if (c == 0L) 0xFF0B0B10 else c)) })
             ListDialog(stringResource(R.string.bg_color), opts, { step = "main" })
         }
-        "hex" -> TextDialog(stringResource(R.string.bg_hex), "#%06X".format(bg.color and 0xFFFFFF), stringResource(R.string.bg_hex_hint), { v ->
-            val c = runCatching { (android.graphics.Color.parseColor(if (v.startsWith("#")) v else "#$v").toLong() and 0xFFFFFFFFL) or 0xFF000000L }.getOrNull()
-            if (c != null) put(bg.copy(type = if (bg.type == "gradient") "gradient" else "color", color = c))
-            else Toast.makeText(ctx, ctx.getString(R.string.bg_hex_bad), Toast.LENGTH_SHORT).show()
-            step = "main"
-        }, { step = "color" })
         else -> {
             val typeName = when (bg.type) {
                 "color" -> stringResource(R.string.bg_color); "gradient" -> stringResource(R.string.bg_gradient); "image" -> stringResource(R.string.bg_image)

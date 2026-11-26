@@ -350,12 +350,14 @@ private fun AppsRow(
     // с заданным числом плиток в линии: плитки растягиваются до краёв
     val scaleMode = row.fit && row.perLine > 0
     val ks = FloatArray(lines.size)
-    for (li in lines.indices) ks[li] = if (!scaleMode) 1f else if (li < lines.lastIndex) lineK(lines[li]) else if (li > 0) ks[li - 1] else lineK(lines[li]).coerceAtMost(1.5f)
+    // 26.11.2026: row.align 0 растягивает единственную линию до краёв (плитки крупнее, не больше 2,5), иначе размер не меняется (не больше 1,5) и линия ставится слева, по центру или справа
+    for (li in lines.indices) ks[li] = if (!scaleMode) 1f else if (li < lines.lastIndex) lineK(lines[li]) else if (li > 0) ks[li - 1] else lineK(lines[li]).coerceAtMost(if (row.align == 0 && lines.size == 1) 2.5f else 1.5f)
     val kFirst = if (lines.isEmpty()) 1f else ks[0]
     val lineGap = FloatArray(lines.size)
     for (li in lines.indices) lineGap[li] = if (!row.fit || scaleMode) gapF
         else if (li < lines.lastIndex && lines[li].size > 1) ((availW - lines[li].sumOf { slotW[it].toDouble() }.toFloat()) / (lines[li].size - 1)).coerceAtLeast(gapF)
         else if (li > 0) lineGap[li - 1] else gapF
+    val rowAlignH = when (row.align) { 2 -> androidx.compose.ui.Alignment.CenterHorizontally; 3 -> androidx.compose.ui.Alignment.End; else -> androidx.compose.ui.Alignment.Start }
     val tile: @Composable (El, Float) -> Unit = { el, k ->
             val isMoving = movingItem == el.item.id
             val bring = remember { BringIntoViewRequester() }
@@ -375,9 +377,10 @@ private fun AppsRow(
                         else -> el.entry?.let { HomeFocus.mark(row.id, el.item.id); openApp(it) }
                     }
                 },
-                onLong = { onDlg(Dlg.ItemD(row.id, el.item.id)) },
+                // 26.11.2026 (владелица): в режиме перемещения долгое нажатие/удержание меню не открывает (оно закрывало плитку), удержание с движением двигает плитку
+                onLong = { if (!isMoving) onDlg(Dlg.ItemD(row.id, el.item.id)) },
                 // долгое ОК: сразу режим перемещения без окна (кроме автоматических плиток); окно действий: «Меню» или «Инфо»
-                onLongKey = if (!el.auto && !isMoving) ({ onMoveStart(el.item.id) }) else null,
+                onLongKey = null,   // 26.11.2026 (владелица): долгое ОК на пульте, как и мышь, открывает меню; «Переместить» выбирается в нём, «Назад» заканчивает перемещение
                 onMoveKey = { k2 ->
                     if (el.auto) true else when (k2) {
                         Key.DirectionLeft -> { HomeStore.moveItem(el.item.id, -1, 0); true }
@@ -388,13 +391,13 @@ private fun AppsRow(
                     }
                 },
                 onStep = { d -> if (!el.auto) { onDlg(null); HomeStore.moveItem(el.item.id, d, 0) } },
-                dragEnabled = !el.auto && !isMoving,
+                dragEnabled = !el.auto,
             )
     }
     if (row.wrap && row.fit) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(row.gap.dp)) {
             lines.forEachIndexed { li, line ->
-                Row(horizontalArrangement = Arrangement.spacedBy(lineGap[li].dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(lineGap[li].dp, rowAlignH)) {
                     line.forEach { i -> val el = els[i]; androidx.compose.runtime.key(el.item.id) { tile(el, ks[li]) } }
                 }
             }
@@ -405,7 +408,7 @@ private fun AppsRow(
             horizontalArrangement = Arrangement.spacedBy(row.gap.dp), verticalArrangement = Arrangement.spacedBy(row.gap.dp),
         ) { els.forEach { el -> androidx.compose.runtime.key(el.item.id) { tile(el, 1f) } } }
     } else {
-        LazyRow(state = state, horizontalArrangement = Arrangement.spacedBy((lineGap.firstOrNull() ?: gapF).dp), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)) {
+        LazyRow(Modifier.fillMaxWidth(), state = state, horizontalArrangement = Arrangement.spacedBy((lineGap.firstOrNull() ?: gapF).dp, rowAlignH), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)) {
             items(els, key = { it.item.id }) { el -> tile(el, kFirst) }
         }
     }
@@ -439,6 +442,7 @@ private fun HomeAppTile(
         }
     }
     val custom = custom0 ?: customRetry
+    val bannerChecked = remember(el.entry?.pkg, banner) { mutableStateOf(false) }
     val bannerBmp by produceState<Bitmap?>(el.entry?.let { Banners.peek(it.pkg) }, el.entry?.pkg, banner) {
         val e = el.entry
         if (banner && e != null && value == null) {
@@ -447,9 +451,13 @@ private fun HomeAppTile(
             var tries = 0
             while (value == null && !Banners.isNone(e.pkg) && tries++ < 6) { kotlinx.coroutines.delay(1500); value = withContext(Dispatchers.IO) { Banners.load(ctx, e) } }
         }
+        bannerChecked.value = true
     }
     val iconBmp = el.entry?.let { e -> remember(e.pkg, e.icon, e.bmp) { e.bmp ?: e.icon.toBitmap(128, 128).asImageBitmap() } }
-    val card = when (item.bg) { 1 -> false; 2 -> true; else -> banner }
+    // 26.11.2026 (владелица: «добавляю приложение, а баннеров стало 4»): новому элементу строки копируется фон первого баннера (без карточки, у баннера картинка),
+    // и приложение без своей баннерной картинки рисовалось голым значком. Баннер без картинки всегда на карточке.
+    val noArt = banner && custom == null && bannerBmp == null && (el.entry == null || bannerChecked.value)
+    val card = if (noArt) true else when (item.bg) { 1 -> false; 2 -> true; else -> banner }
     val label = item.label.ifBlank {
         when (item.kind) {
             "menu" -> stringResource(R.string.home_all_btn)
@@ -471,7 +479,7 @@ private fun HomeAppTile(
         memKey = row.id + "|" + item.id,
         dragStart = if (dragEnabled) ({ p -> TileDrag.active = TileDrag.Info(row, el, scale, with(dens) { wDp.dp.toPx() }, with(dens) { sizeDp.dp.toPx() }); TileDrag.pos = p }) else null,
         dragMove = if (dragEnabled) ({ p -> TileDrag.pos = p }) else null,
-        dragEnd = if (dragEnabled) ({ p -> TileDrag.drop(item.id, p) }) else null,
+        dragEnd = if (dragEnabled) ({ p -> TileDrag.drop(item.id, p); if (moving) onClick() }) else null,
         ringColor = if (item.borderW > 0 && item.borderHover) (if (item.borderC == 0L) t.accent else Color(item.borderC.toInt())) else null,
         ringWidth = if (item.borderHover) item.borderW else 0,
         zoomOnFocus = true,
