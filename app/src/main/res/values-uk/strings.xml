@@ -1324,4 +1324,13 @@
     <string name="hour_own_cuckoo">Свій звук зозулі</string>
     <string name="hour_own_chime">Свій звук курантів</string>
     <string name="hour_own_none">за замовчуванням</string>
+    <string name="bn_color_icon_btn">За значком</string>
+    <string name="bg_hue_bar">Відтінок тла</string>
+    <string name="bn_color_bar">Власний колір</string>
+    <string name="align_stretch">Розтягнути до країв</string>
+    <string name="align_keep">Не змінювати розмір</string>
+    <string name="align_left">Ліворуч</string>
+    <string name="align_center">По центру</string>
+    <string name="align_right">Праворуч</string>
+    <string name="row_inherit">Нові як в інших у рядку</string>
 </resources>
