@@ -23,6 +23,21 @@ internal object TopBarPlan {
         return lv.scale * (left.sum() + searchMin + status.sum()) + gaps
     }
 
+    /** Ширина при произвольном порядке элементов: items = (ширина при масштабе 100 %, это значок состояния). Соседние значки состояния ближе друг к другу. */
+    fun requiredOrdered(lv: TopLevel, items: List<Pair<Float, Boolean>>, userScale: Float): Float {
+        var w = 0f; var gaps = 0f
+        items.forEachIndexed { i, p ->
+            w += p.first
+            if (i > 0) gaps += if (p.second && items[i - 1].second) lv.status else lv.left
+        }
+        return lv.scale * userScale * w + gaps
+    }
+
+    fun chooseOrdered(avail: Float, items: List<Pair<Float, Boolean>>, userScale: Float): Int {
+        val i = levels.indexOfFirst { requiredOrdered(it, items, userScale) <= avail }
+        return if (i < 0) levels.lastIndex else i
+    }
+
     /** Первый (самый просторный) уровень, при котором всё помещается; если нет такого, самый тесный. */
     fun choose(avail: Float, left: List<Float>, searchMin: Float, status: List<Float>): Int {
         val i = levels.indexOfFirst { required(it, left, searchMin, status) <= avail }

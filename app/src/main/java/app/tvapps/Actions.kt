@@ -12,7 +12,9 @@ object Actions {
 
     /** Кэш: на Android 11+ системная команда; на старых хотя бы внешний кэш в Android/data. */
     suspend fun clearCache(pkg: String): Boolean {
-        val out = Adb.shell("pm clear --cache-only $pkg")
+        // 19.2: на Samsung SM-A146P (Android 15) `pm clear --cache-only` зависает по ADB; под `timeout 10` не висим, без `timeout` (если его нет) пробуем обычно
+        var out = Adb.shell("timeout 10 pm clear --cache-only $pkg")
+        if (!out.contains("Success", true) && (out.contains("not found", true) || out.contains("inaccessible", true) || out.contains("unknown", true))) out = Adb.shell("pm clear --cache-only $pkg")
         if (out.contains("Success", true)) return true
         val ext = Adb.shell("rm -rf /sdcard/Android/data/$pkg/cache/* /sdcard/Android/data/$pkg/cache/.[!.]* 2>&1; echo END")
         return ext.contains("END")

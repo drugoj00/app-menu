@@ -92,6 +92,12 @@ data class HRow(
     val perLine: Int = 0,
     /** убранные при уменьшении числа виджетов: возвращаются, когда число увеличивают */
     val spare: List<HWidget> = emptyList(),
+    /** 20.0 (просьба с 4PDA, vova.vellev: «чтобы была обводка любой строки»): обводка вокруг строки; толщина dp (0 нет), цвет (0 акцент темы), скругление dp */
+    val outW: Int = 0,
+    val outC: Long = 0L,
+    val outR: Int = 12,
+    /** 20.0: фон строки как у дока: 0 нет, 1 стекло прозрачное, 2 стекло матовое, 3 тёмный */
+    val bgMode: Int = 0,
 )
 
 /** Значок состояния в верхней полоске: bt, net, usb, time, date. */
@@ -110,6 +116,10 @@ data class HTop(
     val recent: Boolean = true,      // кнопка «Недавние» справа от кнопки меню
     val hdmi: Boolean = true,        // кнопка «Входы HDMI» справа от «Недавних»
     val clean: Boolean = true,       // кнопка «Очистка памяти» после «Недавних» (нет ключа в сохранённой раскладке: включена)
+    val order: List<String> = emptyList(),   // 20.0: порядок ВСЕХ элементов строки (кнопки, поиск, значки, пустые места sp1...); пусто: прежний порядок
+    val scale: Int = 100,                    // 20.0: размер строки, % (70-150)
+    val plateAlpha: Int = 45,                // 20.0: прозрачность подложки строки, % (0 совсем прозрачная, 100 чёрная)
+    val style: Int = 0,                      // 20.0: вид строки: 0 раздельные кнопки, 1 общая подложка справа, 2 подложка и поиск иконкой
 )
 
 /** Фон экрана: none (по теме), color, gradient (живой градиент), image, video, anim (GIF/WebP). */
@@ -141,7 +151,7 @@ private fun JSONObject.toWidget() = HWidget(optString("t", "weather"), optString
 
 private fun HRow.toJson() = JSONObject().put("id", id).put("t", title).put("st", showTitle).put("k", kind)
     .put("it", JSONArray(items.map { it.toJson() })).put("a", auto).put("c", count).put("s", size).put("as", aspect)
-    .put("sl", JSONArray(slots.map { it.toJson() })).put("lb", labels).put("im", itemMode).put("gp", gap).put("ft", fit).put("wr", wrap).put("pl", perLine).put("sp", JSONArray(spare.map { it.toJson() }))
+    .put("sl", JSONArray(slots.map { it.toJson() })).put("lb", labels).put("im", itemMode).put("gp", gap).put("ft", fit).put("wr", wrap).put("pl", perLine).put("sp", JSONArray(spare.map { it.toJson() })).put("ow", outW).put("oc", outC).put("or", outR).put("bm", bgMode)
 
 private fun JSONObject.toRow(): HRow {
     val its = optJSONArray("it")?.let { a -> (0 until a.length()).map { a.getJSONObject(it).toItem() } } ?: emptyList()
@@ -151,12 +161,13 @@ private fun JSONObject.toRow(): HRow {
         optInt("c", 10), optInt("s", 72), optString("as", "16:9"), sl, optBoolean("lb", true), optString("im", "banner"),
         optInt("gp", 8), optBoolean("ft", true), optBoolean("wr", false), optInt("pl", 0),
         optJSONArray("sp")?.let { a -> (0 until a.length()).map { a.getJSONObject(it).toWidget() } } ?: emptyList(),
+        outW = optInt("ow", 0), outC = optLong("oc", 0L), outR = optInt("or", 12), bgMode = optInt("bm", 0).coerceIn(0, 3),
     )
 }
 
 private fun HLayout.toJson() = JSONObject()
     .put("v", 1).put("rg", rowGap)
-    .put("voice", top.voice).put("big", top.big).put("search", top.search).put("menu", top.menu).put("recent", top.recent).put("hdmi", top.hdmi).put("clean", top.clean)
+    .put("voice", top.voice).put("big", top.big).put("search", top.search).put("menu", top.menu).put("recent", top.recent).put("hdmi", top.hdmi).put("clean", top.clean).put("ord", JSONArray(top.order)).put("sc", top.scale).put("sty", top.style).put("pa", top.plateAlpha)
     .put("bg", JSONObject().put("t", bg.type).put("c", bg.color).put("f", bg.fit).put("d", bg.dim).put("b", bg.blur))
     .put("st", JSONArray(top.status.map { JSONObject().put("id", it.id).put("v", it.visible).put("o", it.opt) }))
     .put("rows", JSONArray(rows.map { it.toJson() }))
@@ -168,7 +179,7 @@ private fun parseLayout(s: String): HLayout? = runCatching {
     } ?: emptyList()
     val rows = j.optJSONArray("rows")?.let { a -> (0 until a.length()).map { a.getJSONObject(it).toRow() } } ?: emptyList()
     // значки состояния, которых нет в сохранённом, добавляются в конец (новые версии)
-    val missing = STATUS_IDS.filter { id -> st.none { it.id == id } }.map { HStatus(it, true) }
+    val missing = STATUS_IDS.filter { id -> st.none { it.id == id } }.map { HStatus(it, it != "cclock", if (it == "cclock") 2 else 0) }
     val ti = st.indexOfFirst { it.id == "date" }.let { if (it >= 0) it else st.indexOfFirst { x -> x.id == "time" } }
     val all = missing
     // новые значки встают перед датой; колокольчик уведомлений — первым, слева от Bluetooth
@@ -178,17 +189,19 @@ private fun parseLayout(s: String): HLayout? = runCatching {
     val stFull = if (newNotif.isEmpty()) st1 else newNotif + st1
     val b = j.optJSONObject("bg")
     val bg = if (b == null) HBg() else HBg(b.optString("t", "none"), b.optLong("c", 0xFF0B0B10), b.optString("f", "crop"), b.optInt("d"), b.optInt("b"))
-    HLayout(HTop(j.optBoolean("voice", true), stFull, j.optBoolean("big", true), j.optBoolean("search", true), true, j.optBoolean("recent", true), j.optBoolean("hdmi", true), j.optBoolean("clean", true)), rows, bg, j.optInt("rg", 8))
+    HLayout(HTop(j.optBoolean("voice", true), stFull, j.optBoolean("big", true), j.optBoolean("search", true), true, j.optBoolean("recent", true), j.optBoolean("hdmi", true), j.optBoolean("clean", true),
+        order = (j.optJSONArray("ord")?.let { a -> (0 until a.length()).map { a.getString(it) } } ?: emptyList()), scale = j.optInt("sc", 100).coerceIn(50, 200), style = j.optInt("sty", 0).coerceIn(0, 2), plateAlpha = j.optInt("pa", 45).coerceIn(0, 100)), rows, bg, j.optInt("rg", 8))
 }.getOrNull()
 
-internal val STATUS_IDS = listOf("notif", "bt", "net", "usb", "gear", "date", "time")
+// "cclock": «Часы по центру» (20.0): отдельный элемент со своими настройками; стоит по центру экрана намертво, в порядок строки не входит; по умолчанию выключен
+internal val STATUS_IDS = listOf("notif", "bt", "net", "usb", "gear", "date", "time", "cclock")
 
 object HomeStore {
     private lateinit var sp: SharedPreferences
     private lateinit var app: Context
     private var seq = 0
 
-    var layout by mutableStateOf(HLayout(HTop(true, STATUS_IDS.map { HStatus(it) }), emptyList())); private set
+    var layout by mutableStateOf(HLayout(HTop(true, STATUS_IDS.map { HStatus(it, it != "cclock", if (it == "cclock") 2 else 0) }), emptyList())); private set
 
     fun setBg(b: HBg) = set(layout.copy(bg = b))
 
@@ -294,7 +307,7 @@ object HomeStore {
         val c = app
         sp.edit().putBoolean("wstyle_new_default", true).apply()
         return HLayout(
-            HTop(true, STATUS_IDS.map { HStatus(it, true, if (it == "date") 3 else 0) }),
+            HTop(true, STATUS_IDS.map { HStatus(it, it != "cclock", if (it == "date") 3 else if (it == "cclock") 2 else 0) }),
             listOf(
                 HRow(newId("r"), "", true, "widgets", size = 120, slots = listOf(HWidget("weather", n = 5), HWidget("clock", n = WStyle.presetN("clock", 1, 0), style = WStyle.preset("clock", 1).json()))),
             ),
@@ -466,18 +479,41 @@ object HomeStore {
     fun updateStatus(id: String, f: (HStatus) -> HStatus) =
         updateTop { t -> t.copy(status = t.status.map { if (it.id == id) f(it) else it }) }
 
-    fun moveStatus(id: String, delta: Int): Boolean {
-        val list = layout.top.status.toMutableList()
-        // двигаем среди видимых: прыжок через скрытые
-        val i = list.indexOfFirst { it.id == id }
+    /** Значок состояния двигается среди ВСЕХ элементов строки (не только среди значков). */
+    fun moveStatus(id: String, delta: Int): Boolean = moveItem(id, delta)
+
+    /** 20.0: сдвиг любого элемента строки на шаг; скрытые элементы перепрыгиваются. */
+    fun moveItem(id: String, delta: Int): Boolean {
+        val top = layout.top
+        val list = TopOrder.normalize(top).toMutableList()
+        val i = list.indexOf(id)
+        if (i < 0) return false
         var j = i + delta
-        while (j in list.indices && !list[j].visible) j += delta
-        if (i < 0 || j !in list.indices) return false
-        val s = list.removeAt(i)
-        list.add(j, s)
-        updateTop { it.copy(status = list) }
+        while (j in list.indices && !TopOrder.visible(app, top, list[j])) j += delta
+        if (j !in list.indices) return false
+        list.add(j, list.removeAt(i))
+        updateTop { it.copy(order = list) }
         return true
     }
+
+    fun moveItemTo(id: String, first: Boolean) {
+        val list = TopOrder.normalize(layout.top).toMutableList()
+        if (!list.remove(id)) return
+        if (first) list.add(0, id) else list.add(id)
+        updateTop { it.copy(order = list) }
+    }
+
+    /** Пустое место: растягивается и отодвигает соседей (так часы встают по центру). */
+    fun addGap() {
+        val l = TopOrder.normalize(layout.top).toMutableList()
+        var n = 1
+        while ("sp$n" in l) n++
+        l.add("sp$n")
+        updateTop { it.copy(order = l) }
+    }
+
+    fun removeGap(id: String) = updateTop { t -> t.copy(order = TopOrder.normalize(t).filter { it != id }) }
+
 
     /**
      * Новые приложения (07.11.2026): всё, что не было известно раньше, попадает в строку «Новые приложения» на «Доме».

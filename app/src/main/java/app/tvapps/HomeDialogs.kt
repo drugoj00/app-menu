@@ -106,6 +106,10 @@ internal fun HomeDialogs(
         is Dlg.WidgetCity -> HdWidgetCity(dlg, e)
         is Dlg.Status -> HdStatus(dlg, e)
         Dlg.Top -> HdTop(e)
+        Dlg.Order -> HdOrder(e)
+        Dlg.Alarms -> AlarmsDialog(setDlg) { setDlg(Dlg.Order) }
+        is Dlg.AlarmEdit -> AlarmEditDialog(dlg.id, setDlg)
+        is Dlg.TopItem -> HdTopItem(dlg, e)
         Dlg.Bg -> BgDialogHost(false) { setDlg(Dlg.Top) }
         is Dlg.AppActions -> HdAppActions(dlg, e)
         is Dlg.BannerStyle -> HdBannerStyle(dlg, e)
@@ -296,6 +300,20 @@ private fun HdRowD(dlg: Dlg.RowD, e: HdEnv) {
                                 { val v = BORDER_COLORS[(rci + 1) % BORDER_COLORS.size]; allW { it.copy(borderC = v) } }, icon = rsw))
                         }
                     }
+                }
+                // фон строки как у дока (просьба владелицы 26.11.2026): нет, стекло прозрачное, стекло матовое, тёмный
+                val bgNames = listOf(R.string.row_bg_0, R.string.row_bg_1, R.string.row_bg_2, R.string.row_bg_3).map { stringResource(it) }
+                add(Opt(stringResource(R.string.row_bg), bgNames[row.bgMode.coerceIn(0, 3)], onClick = { upd { it.copy(bgMode = (it.bgMode + 1) % 4) } }))
+                // обводка этой строки: толщина, цвет, скругление (просьба с 4PDA)
+                val oci = BORDER_COLORS.indexOf(row.outC).coerceAtLeast(0)
+                add(Opt(stringResource(R.string.row_outline), if (row.outW == 0) stringResource(R.string.off) else "${row.outW}",
+                    { upd { it.copy(outW = (it.outW - 1).coerceAtLeast(0)) } }, { upd { it.copy(outW = (it.outW + 1).coerceAtMost(8)) } },
+                    onClick = { upd { it.copy(outW = if (it.outW == 0) 2 else if (it.outW >= 8) 0 else it.outW + 1) } }, range = 0..8))
+                if (row.outW > 0 || row.bgMode > 0) add(Opt(stringResource(R.string.row_outline_r), "${row.outR}", { upd { it.copy(outR = (it.outR - 2).coerceAtLeast(0)) } }, { upd { it.copy(outR = (it.outR + 2).coerceAtMost(40)) } }, range = 0..40))
+                if (row.outW > 0) {
+                    add(Opt(stringResource(R.string.bd_color), stringResource(BORDER_NAMES[oci]),
+                        { val v = BORDER_COLORS[(oci + BORDER_COLORS.size - 1) % BORDER_COLORS.size]; upd { it.copy(outC = v) } },
+                        { val v = BORDER_COLORS[(oci + 1) % BORDER_COLORS.size]; upd { it.copy(outC = v) } }))
                 }
                 add(Opt(stringResource(R.string.screen_row_gap), "${HomeStore.layout.rowGap}", { HomeStore.set(HomeStore.layout.copy(rowGap = (HomeStore.layout.rowGap - 1).coerceAtLeast(0))) }, { HomeStore.set(HomeStore.layout.copy(rowGap = (HomeStore.layout.rowGap + 1).coerceAtMost(60))) }, range = 0..60))
                 add(Opt(stringResource(R.string.row_gap), "${row.gap}", { upd { it.copy(gap = (it.gap - 1).coerceAtLeast(0)) } }, { upd { it.copy(gap = (it.gap + 1).coerceAtMost(60)) } }, range = 0..60))
@@ -671,6 +689,7 @@ private fun HdEmpty(e: HdEnv) {
                 Opt(stringResource(R.string.home_add_row)) { setDlg(Dlg.AddRow(HomeStore.layout.rows.lastOrNull()?.id)) },
                 Opt(stringResource(R.string.d_program_settings)) { openAppSettings() },
                 Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) },
+                Opt(stringResource(R.string.ord_menu)) { setDlg(Dlg.Order) },
                 Opt(stringResource(R.string.top_items)) { setDlg(Dlg.Top) },
                 Opt(stringResource(R.string.bg_title)) { setDlg(Dlg.Bg) },
                 Opt(stringResource(R.string.wifi_title) + "…") { close(); WifiReceive.open = true },
@@ -721,14 +740,18 @@ private fun HdStatus(dlg: Dlg.Status, e: HdEnv) {
             val s = HomeStore.layout.top.status.firstOrNull { it.id == dlg.id }
             if (s == null) { close(); return }
             val opts = buildList {
-                add(Opt(stringResource(R.string.d_program_settings)) { openAppSettings() })      // настройки программы — первой строкой
-                add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома» — второй
+                add(Opt(stringResource(R.string.ord_menu)) { setDlg(Dlg.Order) })      // 26.11.2026: настройки верхней строки прямо с долгого нажатия на её элемент
+                add(Opt(stringResource(R.string.d_program_settings)) { openAppSettings() })      // настройки программы
+                add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома»
                 add(Opt(stringResource(R.string.d_move)) { close(); startMoveStatus(s.id) })
-                if (s.id == "time") {
+                if (s.id == "time" || s.id == "cclock") {
                     add(Opt(stringResource(R.string.wg_time_fmt), if ((s.opt and 1) != 0) "12 h" else "24 h", onClick = { HomeStore.updateStatus(s.id) { it.copy(opt = it.opt xor 1) } }))
                     add(Opt(stringResource(R.string.wg_seconds), onOff((s.opt and 2) != 0, on, off), onClick = { HomeStore.updateStatus(s.id) { it.copy(opt = it.opt xor 2) } }))
+                    if (s.id == "cclock") addAll(timeFaceOpts(s.opt, on, off, setDlg))
+                    else add(Opt(stringResource(R.string.alarm_menu)) { setDlg(Dlg.Alarms) })      // у обычных часов тоже есть вход в будильники
                 }
-                if (s.id == "date") add(Opt(stringResource(R.string.st_date_fmt), dateSample(s.opt.coerceIn(0, 3)), onClick = { HomeStore.updateStatus(s.id) { it.copy(opt = (it.opt + 1) % 4) } }))
+                if (s.id == "date") add(Opt(stringResource(R.string.st_date_fmt), dateSample(s.opt), onClick = { HomeStore.updateStatus(s.id) { it.copy(opt = (it.opt and 3.inv()) or (((it.opt and 3) + 1) % 4)) } }))
+                if (s.id == "date") add(Opt(stringResource(R.string.date_year), onOff(dateYear(s.opt), on, off), onClick = { HomeStore.updateStatus(s.id) { it.copy(opt = (it.opt and 24.inv()) or (if (dateYear(it.opt)) 16 else 8)) } }))
                 add(Opt(stringResource(R.string.st_open)) { close(); if (s.id == "bt") openBluetoothSettings(ctx) else statusClick(ctx, s.id) })
                 add(Opt(stringResource(R.string.st_hide)) { HomeStore.updateStatus(s.id) { it.copy(visible = false) }; close() })
                 add(Opt(stringResource(R.string.st_top)) { setDlg(Dlg.Top) })
@@ -750,6 +773,7 @@ private fun HdTop(e: HdEnv) {
             val opts = buildList {
                 add(Opt(stringResource(R.string.d_program_settings)) { openAppSettings() })      // настройки программы — первой строкой
                 add(Opt(stringResource(R.string.d_screen)) { setDlg(Dlg.Screen) })      // настройки «Дома» — второй
+                add(Opt(stringResource(R.string.ord_menu)) { setDlg(Dlg.Order) })
                 add(Opt(stringResource(R.string.top_big), onOff(top.big, on, off), onClick = { HomeStore.updateTop { it.copy(big = !it.big) } }))
                 add(Opt(stringResource(R.string.top_recent), onOff(top.recent, on, off), onClick = { HomeStore.updateTop { it.copy(recent = !it.recent) } }))
                 add(Opt(stringResource(R.string.dock_btn), onOff(HomeDock.btn(ctx), on, off), onClick = { HomeDock.setBtn(ctx, !HomeDock.btn(ctx)) }))
@@ -1051,6 +1075,8 @@ private fun HomeScreenDialog(setDlg: (Dlg?) -> Unit, close: () -> Unit, disableH
 
                     onClick = { SysBars.set(ctx, true, if (SysBars.hidden(ctx, true)) 1 else 2); (ctx as? android.app.Activity)?.let { SysBars.apply(it) }; rev++ }),
 
+                Opt(stringResource(R.string.ord_menu)) { setDlg(Dlg.Order) },
+
                 Opt(stringResource(R.string.top_items)) { setDlg(Dlg.Top) },
 
                 // раздел «Виджет часов и погоды»: настройки вида первого виджета часов или погоды на «Доме» (у каждого виджета свои, они же в меню виджета)
@@ -1094,3 +1120,91 @@ private fun HomeScreenDialog(setDlg: (Dlg?) -> Unit, close: () -> Unit, disableH
 
         }
 
+
+/** 20.0: верхняя строка одним блоком: размер, порядок и показ каждого элемента, пустые места, положение часов. */
+@Composable
+private fun HdOrder(e: HdEnv) {
+    val ctx = e.ctx; val setDlg = e.setDlg; val close = e.close; val updatesFooter = e.updatesFooter; val on = e.on; val off = e.off
+    val top = HomeStore.layout.top
+    val order = TopOrder.normalize(top)
+    val opts = buildList {
+        val styleNames = listOf(R.string.top_style_0, R.string.top_style_1).map { stringResource(it) }
+        add(Opt(stringResource(R.string.top_style), styleNames[if (top.style >= 1) 1 else 0], onClick = { HomeStore.updateTop { it.copy(style = if (it.style >= 1) 0 else 1) } }))
+        if (top.style >= 1) add(Opt(stringResource(R.string.plate_alpha), top.plateAlpha.toString() + "%",
+            { HomeStore.updateTop { it.copy(plateAlpha = (it.plateAlpha - 5).coerceAtLeast(0)) } }, { HomeStore.updateTop { it.copy(plateAlpha = (it.plateAlpha + 5).coerceAtMost(100)) } },
+            onClick = { HomeStore.updateTop { it.copy(plateAlpha = if (it.plateAlpha >= 100) 0 else it.plateAlpha + 10) } }, range = 0..100))
+        // цвет значков и кнопок верхней строки (тот же, что «Цвет значков строки состояния» в настройках программы): быстрый выбор из строки
+        val icPos = Cfg.statusIconPos
+        val icNames = listOf(R.string.ic_c_auto, R.string.ic_c_white, R.string.ic_c_black, R.string.ic_c_red, R.string.ic_c_yellow, R.string.ic_c_green, R.string.ic_c_cyan, R.string.ic_c_blue, R.string.ic_c_pink).map { stringResource(it) }
+        val icPresets = listOf(-1f, 1f, 0f, 0.06f, 0.22f, 0.38f, 0.54f, 0.70f, 0.86f)
+        val icIdx = icPresets.indexOfFirst { kotlin.math.abs(it - icPos) < 0.02f }
+        add(Opt(stringResource(R.string.ord_icolor), if (icIdx >= 0) icNames[icIdx] else stringResource(R.string.ic_c_own),
+            { Cfg.changeStatusIconPos(if (icPos < 0f) 1f else (icPos - 0.02f)) }, { Cfg.changeStatusIconPos(if (icPos < 0f) 0f else (icPos + 0.02f)) },
+            onClick = { Cfg.changeStatusIconPos(icPresets[(icIdx + 1).mod(icPresets.size)]) }))
+        add(Opt(stringResource(R.string.ord_size), top.scale.toString() + "%", onClick = { HomeStore.updateTop { it.copy(scale = TopOrder.nextScale(it.scale)) } }))
+        for (id in order) add(Opt(topItemLabel(id), if (TopOrder.isGap(id)) "" else onOff(TopOrder.visible(ctx, top, id), on, off), onClick = { setDlg(Dlg.TopItem(id)) }))
+        add(Opt(stringResource(R.string.cclock_name), onOff(top.status.firstOrNull { it.id == "cclock" }?.visible == true, on, off), onClick = { setDlg(Dlg.TopItem("cclock")) }))
+        add(Opt(stringResource(R.string.ord_add_gap)) { HomeStore.addGap() })
+        add(Opt(stringResource(R.string.ord_reset)) { HomeStore.updateTop { it.copy(order = emptyList(), scale = 100) } })
+        add(Opt(stringResource(R.string.top_items)) { setDlg(Dlg.Top) })
+    }
+    ListDialog(stringResource(R.string.ord_menu), opts, close, footer = updatesFooter)
+}
+
+@Composable
+private fun HdTopItem(dlg: Dlg.TopItem, e: HdEnv) {
+    val ctx = e.ctx; val setDlg = e.setDlg; val updatesFooter = e.updatesFooter; val on = e.on; val off = e.off
+    val id = dlg.id
+    val top = HomeStore.layout.top
+    if (id != "cclock" && id !in TopOrder.normalize(top)) { setDlg(Dlg.Order); return }
+    val st = top.status.firstOrNull { it.id == id }
+    val opts = buildList {
+        add(Opt(stringResource(R.string.ord_menu)) { setDlg(Dlg.Order) })      // 26.11.2026: общие настройки верхней строки
+        if (!TopOrder.isGap(id)) add(Opt(stringResource(R.string.d_move)) { e.close(); e.startMoveStatus(id) })
+        if (id != "cclock") {
+            add(Opt(stringResource(R.string.ord_left)) { HomeStore.moveItem(id, -1) })
+            add(Opt(stringResource(R.string.ord_right)) { HomeStore.moveItem(id, 1) })
+            add(Opt(stringResource(R.string.ord_first)) { HomeStore.moveItemTo(id, true) })
+            add(Opt(stringResource(R.string.ord_last)) { HomeStore.moveItemTo(id, false) })
+        }
+        if (TopOrder.isGap(id)) add(Opt(stringResource(R.string.ord_remove)) { HomeStore.removeGap(id); setDlg(Dlg.Order) })
+        else add(Opt(stringResource(R.string.ord_show), onOff(TopOrder.visible(ctx, top, id), on, off), onClick = { TopOrder.toggle(ctx, id) }))
+        if ((id == "time" || id == "cclock") && st != null) {
+            add(Opt(stringResource(R.string.wg_time_fmt), if ((st.opt and 1) != 0) "12 h" else "24 h", onClick = { HomeStore.updateStatus(id) { it.copy(opt = it.opt xor 1) } }))
+            add(Opt(stringResource(R.string.wg_seconds), onOff((st.opt and 2) != 0, on, off), onClick = { HomeStore.updateStatus(id) { it.copy(opt = it.opt xor 2) } }))
+            if (id == "cclock") addAll(timeFaceOpts(st.opt, on, off, setDlg))
+        }
+        if (id == "date" && st != null) {
+            add(Opt(stringResource(R.string.st_date_fmt), dateSample(st.opt), onClick = { HomeStore.updateStatus(id) { it.copy(opt = (it.opt and 3.inv()) or (((it.opt and 3) + 1) % 4)) } }))
+            add(Opt(stringResource(R.string.date_year), onOff(dateYear(st.opt), on, off), onClick = { HomeStore.updateStatus(id) { it.copy(opt = (it.opt and 24.inv()) or (if (dateYear(it.opt)) 16 else 8)) } }))
+        }
+    }
+    ListDialog(topItemLabel(id), opts, { setDlg(Dlg.Order) }, footer = updatesFooter)
+}
+
+/** 20.0: часы по центру экрана (крупнее), циферблат вместо цифр, его фон, цвета стрелок и размер. */
+@Composable
+private fun timeFaceOpts(opt: Int, on: String, off: String, setDlg: (Dlg?) -> Unit): List<Opt> {
+    val bgNames = listOf(R.string.face_bg_0, R.string.face_bg_1, R.string.face_bg_2, R.string.face_bg_3, R.string.face_bg_4).map { stringResource(it) }
+    val handNames = listOf(R.string.face_hands_0, R.string.face_hands_1, R.string.face_hands_2, R.string.face_hands_3, R.string.face_hands_4).map { stringResource(it) }
+    val out = ArrayList<Opt>()
+    val hctx = androidx.compose.ui.platform.LocalContext.current
+    val hourNames = listOf(R.string.hour_0, R.string.hour_1, R.string.hour_2, R.string.hour_3).map { stringResource(it) }
+    val stepNow = ClockFace.sizeStep(opt)
+    out += Opt(stringResource(R.string.clock_size), (stepNow + 1).toString() + " / 4",
+        onDec = { HomeStore.updateStatus("cclock") { it.copy(opt = ClockFace.withSize(it.opt, (ClockFace.sizeStep(it.opt) - 1).coerceAtLeast(0))) } },
+        onInc = { HomeStore.updateStatus("cclock") { it.copy(opt = ClockFace.withSize(it.opt, (ClockFace.sizeStep(it.opt) + 1).coerceAtMost(3))) } },
+        onClick = { HomeStore.updateStatus("cclock") { it.copy(opt = ClockFace.withSize(it.opt, (ClockFace.sizeStep(it.opt) + 1) % 4)) } })
+    out += Opt(stringResource(R.string.clock_analog), onOff(ClockFace.on(opt), on, off), onClick = { HomeStore.updateStatus("cclock") { it.copy(opt = it.opt xor 32) } })
+    if (ClockFace.on(opt)) {
+        out += Opt(stringResource(R.string.face_bg), bgNames[ClockFace.bg(opt)], onClick = { HomeStore.updateStatus("cclock") { it.copy(opt = ClockFace.withBg(it.opt, (ClockFace.bg(it.opt) + 1) % 5)) } })
+        out += Opt(stringResource(R.string.face_hands), handNames[ClockFace.hands(opt)], onClick = { HomeStore.updateStatus("cclock") { it.copy(opt = ClockFace.withHands(it.opt, (ClockFace.hands(it.opt) + 1) % 5)) } })
+    }
+    out += Opt(stringResource(R.string.hour_signal), hourNames[HourSignal.mode(opt)], onClick = {
+        val nm = (HourSignal.mode(opt) + 1) % 4
+        HomeStore.updateStatus("cclock") { it.copy(opt = HourSignal.withMode(it.opt, nm)) }
+        if (nm != 0) HourSignal.fire(hctx, nm, java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY), ClockFace.on(opt))     // сразу показать, как звучит
+    })
+    out += hourSignalOpts(HourSignal.mode(opt), setDlg)      // часы работы, громкость, проверка, свои звуки, будильники
+    return out
+}

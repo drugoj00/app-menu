@@ -67,6 +67,8 @@ object HomeDock {
     /** Какие значки дока сейчас в фокусе (нужно кнопке «Назад»: из дока она возвращает фокус на «Дом»). */
     val focusedPkgs = androidx.compose.runtime.mutableStateListOf<String>()
     val hasFocus: Boolean get() = focusedPkgs.isNotEmpty()
+    /** 19.1: запрос меню значка в доке по клавише MENU/INFO (ловится в окне, независимо от фокуса Compose): пакет значка с фокусом. */
+    val menuReq = androidx.compose.runtime.mutableStateOf<String?>(null)
     /** Клавиша фокуса на док: 0 «вниз» (обычная навигация), 1 «Меню», 2 «Инфо», 3 своя (код в dock_key_code). */
     fun keyMode(c: Context) = sp(c).getInt("dock_key", 0)
     fun setKeyMode(c: Context, v: Int) { sp(c).edit().putInt("dock_key", v).apply(); rev.intValue++ }
@@ -278,6 +280,10 @@ fun HomeDockHost() {
     val sel = androidx.compose.runtime.rememberCoroutineScope()
     val cellPx = with(LocalDensity.current) { cellW.dp.toPx() }
     var menuFor by remember { mutableStateOf<Entry?>(null) }
+    val menuReqNow = HomeDock.menuReq.value
+    androidx.compose.runtime.LaunchedEffect(menuReqNow) {
+        if (menuReqNow != null) { HomeDock.menuReq.value = null; items.firstOrNull { it.pkg == menuReqNow }?.let { menuFor = it } ?: rec.firstOrNull { it.pkg == menuReqNow }?.let { menuFor = it } }
+    }
     var barMenu by remember { mutableStateOf(false) }
     val firstReq = remember { androidx.compose.ui.focus.FocusRequester() }
     val cellReqs = remember { mutableMapOf<String, androidx.compose.ui.focus.FocusRequester>() }

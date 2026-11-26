@@ -90,6 +90,12 @@ sealed interface Dlg {
     data class WidgetRestore(val rowId: String, val slot: Int) : Dlg
     data class Status(val id: String) : Dlg
     data object Top : Dlg
+    /** 20.0: верхняя строка одним блоком: порядок, размер, показ каждого элемента. */
+    data object Order : Dlg
+    /** 20.0: будильники и настройки одного будильника. */
+    data object Alarms : Dlg
+    data class AlarmEdit(val id: String) : Dlg
+    data class TopItem(val id: String) : Dlg
     data object Screen : Dlg
     data object Empty : Dlg      // долгое нажатие на пустом месте «Дома»: добавить строку и настройки
     data class MoveToRow(val itemId: String) : Dlg
@@ -195,6 +201,19 @@ internal fun HomeRowsView(
     Column(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(layout.rowGap.dp)) {
         layout.rows.forEachIndexed { idx, row ->
             androidx.compose.runtime.key(row.id) {
+                // обводка строки (20.0): рамка вокруг названия и плиток; без неё строка рисуется как раньше
+                val rowShape = androidx.compose.foundation.shape.RoundedCornerShape(row.outR.dp)
+                val bgBrush: androidx.compose.ui.graphics.Brush? = when (row.bgMode) {
+                    1 -> androidx.compose.ui.graphics.Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.20f), androidx.compose.ui.graphics.Color.White.copy(alpha = 0.07f)))
+                    2 -> androidx.compose.ui.graphics.Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.34f), androidx.compose.ui.graphics.Color.White.copy(alpha = 0.18f)))
+                    3 -> androidx.compose.ui.graphics.Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color(0x77000000), androidx.compose.ui.graphics.Color(0x55000000)))
+                    else -> null
+                }
+                val outMod = if (row.outW > 0 || bgBrush != null) Modifier.padding(horizontal = 2.dp)
+                    .then(if (bgBrush != null) Modifier.background(bgBrush, rowShape) else Modifier)
+                    .then(if (row.outW > 0) Modifier.border(androidx.compose.foundation.BorderStroke(row.outW.dp, if (row.outC == 0L) LocalTh.current.accent else androidx.compose.ui.graphics.Color(row.outC.toInt())), rowShape) else Modifier)
+                    .padding(6.dp) else Modifier
+                Column(outMod) {
                 RowTitle(row, onDlg)
                 val first = if (idx == 0) firstReq else null
                 when (row.kind) {
@@ -206,12 +225,13 @@ internal fun HomeRowsView(
                     "widgets" -> WidgetsRow(row, tick, refreshTick, first, onDlg)
                     else -> AppsRow(row, byPkg, inputs, movingItem, movingReq, first, tick, openApp, openMenu, onDlg, onMoveEnd, onMoveStart)
                 }
+                }
             }
             if (panelOn && idx == panelAfter) Box(Modifier.onGloballyPositioned { panelTopPx = it.positionInParent().y }) { AllAppsPanel(apps, panelEff, openApp, onDlg) }
         }
         if (panelOn && layout.rows.isEmpty()) AllAppsPanel(apps, panelEff, openApp, onDlg)
         // кнопка «Добавить строку» всегда в конце: без неё нечем вернуть строки, если стёрли все
-        Row(Modifier.padding(start = 6.dp, top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (layout.rows.isEmpty()) Row(Modifier.padding(start = 6.dp, top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {      // 26.11.2026: пустая строка в конце без рядов только добавляла зазор и пустоту внизу
             // кнопка нужна только когда не осталось ни одной строки (иначе нечем вернуть); обычно «Добавить строку» — в долгом меню значка и строки
             // строк не осталось: подсказка-плитка (ОК, касание или долгое нажатие открывают то же меню, что долгое нажатие на пустом месте)
             if (layout.rows.isEmpty() && !HomeDock.on(ctx)) HomeBox(Modifier.padding(4.dp), bg = LocalTh.current.tile, onClick = { onDlg(Dlg.Empty) }, onLong = { onDlg(Dlg.Empty) }) {

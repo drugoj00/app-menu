@@ -1171,7 +1171,7 @@ private fun AllApps(tick: Int, asHome: Boolean, onFullscreenChanged: () -> Unit)
                 }
             }
             if (searching || query.isNotEmpty()) SearchBox(query, wide = !narrow) { query = it }
-            else HeaderTextButton(stringResource(R.string.search_hint)) { searching = true }
+            else HeaderTextButton(stringResource(R.string.search_hint), icon = Icons.Outlined.Search) { searching = true }      // 20.0: поиск лупой, как просила владелица
         }
         val rightButtons: @Composable () -> Unit = {
             HeaderTextButton(if (Cfg.updFound > 0) stringResource(R.string.upd_badge, Cfg.updFound) else stringResource(R.string.upd_cell)) { updatesAll = true }
@@ -1689,7 +1689,7 @@ private fun HeaderTextButton(text: String, onLong: (() -> Unit)? = null, icon: a
     val (hm, hover) = rememberHover()
     val small = false // размеры задаёт HalfUi
     Box(
-        Modifier.heightIn(min = 48.dp)
+        Modifier.heightIn(min = 56.dp)
             .then(hm)
             .onFocusChanged { focused = it.isFocused }
             .clip(RoundedCornerShape(12.dp))
@@ -1700,7 +1700,7 @@ private fun HeaderTextButton(text: String, onLong: (() -> Unit)? = null, icon: a
         contentAlignment = Alignment.Center,
     ) {
         if (icon != null) {
-            androidx.compose.material3.Icon(icon, contentDescription = text, tint = t.text, modifier = Modifier.size(if (isNarrow()) 56.dp else 38.dp))
+            androidx.compose.material3.Icon(icon, contentDescription = text, tint = t.text, modifier = Modifier.size(if (isNarrow()) 64.dp else 46.dp))      // 20.0: значки на кнопках шапки крупнее
             if (focused || hover) IconTip(text)
         }
         else Text(text, fontSize = btnSp(16), color = t.text, maxLines = 1)

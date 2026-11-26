@@ -61,7 +61,16 @@ class SaverAccess : AccessibilityService() {
         if (e == null) return
         val p = e.packageName?.toString().orEmpty()
         if (e.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            if (p.isNotEmpty() && p != packageName && p != "com.android.systemui" && p != "android") SaverBus.fgPkg = p
+            if (p.isNotEmpty() && p != packageName && p != "com.android.systemui" && p != "android") {
+                SaverBus.fgPkg = p
+            }
+            // 26.11.2026: автоочистка кэша видит и выход на «Дом» этой же программы (раньше собственные окна пропускались, и очистка шла только при переходе из одного чужого приложения в другое);
+            // клавиатуру ввода и системные окна приложением не считаем: иначе кэш чистился бы у открытого приложения
+            if (p.isNotEmpty() && p != "com.android.systemui" && p != "android" && !p.contains("inputmethod") && !p.contains("permissioncontroller") && !(SaverBus.shown && p == packageName)) {
+                val o = CacheAuto.fg
+                CacheAuto.fg = p
+                if (o != p) runCatching { CacheAuto.onFg(applicationContext, o, p) }
+            }
         }
         // события самого окна заставки не считаются действием человека
         if (!(SaverBus.shown && p == packageName)) SaverBus.sig("access")

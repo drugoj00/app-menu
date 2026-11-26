@@ -84,6 +84,9 @@ class HomeActivity : ComponentActivity(), HasFx {
         HoverGate.onKey(ev)
         // 24.11.2026: «Назад» отменяет окно «Установить через…» и закрывает окно «Установка…», даже если окно потеряло фокус
         if (ev.keyCode == android.view.KeyEvent.KEYCODE_BACK && ev.action == android.view.KeyEvent.ACTION_UP && (InstallerPick.cancelPending() || SelfUpd.closeIfInstalling())) return true
+        // 19.1: MENU/INFO на значке дока открывает его меню (убрать из дока, настройки дока) даже если событие не дошло до Compose
+        if (ev.action == android.view.KeyEvent.ACTION_DOWN && ev.repeatCount == 0 && (ev.keyCode == android.view.KeyEvent.KEYCODE_MENU || ev.keyCode == android.view.KeyEvent.KEYCODE_INFO)
+            && HomeDock.hasFocus && HomeDock.moving.value == null) { HomeDock.menuReq.value = HomeDock.focusedPkgs.firstOrNull(); return true }
         return HomeDock.moveKey(this, ev) || HomeDock.onKey(this, ev) || Voice.onKey(this, ev) || QuickActions.onKey(this, ev) || super.dispatchKeyEvent(ev)
     }
 
@@ -122,6 +125,7 @@ class HomeActivity : ComponentActivity(), HasFx {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Cfg.init(this)
+        Thread { runCatching { Alarms.rearmAll(this) } }.start()      // будильники заново при каждом запуске «Дома» (после остановки программы система их снимает)
         // запуск по кнопке «Домой» (категория HOME): тихая очистка памяти, если включена
         if (intent?.categories?.contains(Intent.CATEGORY_HOME) == true) MemoryCleaner.onHome(this)
         // модуль «Дом» выключен: открываем меню и закрываем этот экран
@@ -166,6 +170,14 @@ class HomeActivity : ComponentActivity(), HasFx {
         homeShown = true
         HomeControl.noteVisible(this, true)
         SysBars.apply(this)
+        // 26.11.2026: пока «Дом» был позади (приложение удалили или поставили из меню), он не слышал об этом, а список обновляется не чаще раза в 30 с:
+        // баннер удалённого приложения оставался. Быстрая проверка по номеру изменений пакетов: изменилось - список перечитывается сразу.
+        if (android.os.Build.VERSION.SDK_INT >= 26) Thread {
+            runCatching {
+                val seq = AppsMem.pkgSeq
+                if (seq >= 0 && packageManager.getChangedPackages(seq)?.packageNames?.isNotEmpty() == true) { AppsMem.stamp = 0L; runOnUiThread { resumeTick.intValue++ } }
+            }
+        }.start()
         // 12.0: доступ к уведомлениям выдан, а служба не подключена (колокольчик остался бы без числа): просим систему подключить её заново
         NotifService.rebindIfNeeded(this)
         resumeTick.intValue++
@@ -192,6 +204,15 @@ class HomeActivity : ComponentActivity(), HasFx {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        // проверка сигнала часов с компьютера: adb shell am start -n app.tvapps/.HomeActivity --ei test_signal N
+        // N: 1 кукушка на циферблате, 5 кукушка на цифровых часах, 3 куранты на цифровых, 2 голосом. Включает «Часы по центру» и нужный режим сам.
+        intent.getIntExtra("test_signal", 0).takeIf { it > 0 }?.let { n ->
+            val mode = if (n == 5) 1 else n
+            HomeStore.updateStatus("cclock") { it.copy(visible = true, opt = HourSignal.withMode(if (n == 1) it.opt or 32 else it.opt and 32.inv(), mode)) }
+            HomeStore.updateTop { it.copy(search = it.search) }
+            window.decorView.postDelayed({ HourSignal.fire(this, mode, java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY), bird = true) }, 1200)
+        }
+        if (intent.hasExtra("test_signal")) return      // проверка сигнала: на «Доме» ничего больше не трогать (иначе откроется панель «Все приложения»)
         if (intent.categories?.contains(Intent.CATEGORY_HOME) == true) MemoryCleaner.onHome(this)
         if (intent.categories?.contains(Intent.CATEGORY_HOME) == true) { InstallerPick.cancelPending(); SelfUpd.closeIfInstalling() }      // 24.11.2026: «Домой» снимает зависшие окна установки
         // «Домой» из другой программы: на «Дом», в начало и курсор на первый элемент;
@@ -493,8 +514,8 @@ private fun HomeScreen(tick: Int, again: Int) {
                                 }
                                 }
                             },
-                            onTopLong = { dlg = Dlg.Top },
-                            onStatusLong = { if (it == "bt") openBluetoothSettings(ctx) else dlg = Dlg.Status(it) },
+                            onTopLong = { dlg = Dlg.Order },
+                            onStatusLong = { if (it == "bt") openBluetoothSettings(ctx) else if (it in TopOrder.BUTTONS) dlg = Dlg.TopItem(it) else dlg = Dlg.Status(it) },
                             onStatusMoveKey = { id, k ->
                                 when (k) {
                                     Key.DirectionLeft -> { HomeStore.moveStatus(id, -1); true }
@@ -530,12 +551,14 @@ private fun HomeScreen(tick: Int, again: Int) {
                         // «Закрывать после запуска»: док появляется поверх рядов, места под него нет
                         val dockKeep = HomeDock.on(ctx) && !HomeDock.closeAfter(ctx)
                         val dockPad = if (dockKeep) HomeDock.heightDp(ctx).dp else 0.dp
-                        val layoutShown = if (dockKeep && layout.rows.size > 1) layout.copy(rowGap = (layout.rowGap - HomeDock.heightDp(ctx) / (layout.rows.size - 1)).coerceAtLeast(6)) else layout
+                        val layoutShown0 = if (dockKeep && layout.rows.size > 1) layout.copy(rowGap = (layout.rowGap - HomeDock.heightDp(ctx) / (layout.rows.size - 1)).coerceAtLeast(6)) else layout
+                        val gapCut = remember { androidx.compose.runtime.mutableIntStateOf(0) }
+                        val layoutShown = if (layoutShown0.rows.size > 1 && gapCut.intValue > 0) layoutShown0.copy(rowGap = (layoutShown0.rowGap - gapCut.intValue).coerceAtLeast(2)) else layoutShown0
                         val viewH = maxHeight - dockPad
                         Column(Modifier.fillMaxSize().padding(bottom = dockPad).nestedScroll(swipeMenu).verticalScroll(scroll)) {
                             // поля сверху и снизу: выбранный элемент увеличивается и не должен обрезаться краем прокручиваемой области
                             @Suppress("UNUSED_VARIABLE") val dockRev = HomeDock.rev.intValue
-                            FitHeight(viewH, dockKeep) {
+                            FitGap(viewH, layoutShown0.rowGap, layoutShown.rowGap, (layoutShown.rows.size - 1).coerceAtLeast(0), gapCut) { FitHeight(viewH, dockKeep) {      // 26.11.2026: не помещается по высоте: сначала сжимается зазор между строками (а не масштаб)
                             Column(Modifier.padding(top = 10.dp, bottom = 10.dp)) {
                                 HomeRowsView(
                                     layoutShown, apps, tick, refreshTick, movingItem, firstReq,
@@ -543,7 +566,7 @@ private fun HomeScreen(tick: Int, again: Int) {
                                     panelH = (viewH - 40.dp).coerceAtLeast(260.dp),
                                 )
                             }
-                            }
+                            } }
                         }
                         }
                     }

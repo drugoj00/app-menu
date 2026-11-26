@@ -477,6 +477,57 @@ private fun AutoAppsPane(ctx: android.content.Context, apps: List<Entry>) {
     }
 }
 
+/** 19.2: выбор приложений для автоочистки кэша: отмеченные сверху, ниже остальные (нажатие отмечает или снимает). */
+@Composable
+private fun CacheAppsPane(ctx: android.content.Context, apps: List<Entry>) {
+    val t = LocalTh.current
+    @Suppress("UNUSED_VARIABLE") val rev = CacheAuto.rev.intValue
+    val sel = CacheAuto.list(ctx)
+    val byPkg = remember(apps) { apps.associateBy { it.pkg } }
+    @Composable
+    fun row(pkg: String, e: Entry?, on: Boolean) {
+        var focused by remember { mutableStateOf(false) }
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 3.dp).onFocusChanged { focused = it.isFocused }.clip(RoundedCornerShape(12.dp))
+                .drawBehind { drawRect(if (focused) t.tileFocus else t.tile) }.focusBorder({ focused }, 3.dp, 0.dp, t.accent, Color.Transparent, RoundedCornerShape(12.dp))
+                .toggleable(on, onValueChange = { v -> CacheAuto.setList(ctx, if (v) sel + pkg else sel - pkg) })
+                .heightIn(min = 56.dp).padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (e != null) { val bmp = remember(pkg) { e.icon.toBitmap(96, 96).asImageBitmap() }; androidx.compose.foundation.Image(bmp, null, Modifier.size(36.dp)) }
+            Column(Modifier.weight(1f)) {
+                Text(e?.label ?: pkg, color = t.text, fontSize = btnSp(16), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(pkg, color = t.hint, fontSize = btnSp(11), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            BigCheck(on, t.accent, t.sub)
+        }
+    }
+    Column(Modifier.widthIn(max = 900.dp).fillMaxWidth()) {
+        Text(stringResource(R.string.cache_sel), color = t.sub, fontSize = btnSp(13), modifier = Modifier.padding(bottom = 6.dp))
+        sel.forEach { pkg -> androidx.compose.runtime.key("s" + pkg) { row(pkg, byPkg[pkg], true) } }
+        Text(stringResource(R.string.auto_all), color = t.sub, fontSize = btnSp(13), modifier = Modifier.padding(top = 12.dp, bottom = 6.dp))
+        apps.filter { it.pkg !in sel && !it.system }.forEach { e -> androidx.compose.runtime.key("a" + e.pkg) { row(e.pkg, e, false) } }
+    }
+}
+
+/** 19.2: окно «нужны права» (правило владелицы 25.11.2026: функции нужно право, значит окно со ссылкой в настройки этого права). */
+@Composable
+private fun CachePermDialog(onClose: () -> Unit) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val needAcc = !CacheAuto.accessEnabled(ctx)
+    val needShell = !CacheAuto.shellReady()
+    val opts = mutableListOf<Opt>()
+    if (needAcc) opts += Opt(stringResource(R.string.cache_perm_open_acc)) {
+        onClose(); runCatching { ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+    }
+    if (needShell) opts += Opt(stringResource(R.string.cache_perm_open_adb)) {
+        onClose(); runCatching { ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+    }
+    opts += Opt(stringResource(R.string.close)) { onClose() }
+    val why = (if (needAcc) stringResource(R.string.cache_perm_acc) + " " else "") + (if (needShell) stringResource(R.string.cache_perm_adb) else "")
+    ListDialog(stringResource(R.string.cache_perm_title) + ": " + why.trim(), opts, onClose)
+}
+
 /** Выбор приложений дока: отмеченные сверху по порядку запуска (стрелки вверх и вниз), ниже остальные. */
 @Composable
 private fun DockAppsPane(ctx: android.content.Context, apps: List<Entry>) {
@@ -798,6 +849,7 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
     }
     var homeBgDlg by remember { mutableStateOf(false) }
     var dockKeyDlg by remember { mutableStateOf(false) }
+    var cachePerm by remember { mutableStateOf(false) }   // 19.2: окно «нужны права» для автоочистки кэша
     val openBlk = SettingsGroups.openBlocks
     // аппаратная «Назад» на вложенном экране («О программе», списки) возвращает на уровень выше, а не закрывает настройки
     androidx.activity.compose.BackHandler(enabled = sub != "main") { sub = "main" }
@@ -823,7 +875,7 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
         if (idx != null) runCatching { chipReg.items[idx].req.requestFocus() } else runCatching { first.requestFocus() }
     }
     val rvl = remember { RevealGate() }
-    LaunchedEffect(g, query.isNotBlank(), sub) {
+    LaunchedEffect(g, query.isNotBlank(), sub, openBlk.size) {      // 26.11.2026: и при раскрытии раздела, иначе его строки (больше, чем уже показано) так и не рисовались: «Порядок и скрытые» не открывался
         if (query.isNotBlank() || sub != "main") return@LaunchedEffect
         // следующие порции добавляются по кадру, пока не покажется всё содержимое группы
         while (rvl.limit < rvl.total) {
@@ -917,7 +969,7 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
             if (isNarrow()) Chip(backText, false, Modifier.focusRequester(first), icon = Icons.Outlined.ArrowBack) { goBack() }
             else Chip("← " + backText, false, Modifier.focusRequester(first)) { goBack() }
             Text(
-                stringResource(when (sub) { "main" -> R.string.settings; "about" -> R.string.about_title; "autoapps" -> R.string.auto_pick; "dockapps" -> R.string.dock_pick; "dockhide" -> R.string.dock_hide_title; "excl" -> R.string.mem_excl_title; else -> R.string.hidden_list }),
+                stringResource(when (sub) { "main" -> R.string.settings; "about" -> R.string.about_title; "autoapps" -> R.string.auto_pick; "cacheapps" -> R.string.cache_pick; "dockapps" -> R.string.dock_pick; "dockhide" -> R.string.dock_hide_title; "excl" -> R.string.mem_excl_title; else -> R.string.hidden_list }),
                 fontSize = btnSp(24), color = t.text, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
             )
         }
@@ -1350,6 +1402,20 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                         CounterRow(stringResource(R.string.auto_delay), Autostart.delaySec(ctx), 0..600, stringResource(R.string.auto_unit)) { Autostart.setDelaySec(ctx, it) }
                         CounterRow(stringResource(R.string.auto_gap), Autostart.gapSec(ctx), 0..120, stringResource(R.string.auto_unit)) { Autostart.setGapSec(ctx, it) }
                     } }
+                    // 19.2: автоочистка кэша выбранных приложений (после выхода из приложения и при включении устройства)
+                    @Suppress("UNUSED_VARIABLE") val cacheRev = CacheAuto.rev.intValue
+                    if (rvl.next(5)) { Section(stringResource(R.string.cache_title)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SwitchRow(stringResource(R.string.cache_on), CacheAuto.on(ctx), listOf(stringResource(R.string.cache_hint))) { CacheAuto.setOn(ctx, it); if (it && !(CacheAuto.accessEnabled(ctx) && CacheAuto.shellReady())) cachePerm = true }
+                            ActionRow(HIcons.list, stringResource(R.string.cache_pick) + " (" + CacheAuto.list(ctx).size + ")", stringResource(R.string.cache_pick_h)) { sub = "cacheapps" }
+                            SwitchRow(stringResource(R.string.cache_after), CacheAuto.afterClose(ctx), listOf()) { CacheAuto.setAfterClose(ctx, it) }
+                            if (CacheAuto.afterClose(ctx)) CounterRow(stringResource(R.string.cache_delay), CacheAuto.delaySec(ctx), 0..600, stringResource(R.string.auto_unit)) { CacheAuto.setDelaySec(ctx, it) }
+                            SwitchRow(stringResource(R.string.cache_boot), CacheAuto.onBootOn(ctx), listOf()) { CacheAuto.setOnBoot(ctx, it) }
+                            ActionRow(HIcons.list, stringResource(R.string.cache_now), stringResource(R.string.cache_now_h)) { if (CacheAuto.shellReady()) CacheAuto.runNow(ctx) else cachePerm = true }
+                            val cl = CacheAuto.logText(ctx)
+                            if (cl.isNotBlank()) Text(cl, color = LocalTh.current.hint, fontSize = btnSp(11))
+                        }
+                    } }
                     if (rvl.next(2)) { Section(stringResource(R.string.auto_check)) {
                         ActionRow(HIcons.refresh, stringResource(R.string.auto_now), stringResource(R.string.auto_now_h)) { Autostart.runNow(ctx, scope) }
                     } }
@@ -1458,6 +1524,8 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                 DockHidePane(ctx, apps)
             } else if (sub == "autoapps") {
                 AutoAppsPane(ctx, apps)
+            } else if (sub == "cacheapps") {
+                CacheAppsPane(ctx, apps)
             } else if (sub == "excl") {
                 ExcludeList(apps)
             } else {
@@ -1470,6 +1538,7 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
     if (iconPacksDlg) IconPacksDialog(apps) { iconPacksDlg = false }
     if (bkRemote) BackupRemoteDialog { bkRemote = false }
     if (qaDlg) QuickActionsDialog { qaDlg = false }
+    if (cachePerm) CachePermDialog { cachePerm = false }
     if (menuBgDlg) BgDialogHost(true) { menuBgDlg = false }
     if (homeBgDlg) BgDialogHost(false) { homeBgDlg = false }
     if (dockKeyDlg) DockKeyCapture { code -> if (code != null) { HomeDock.setKeyCode(ctx, code); HomeDock.setKeyMode(ctx, 3) }; dockKeyDlg = false }

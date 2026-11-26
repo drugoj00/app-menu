@@ -1,5 +1,7 @@
 package app.tvapps
 
+import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.focus.focusProperties
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
@@ -14,11 +16,22 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.graphics.drawable.toBitmap
@@ -68,11 +81,17 @@ private fun locale(): Locale = AppLoc.locale()
 
 private fun cap(s: String) = s.replaceFirstChar { it.uppercase() }
 
-internal fun datePattern(opt: Int) = when (opt) { 0 -> "dd.MM"; 1 -> "d MMM"; 2 -> "EEE, d MMMM"; else -> "d EEEE MMMM" }
+/** Год в дате: явный выбор (биты 8 «показывать», 16 «не показывать») или по виду (длинная дата с годом, короткие без). */
+internal fun dateYear(opt: Int): Boolean = if ((opt and 8) != 0) true else if ((opt and 16) != 0) false else (opt and 3) == 3
+
+internal fun datePattern(opt: Int): String {
+    val y = dateYear(opt)
+    return when (opt and 3) { 0 -> if (y) "dd.MM.yyyy" else "dd.MM"; 1 -> if (y) "d MMM yyyy" else "d MMM"; 2 -> if (y) "EEE, d MMMM yyyy" else "EEE, d MMMM"; else -> "d EEEE MMMM" }
+}
 
 /** Две строки даты верхней полосы (день недели; месяц и число) для режима «длинная дата»; для коротких режимов null. Язык задаётся явно. */
 internal fun dateTwoLines(opt: Int, now: Long, loc: Locale): Pair<String, String>? =
-    if (opt >= 3) Pair(cap(DFmt.format("EEEE", loc, now)), cap(DFmt.format("LLLL", loc, now)) + " " + DFmt.format("dd.MM.yyyy", loc, now))
+    if ((opt and 3) == 3) Pair(cap(DFmt.format("EEEE", loc, now)), cap(DFmt.format("LLLL", loc, now)) + " " + DFmt.format(if (dateYear(opt)) "dd.MM.yyyy" else "dd.MM", loc, now))
     else null
 
 /** Одна строка даты по режиму (для образца в настройках и для коротких режимов). */
@@ -131,6 +150,8 @@ internal fun statusValue(ctx: Context, s: HStatus, now: Long): SVal = when (s.id
     "net" -> netKind(ctx).let { SVal(if (it == 2) HIcons.eth else if (it == 1) HIcons.wifi else if (it == 3) HIcons.mobile else HIcons.wifiOff, null, it != 0) }
     "usb" -> externalMounted(ctx).let { SVal(HIcons.usb, null, it) }
     "time" -> SVal(null, DFmt.format(clockPattern(s.opt), locale(), now), true)
+    // «Часы по центру»: секунды рисуются отдельно, под цифрами (маленькие, красные)
+    "cclock" -> SVal(null, DFmt.format(clockPattern(s.opt and 2.inv()), locale(), now), true)
     "gear" -> SVal(HIcons.gear, null, true)
     // 12.0 (просьба владелицы: «колокольчик всегда серый, нажимаю, а там есть уведомления»): колокольчик всегда цвета остальных значков (как шестерёнка), без тусклого
     // состояния; число уведомлений рисуется красной цифрой внутри колокольчика и берётся из наблюдаемого NotifService.badge (см. BellWithCount)
@@ -192,7 +213,7 @@ internal fun statusClick(ctx: Context, id: String) {
 
 @Composable
 internal fun statusName(id: String): String = stringResource(
-    when (id) { "notif" -> R.string.st_notif; "bt" -> R.string.st_bt; "net" -> R.string.st_net; "usb" -> R.string.st_usb; "time" -> R.string.st_time; "gear" -> R.string.st_gear; else -> R.string.st_date },
+    when (id) { "notif" -> R.string.st_notif; "bt" -> R.string.st_bt; "net" -> R.string.st_net; "usb" -> R.string.st_usb; "time" -> R.string.st_time; "cclock" -> R.string.cclock_name; "gear" -> R.string.st_gear; else -> R.string.st_date },
 )
 
 /**
@@ -241,10 +262,12 @@ internal fun rememberNow(seconds: Boolean = false): Long {
 
 /** Поле поиска с микрофоном: слева голос, справа набор текста (Enter открывает меню с этим запросом). */
 @Composable
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 private fun SearchBar(big: Boolean, onVoice: () -> Unit, onSearch: (String) -> Unit, onLong: () -> Unit, modifier: Modifier = Modifier, sc: Float = 1f) {
     val t = LocalTh.current
     var text by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
     var focused by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var barHas by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }      // фокус где-то внутри строки поиска (поле, микрофон, лупа)
     // ввод включается только по «ОК» (пульт) или щелчку/касанию: при простом проходе пультом поле лишь подсвечивается, клавиатура не открывается
     var editing by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     val fieldReq = remember { FocusRequester() }
@@ -270,8 +293,10 @@ private fun SearchBar(big: Boolean, onVoice: () -> Unit, onSearch: (String) -> U
         }
     }
     Row(
-        modifier.clip(shape).background(barBg(t.tile))
-            .focusBorder({ focused }, 3.dp, 1.5.dp, t.accent, t.accent, shape),
+        modifier.clip(shape).background(barBg(t.tile)).background(if (focused || barHas) t.accent.copy(alpha = 0.32f) else androidx.compose.ui.graphics.Color.Transparent)      // фон строки меняется при фокусе: видно, что ты в поиске
+            .focusBorder({ focused || barHas }, 3.dp, 1.5.dp, t.accent, t.accent, shape)      // рамка вокруг всей строки, когда фокус на любом её значке: видно, что ты в поиске
+            // 26.11.2026: пультом в поиск заходим на само поле, а не на значок микрофона (он ближайший и «менялся»); к микрофону и лупе стрелки влево и вправо
+            .focusProperties { enter = { fieldReq } }.onFocusChanged { barHas = it.hasFocus }.focusGroup(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // 15.0: без программы распознавания речи микрофон не показывается
@@ -324,7 +349,7 @@ internal fun HomeTopBar(
     val top = if (Cfg.menuOff && top0.menu) top0.copy(menu = false) else top0
     val t = LocalTh.current
     val ctx = LocalContext.current
-    val now = rememberNow(top.status.any { it.id == "time" && it.visible && (it.opt and 2) != 0 })
+    val now = rememberNow(top.status.any { (it.id == "time" || it.id == "cclock") && it.visible && (it.opt and 2) != 0 })
     // на телефоне и планшете полоска мельче (значки, часы, поле поиска)
     val big = top.big && TopMode.isTv(ctx)
     val tv = TopMode.isTv(ctx)
@@ -343,10 +368,43 @@ internal fun HomeTopBar(
     val sysVals = remember(tick, top) { vis.filter { it.id == "bt" || it.id == "net" || it.id == "usb" }.associate { it.id to statusValue(ctx, it, 0L) } }
     val vals = remember(sysVals, now, top, Cfg.lang) { vis.associate { it.id to (sysVals[it.id] ?: statusValue(ctx, it, now)) } }
     val appIcon = remember { runCatching { ctx.packageManager.getApplicationIcon(ctx.packageName).toBitmap(128, 128).asImageBitmap() }.getOrNull() }
-    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+    // 20.0: сигнал каждый час, пока «Дом» на экране (кукушка, голос или «дон»); только в первые минуты нового часа, чтобы не звучать «задним числом»
+    val hourMode = vis.firstOrNull { it.id == "cclock" }?.let { HourSignal.mode(it.opt) } ?: 0
+    val hourKey = (now + java.util.TimeZone.getDefault().getOffset(now)) / 3_600_000L
+    val lastHour = remember { longArrayOf(0L) }
+    androidx.compose.runtime.LaunchedEffect(hourKey) {
+        val prev = lastHour[0]
+        lastHour[0] = hourKey
+        val c = java.util.Calendar.getInstance()
+        if (prev != 0L && prev != hourKey && hourMode != 0 && c.get(java.util.Calendar.MINUTE) <= 1) HourSignal.fire(ctx, hourMode, c.get(java.util.Calendar.HOUR_OF_DAY), vis.any { it.id == "cclock" && ClockFace.on(it.opt) }, auto = true)
+    }
+    // 20.0: все элементы строки в одном порядке (TopOrder); поле поиска на узком экране уходит вторым рядом
+    val statusIds = vis.map { it.id }.toSet()
+    val timeSt = vis.firstOrNull { it.id == "cclock" }
+    val faceOn = timeSt != null && ClockFace.on(timeSt.opt)                      // циферблат вместо цифр: по центру строки, выступает вниз
+    val centeredText = timeSt != null && !faceOn     // цифры по центру экрана, крупнее
+    val shown = TopOrder.normalize(top).filter { id -> TopOrder.visible(ctx, top, id) && !(id == "search" && top.search && stack) && !(id == "time" && timeSt != null) }      // включены «Часы по центру»: обычные часы справа отключены
+    // 20.0: вид строки (просьба Евгения и владелицы): 0 раздельные кнопки, 1 общая подложка справа (часы, уведомления, HDMI, очистка, Bluetooth, сеть, USB на одной подложке), 2 то же и поиск иконкой слева (раскрывается по нажатию)
+    val style = top.style
+    val plateMode = style >= 1
+    val plateOrder: List<String> = if (!plateMode) emptyList() else {
+        val stl = shown.filter { it in statusIds && it != "cclock" && !(timeSt != null && it == "time") }      // есть «Часы по центру»: обычное время в подложке не повторяется
+        val extra = emptyList<String>()      // «Очистка памяти» и HDMI остаются на своих местах слева (владелица: не переносить)
+        val at = stl.indexOf("notif").let { if (it >= 0) it + 1 else 0 }
+        stl.take(at) + extra + stl.drop(at)
+    }
+    val plateSet = plateOrder.toSet()
+    val flow = if (plateOrder.isNotEmpty()) shown.filter { it !in plateSet } + "plate" else shown
+    val tightId = { id: String -> id == "plate" || id in statusIds }
+    val searchOpen = remember { androidx.compose.runtime.mutableStateOf(false) }
+    val searchIsIcon = false      // 26.11.2026: два вида «подложки» слиты в один, поиск всегда полем (раньше иконка оставляла пустоту); сохранённый style 2 работает как 1
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().zIndex(5f)) {
     // ширина полосы известна: подбираем зазоры и размер значков так, чтобы всё поместилось без наложения и обрезки
     val dn = androidx.compose.ui.platform.LocalDensity.current
-    val lvIdx = run {
+    val boxWdp = maxWidth
+    // ширина цифровых часов по центру, измеренная по факту, в dp на единицу масштаба: оценка вперёд завышала и сжимала значки справа
+    val cwMeas = androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    val plan = run {
         val tw = { txt: String, sp: Float, w: Int -> AppFont.measure(txt, with(dn) { sp.sp.toPx() }, w) / dn.density }
         val big0 = big
         val box = { icon: Float, pad: Float -> icon + 2 * pad }
@@ -363,7 +421,7 @@ internal fun HomeTopBar(
             when {
                 v.icon != null -> box(if (big0) 36f else 26f, if (big0) 13f else 10f)
                 v.l1 != null -> maxOf(tw(v.l1, if (big0) 19f else if (tv) 14f else 9f, 500), tw(v.l2.orEmpty(), if (big0) 19f else if (tv) 14f else 9f, 400)) + 24f
-                s0.id == "time" -> {
+                s0.id == "time" || s0.id == "cclock" -> {
                     val txt = v.text.orEmpty().map { if (it.isDigit()) '8' else it }.joinToString("")
                     val fsT = if (big0) 34f else 20f
                     val i2 = if ((s0.opt and 2) != 0) txt.indexOf(':', txt.indexOf(':') + 1) else -1
@@ -373,70 +431,49 @@ internal fun HomeTopBar(
                 else -> tw(v.text.orEmpty(), if (big0) 21f else 15f, 400) + 2 * (if (big0) 14f else 12f)
             }
         }
+        val stW = vis.map { it.id }.zip(st).toMap()
+        val voiceW = 32f + (if (big0) 28f else 22f) + 8f + tw(stringResource(R.string.home_voice), if (big0) 19f else 15f, 400)
+        fun wOf(id: String): Float = when (id) {
+            "menu" -> box(if (big0) 38f else 28f, 4f)
+            "recent", "dock", "clean", "hdmi" -> box(if (big0) 34f else 26f, if (big0) 9f else 7f)
+            "search" -> if (searchIsIcon) box(if (big0) 34f else 26f, if (big0) 9f else 7f) else if (top.search && !stack) searchMin else voiceW
+            "plate" -> plateOrder.sumOf { wOf(it).toDouble() }.toFloat() + 16f + (plateOrder.size - 1).coerceAtLeast(0) * 4f
+            else -> if (TopOrder.isGap(id)) 0f else (stW[id] ?: 0f)
+        }
+        val items = flow.map { id -> wOf(id) to tightId(id) }
         // запас на рамки и округления: 3 % и 6 dp
-        TopBarPlan.choose((maxWidth.value - 6f) / 1.03f, left, searchMin, st)
-    }
-    val lv = TopBarPlan.levels[lvIdx]
-    val sc = lv.scale
-    Column(Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(lv.left.dp)) {
-        if (top.menu) HomeBox(
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(barR(14.dp)), bg = barBg(t.tile), edge = barEdge(t.accent), focusReq = menuReq,
-            // долгое нажатие на кнопку меню - недавние (настройки верхней полоски: «Настройки экрана»)
-            onClick = onMenu, onLong = { TopUi.recents.value = true },
-        ) {
-            if (appIcon != null) androidx.compose.foundation.Image(appIcon, null, Modifier.padding((4f * sc).dp).size((if (big) 38f else 28f).times(sc).dp))
-            else BarIcon(HIcons.apps, null, t.accent, (if (big) 32f else 24f).times(sc).dp, (6f * sc).dp)
-        }
-        // название программы рядом с кнопкой меню (по выбору в настройках верхней строки; по умолчанию выключено)
-        if (top.recent) HomeBox(
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(barR(14.dp)), bg = barBg(t.tile), edge = barEdge(t.accent),
-            onClick = { TopUi.recents.value = true }, onLong = onTopLong,
-        ) { BarIcon(HIcons.recent, null, t.accent, (if (big) 34f else 26f).times(sc).dp, (if (big) 9f else 7f).times(sc).dp) }
-        // кнопка «Док-панель» (по умолчанию включена, отключается в «Верхней полоске»): нажатие показывает док или переводит фокус в него, повторное скрывает; долгое: меню верхней полоски
-        if (HomeDock.btn(ctx)) HomeBox(
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(barR(14.dp)), bg = barBg(t.tile), edge = barEdge(t.accent),
-            onClick = { if (!HomeDock.on(ctx)) { HomeDock.setOn(ctx, true); HomeDock.focusTick.intValue++ } else { HomeDock.focusedPkgs.clear(); HomeDock.setOn(ctx, false) } },
-            onLong = { HomeDock.openSettings(ctx) },
-        ) { BarIcon(HIcons.dock, ctx.getString(R.string.dock_btn), t.accent, (if (big) 34f else 26f).times(sc).dp, (if (big) 9f else 7f).times(sc).dp) }
-        // «Очистка памяти»: после «Недавних»; на телефоне и планшете тоже (кнопка небольшая)
-        if (top.clean) {
-            val cleanScope = androidx.compose.runtime.rememberCoroutineScope()
-            val cleanBusy = remember { booleanArrayOf(false) }
-            HomeBox(
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(barR(14.dp)), bg = barBg(t.tile), edge = barEdge(t.accent),
-                onClick = {
-                    if (!cleanBusy[0]) {
-                        cleanBusy[0] = true
-                        cleanScope.launch { MemoryCleaner.cleanWithToast(ctx); cleanBusy[0] = false }
-                    }
-                },
-                onLong = {
-                    android.widget.Toast.makeText(ctx, ctx.getString(R.string.mem_clean_tip), android.widget.Toast.LENGTH_LONG).show()
-                },
-            ) { BarIcon(HIcons.memory, ctx.getString(R.string.mem_clean), t.accent, (if (big) 34f else 26f).times(sc).dp, (if (big) 9f else 7f).times(sc).dp) }
-        }
-        if (showHdmi) HomeBox(
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(barR(14.dp)), bg = barBg(t.tile), edge = barEdge(t.accent),
-            onClick = { TopUi.hdmi.value = true }, onLong = onTopLong,
-        ) { BarIcon(HIcons.hdmi, null, t.accent, (if (big) 34f else 26f).times(sc).dp, (if (big) 9f else 7f).times(sc).dp) }
-        // строка поиска занимает всё свободное место между кнопками слева и значками справа
-        if (top.search && !stack) SearchBar(big, onVoice, onSearch, onTopLong, Modifier.weight(1f), sc)
-        else if (top.voice && !top.search && Voice.available(androidx.compose.ui.platform.LocalContext.current)) HomeBox(
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(barR(24.dp)), bg = barBg(t.tile), edge = barEdge(t.accent), onClick = onVoice, onLong = onTopLong,
-        ) {
-            Row(Modifier.padding(horizontal = (16f * sc).dp, vertical = (8f * sc).dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy((8f * sc).dp)) {
-                TintIcon(HIcons.mic, t.accent, (if (big) 28f else 22f).times(sc).dp, 0.dp)
-                Text(stringResource(R.string.home_voice), color = barTextTint(t.text), fontSize = (if (big) 19f else 15f).times(sc).sp)
+        val us = top.scale / 100f
+        val idxFull = TopBarPlan.chooseOrdered((maxWidth.value - 6f) / 1.03f, items, us)
+        if (!((faceOn || centeredText) && timeSt != null)) idxFull to 1f else {
+            // часы по центру стоят намертво: сначала сжимаются сами цифры (до 70 %), чтобы значки справа остались крупными; потом уже значки (зазоры, размер)
+            val cwBase = if (faceOn) 0f else if (cwMeas.floatValue > 0f) cwMeas.floatValue else (stW["cclock"] ?: 0f) * ClockFace.digitalK(ClockFace.sizeStep(timeSt.opt)) * 1f
+            val faceW = if (faceOn) ClockFace.sizeDp(timeSt.opt, top.scale, big).value + 8f else 0f
+            val rightItems = flow.filter { tightId(it) }.map { wOf(it) to true }
+            val marginW = if (plateMode) 12f else 8f
+            val fit0 = if (faceOn || cwBase <= 0f) 1f else {
+                val lv00 = TopBarPlan.levels[idxFull]
+                val avail = maxWidth.value / 2f - TopBarPlan.requiredOrdered(lv00, rightItems, us) - marginW
+                (2f * avail / (cwBase * lv00.scale * us)).coerceIn(1f, 1f)      // авто-сжатие только у самого малого размера; крупные размеры владелица выбирает сама, тогда уступают значки справа
             }
+            val idxRight = TopBarPlan.levels.indexOfFirst { lv0 ->
+                val cw = if (faceOn) faceW else cwBase * fit0 * lv0.scale * us
+                TopBarPlan.requiredOrdered(lv0, rightItems, us) <= maxWidth.value / 2f - cw / 2f - marginW
+            }.let { if (it < 0) TopBarPlan.levels.lastIndex else it }
+            maxOf(idxFull, idxRight) to fit0
         }
-        if (!top.search || stack) Spacer(Modifier.weight(1f))
-        Row(horizontalArrangement = Arrangement.spacedBy(lv.status.dp), verticalAlignment = Alignment.CenterVertically) {
-            vis.forEach { s ->
-                androidx.compose.runtime.key(s.id) {
+    }
+    val lvIdx = plan.first
+    val clockFit = plan.second
+    val lv = TopBarPlan.levels[lvIdx]
+    val sc = lv.scale * (top.scale / 100f)
+    Column(Modifier.fillMaxWidth().padding(bottom = if (timeSt != null) 24.dp else 6.dp)) {      // есть часы по центру: больший разрыв до строки ниже (одинаков для цифр и циферблата)
+    // 20.0: значок состояния как лямбда: его же рисует и центр строки (часы по центру, циферблат); k: во сколько раз крупнее
+    val scBase = sc
+    val statusItem: @Composable (HStatus, Float) -> Unit = { s, k ->
+        val sc = scBase * k
                     val v = vals[s.id] ?: SVal(null, "", false)
                     HomeBox(
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+                        shape = if (s.id == "cclock" && ClockFace.on(s.opt)) androidx.compose.foundation.shape.CircleShape else androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
                         moving = movingStatus == s.id, stepPx = 90f,
                         onMoveKey = { k -> onStatusMoveKey(s.id, k) }, onStep = { d -> onStatusStep(s.id, d) }, onMoveEnd = onStatusMoveEnd,
                         onClick = { if (movingStatus == s.id) onStatusMoveEnd() else statusClick(ctx, s.id) },
@@ -453,19 +490,161 @@ internal fun HomeTopBar(
                             OutlinedText(androidx.compose.ui.text.AnnotatedString(v.l1), c, (if (big) 19f else if (tv) 14f else 9f).times(sc).sp, lineHeight = lh, fontWeight = FontWeight.Medium)
                             OutlinedText(androidx.compose.ui.text.AnnotatedString(v.l2.orEmpty()), c, (if (big) 19f else if (tv) 14f else 9f).times(sc).sp, lineHeight = lh)
                         }
+                        else if (s.id == "cclock" && !ClockFace.on(s.opt)) Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = (4f * sc).dp, vertical = (2f * sc).dp)) {
+                            OutlinedText(androidx.compose.ui.text.AnnotatedString(v.text.orEmpty()), c, (if (big) 34f else 20f).times(sc * (if ((s.opt and 2) != 0) 0.70f else 1f)).sp, fontWeight = FontWeight.Bold,
+                                style = androidx.compose.material3.LocalTextStyle.current.copy(fontFeatureSettings = "tnum"))
+                            if ((s.opt and 2) != 0) OutlinedText(androidx.compose.ui.text.AnnotatedString(DFmt.format("ss", locale(), now)), androidx.compose.ui.graphics.Color(0xFFFF5252), (if (big) 34f else 20f).times(sc * 0.36f).sp,
+                                fontWeight = FontWeight.Bold, style = androidx.compose.material3.LocalTextStyle.current.copy(fontFeatureSettings = "tnum"))
+                        }
+                        else if (s.id == "cclock" && ClockFace.on(s.opt)) AnalogFace(now, (s.opt and 2) != 0, s.opt, t.accent, ClockFace.sizeDp(s.opt, top.scale, big), HourSignal.mode(s.opt) == 1)
                         else OutlinedText(
-                            if (s.id == "time") withSmallSeconds(v.text.orEmpty(), (s.opt and 2) != 0) else androidx.compose.ui.text.AnnotatedString(v.text.orEmpty()), c,
-                            (if (s.id == "time") (if (big) 34f else 20f) else (if (big) 21f else 15f)).times(sc).sp,
-                            fontWeight = if (s.id == "time") FontWeight.Bold else FontWeight.Normal,
+                            if (s.id == "time" || s.id == "cclock") withSmallSeconds(v.text.orEmpty(), (s.opt and 2) != 0) else androidx.compose.ui.text.AnnotatedString(v.text.orEmpty()), c,
+                            (if (s.id == "time" || s.id == "cclock") (if (big) 34f else 20f) else (if (big) 21f else 15f)).times(sc).sp,
+                            fontWeight = if (s.id == "time" || s.id == "cclock") FontWeight.Bold else FontWeight.Normal,
                             style = androidx.compose.material3.LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
                             modifier = Modifier.padding(horizontal = (if (big) 14f else 12f).times(sc).dp, vertical = (8f * sc).dp),
                         )
                     }
-                }
+    }
+    // 20.0: часы по центру (цифры или циферблат) не должны налезать на значки справа; поле поиска остаётся слева от часов и сжимается до них
+    val centerOverlay = (centeredText || faceOn) && timeSt != null
+    val searchFixed = centerOverlay && top.search && !stack && !searchIsIcon && !plateMode
+    val statusLeftPx = androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(Float.MAX_VALUE) }
+    val clockWpx = androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    val searchXpx = androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    val boxWpx = with(dn) { boxWdp.toPx() }
+    val gapPx = with(dn) { 30.dp.toPx() }          // зазор между полем поиска и часами по центру
+    val minSearchPx = with(dn) { 110.dp.toPx() }
+    val clockLeft = { (boxWpx - clockWpx.floatValue) / 2f }          // часы по центру стоят намертво; значки справа подстраиваются (см. TopBarPlan)
+    val clockMod = Modifier.fillMaxWidth().layout { m, c ->
+        val p = m.measure(androidx.compose.ui.unit.Constraints())
+        layout(c.maxWidth, 0) { p.place(clockLeft().toInt().coerceAtLeast(0), 0) }      // часы по центру на высоту строки не влияют: строки «Дома» стоят на месте
+    }
+    val searchFixedMod = Modifier.onGloballyPositioned { searchXpx.floatValue = it.positionInParent().x }.layout { m, c ->
+        val w = (clockLeft() - searchXpx.floatValue - gapPx).coerceAtLeast(minSearchPx).toInt()
+        val p = m.measure(c.copy(minWidth = w, maxWidth = w))
+        layout(p.width, p.height) { p.place(0, 0) }
+    }
+    val hasWeight = flow.any { (it == "search" && top.search && !stack && !searchFixed && !searchIsIcon) || TopOrder.isGap(it) }
+    val firstStatus = flow.indexOfFirst { tightId(it) }
+    // 20.0: отрисовка одного элемента строки (кнопка, поле поиска, значок); так же её вызывает общая подложка
+    val renderItem: @Composable (String) -> Unit = { id ->
+        if (TopOrder.isGap(id)) Spacer(Modifier.weight(1f))
+        if (id == "menu") HomeBox(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(barR(14.dp)), bg = if (id in plateSet) androidx.compose.ui.graphics.Color.Transparent else barBg(t.tile), edge = if (id in plateSet) androidx.compose.ui.graphics.Color.Transparent else barEdge(t.accent), moving = movingStatus == id, stepPx = 90f, onMoveKey = { k -> onStatusMoveKey(id, k) }, onStep = { d -> onStatusStep(id, d) }, onMoveEnd = onStatusMoveEnd, focusReq = menuReq,
+            // долгое нажатие на кнопку меню - недавние (настройки верхней полоски: «Настройки экрана»)
+            onClick = onMenu, onLong = { TopUi.recents.value = true },
+        ) {
+            if (appIcon != null) androidx.compose.foundation.Image(appIcon, null, Modifier.padding((4f * sc).dp).size((if (big) 38f else 28f).times(sc).dp))
+            else BarIcon(HIcons.apps, null, t.accent, (if (big) 32f else 24f).times(sc).dp, (6f * sc).dp)
+        }
+        // название программы рядом с кнопкой меню (по выбору в настройках верхней строки; по умолчанию выключено)
+        if (id == "recent") HomeBox(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(barR(14.dp)), bg = if (id in plateSet) androidx.compose.ui.graphics.Color.Transparent else barBg(t.tile), edge = if (id in plateSet) androidx.compose.ui.graphics.Color.Transparent else barEdge(t.accent), moving = movingStatus == id, stepPx = 90f, onMoveKey = { k -> onStatusMoveKey(id, k) }, onStep = { d -> onStatusStep(id, d) }, onMoveEnd = onStatusMoveEnd,
+            onClick = { if (movingStatus == id) onStatusMoveEnd() else TopUi.recents.value = true }, onLong = { onStatusLong(id) },
+        ) { BarIcon(HIcons.recent, null, t.accent, (if (big) 34f else 26f).times(sc).dp, (if (big) 9f else 7f).times(sc).dp) }
+        // кнопка «Док-панель» (по умолчанию включена, отключается в «Верхней полоске»): нажатие показывает док или переводит фокус в него, повторное скрывает; долгое: меню верхней полоски
+        if (id == "dock") HomeBox(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(barR(14.dp)), bg = if (id in plateSet) androidx.compose.ui.graphics.Color.Transparent else barBg(t.tile), edge = if (id in plateSet) androidx.compose.ui.graphics.Color.Transparent else barEdge(t.accent), moving = movingStatus == id, stepPx = 90f, onMoveKey = { k -> onStatusMoveKey(id, k) }, onStep = { d -> onStatusStep(id, d) }, onMoveEnd = onStatusMoveEnd,
+            onClick = { if (!HomeDock.on(ctx)) { HomeDock.setOn(ctx, true); HomeDock.focusTick.intValue++ } else { HomeDock.focusedPkgs.clear(); HomeDock.setOn(ctx, false) } },
+            onLong = { HomeDock.openSettings(ctx) },
+        ) { BarIcon(HIcons.dock, ctx.getString(R.string.dock_btn), t.accent, (if (big) 34f else 26f).times(sc).dp, (if (big) 9f else 7f).times(sc).dp) }
+        // «Очистка памяти»: после «Недавних»; на телефоне и планшете тоже (кнопка небольшая)
+        if (id == "clean") {
+            val cleanScope = androidx.compose.runtime.rememberCoroutineScope()
+            val cleanBusy = remember { booleanArrayOf(false) }
+            HomeBox(
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(barR(14.dp)), bg = if (id in plateSet) androidx.compose.ui.graphics.Color.Transparent else barBg(t.tile), edge = if (id in plateSet) androidx.compose.ui.graphics.Color.Transparent else barEdge(t.accent), moving = movingStatus == id, stepPx = 90f, onMoveKey = { k -> onStatusMoveKey(id, k) }, onStep = { d -> onStatusStep(id, d) }, onMoveEnd = onStatusMoveEnd,
+                onClick = {
+                    if (!cleanBusy[0]) {
+                        cleanBusy[0] = true
+                        cleanScope.launch { MemoryCleaner.cleanWithToast(ctx); cleanBusy[0] = false }
+                    }
+                },
+                onLong = { onStatusLong(id) },
+            ) { BarIcon(HIcons.memory, ctx.getString(R.string.mem_clean), t.accent, (if (big) 34f else 26f).times(sc).dp, (if (big) 9f else 7f).times(sc).dp) }
+        }
+        if (id == "hdmi") HomeBox(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(barR(14.dp)), bg = if (id in plateSet) androidx.compose.ui.graphics.Color.Transparent else barBg(t.tile), edge = if (id in plateSet) androidx.compose.ui.graphics.Color.Transparent else barEdge(t.accent), moving = movingStatus == id, stepPx = 90f, onMoveKey = { k -> onStatusMoveKey(id, k) }, onStep = { d -> onStatusStep(id, d) }, onMoveEnd = onStatusMoveEnd,
+            onClick = { if (movingStatus == id) onStatusMoveEnd() else TopUi.hdmi.value = true }, onLong = { onStatusLong(id) },
+        ) { BarIcon(HIcons.hdmi, null, t.accent, (if (big) 34f else 26f).times(sc).dp, (if (big) 9f else 7f).times(sc).dp) }
+        // строка поиска занимает всё свободное место между кнопками слева и значками справа
+        if (id == "search") if (searchIsIcon) HomeBox(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(barR(14.dp)), bg = barBg(t.tile), edge = barEdge(t.accent),
+            onClick = { searchOpen.value = true }, onLong = { onStatusLong("search") },
+        ) { BarIcon(HIcons.search, null, t.accent, (if (big) 34f else 26f).times(sc).dp, (if (big) 9f else 7f).times(sc).dp) }
+        else if (top.search && !stack) SearchBar(big, onVoice, { q -> searchOpen.value = false; onSearch(q) }, { onStatusLong("search") }, if (searchFixed) searchFixedMod else Modifier.weight(1f), sc)
+        else if (top.voice && !top.search && Voice.available(androidx.compose.ui.platform.LocalContext.current)) HomeBox(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(barR(24.dp)), bg = barBg(t.tile), edge = barEdge(t.accent), onClick = onVoice, onLong = onTopLong,
+        ) {
+            Row(Modifier.padding(horizontal = (16f * sc).dp, vertical = (8f * sc).dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy((8f * sc).dp)) {
+                TintIcon(HIcons.mic, t.accent, (if (big) 28f else 22f).times(sc).dp, 0.dp)
+                Text(stringResource(R.string.home_voice), color = barTextTint(t.text), fontSize = (if (big) 19f else 15f).times(sc).sp)
+            }
+        }
+        if (id in statusIds) vis.firstOrNull { it.id == id }?.let { s -> androidx.compose.runtime.key(s.id) {
+            statusItem(s, 1f)
+        } }
+    }
+    // 20.0: часы по центру (цифры или циферблат) стоят по центру строки, чуть крупнее остальных кнопок, и входят в высоту строки:
+    // нижние ряды («Дом», баннеры) не перекрываются. Лестница с кукушкой раз в час выпадает поверх (накладка нулевой высоты).
+    Box(Modifier.fillMaxWidth()) {
+    if (centeredText && timeSt != null) Box(clockMod) { Box(Modifier.onSizeChanged { clockWpx.floatValue = it.width.toFloat(); val u = it.width / dn.density / (lv.scale * (top.scale / 100f) * clockFit); if (u > 0f && kotlin.math.abs(u - cwMeas.floatValue) > 0.5f) cwMeas.floatValue = u }) { statusItem(timeSt, ClockFace.digitalK(ClockFace.sizeStep(timeSt.opt)) * clockFit) } }
+    if (faceOn && timeSt != null) {
+        Box(clockMod) { Box(Modifier.onSizeChanged { clockWpx.floatValue = it.width.toFloat() }) { statusItem(timeSt, 1f) } }
+        if (HourSignal.mode(timeSt.opt) == 1) {
+            val fd = ClockFace.sizeDp(timeSt.opt, top.scale, big)
+            Box(Modifier.layout { m, c -> val pl = m.measure(androidx.compose.ui.unit.Constraints()); layout(0, 0) { pl.place((c.maxWidth - pl.width) / 2, (fd * 0.81f + 4.dp).roundToPx()) } }) {
+                Box(Modifier.requiredSize(fd * 0.9f, fd * 1.5f).clipToBounds()) { CuckooBird() }
             }
         }
     }
-    if (top.search && stack) Row(Modifier.fillMaxWidth().padding(top = 6.dp)) { SearchBar(big, onVoice, onSearch, onTopLong, Modifier.weight(1f)) }
+    if (plateMode) {
+        // 20.0: подложка слева и справа до часов по центру (даже пустая); нет часов по центру: одна сплошная подложка на всю строку; прозрачность на выбор
+        val plateColor = androidx.compose.ui.graphics.Color.Black.copy(alpha = top.plateAlpha / 100f)
+        val plateShape = androidx.compose.foundation.shape.RoundedCornerShape(barR(24.dp))
+        val plateMod = Modifier.fillMaxHeight().background(plateColor, plateShape)
+            .border(androidx.compose.foundation.BorderStroke(1.dp, barEdge(t.accent).copy(alpha = 0.45f)), plateShape)
+            .padding(horizontal = (8f * sc).dp)
+        val leftIds = shown.filter { it !in plateSet && !(timeSt != null && it == "time") }      // обычное время не повторяет «Часы по центру»
+        val plateGapPx = with(dn) { 24.dp.toPx() }          // зазор между подложкой и часами по центру
+        val sideDp = with(dn) { (((boxWpx - clockWpx.floatValue) / 2f) - plateGapPx).coerceAtLeast(60f).toDp() }
+        val leftContent: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {
+            leftIds.forEachIndexed { i, id ->
+                if (i > 0) Spacer(Modifier.width(lv.left.dp))
+                androidx.compose.runtime.key(id) { if (TopOrder.isGap(id)) Spacer(Modifier.weight(1f)) else renderItem(id) }
+            }
+        }
+        val rightContent: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {
+            plateOrder.forEachIndexed { i, pid ->
+                if (i > 0) Spacer(Modifier.width(lv.status.dp))
+                androidx.compose.runtime.key(pid) { renderItem(pid) }
+            }
+        }
+        // обе подложки одной высоты (по самому высокому содержимому, например по двухстрочной дате справа)
+        // каждая подложка прижата к своему краю и они одной ширины: строка симметрична относительно часов по центру
+        Box(Modifier.align(Alignment.TopStart).fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Max)) {
+            if (centerOverlay) {
+                Row(plateMod.width(sideDp).align(Alignment.TopStart), verticalAlignment = Alignment.CenterVertically, content = leftContent)
+                Row(plateMod.width(sideDp).align(Alignment.TopEnd), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.End, content = rightContent)
+            } else {
+                Row(plateMod.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { leftContent(); if (!hasWeight) Spacer(Modifier.weight(1f)); rightContent() }      // поле поиска (или пустое место) само забирает свободное; вторая распорка оставляла пустоту после поиска
+            }
+        }
+    } else Row(Modifier.align(Alignment.TopStart).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        flow.forEachIndexed { idx, id ->
+        if (!hasWeight && idx == firstStatus) Spacer(Modifier.weight(1f))
+        if (idx > 0) Spacer(Modifier.width((if (tightId(id) && tightId(flow[idx - 1])) lv.status else lv.left).dp))
+        androidx.compose.runtime.key(id) {
+            if (id == "plate") Row(Modifier.background(barBg(t.tile).let { c0 -> if (c0.alpha < 0.05f) androidx.compose.ui.graphics.Color(0x66000000) else c0 }, androidx.compose.foundation.shape.RoundedCornerShape(barR(24.dp))).border(androidx.compose.foundation.BorderStroke(1.dp, barEdge(t.accent).copy(alpha = 0.55f)), androidx.compose.foundation.shape.RoundedCornerShape(barR(24.dp))).padding(horizontal = (8f * sc).dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(lv.status.dp)) {
+                plateOrder.forEach { pid -> androidx.compose.runtime.key(pid) { renderItem(pid) } }
+            } else renderItem(id)
+        }
+        }
+        if (!hasWeight && firstStatus < 0) Spacer(Modifier.weight(1f))
+    }
+    }
+    if (top.search && stack) Row(Modifier.fillMaxWidth().padding(top = 6.dp)) { SearchBar(big, onVoice, onSearch, { onStatusLong("search") }, Modifier.weight(1f)) }
     }
     }
 }
