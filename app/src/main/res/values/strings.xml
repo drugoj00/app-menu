@@ -1324,4 +1324,13 @@
     <string name="hour_own_cuckoo">Own cuckoo sound</string>
     <string name="hour_own_chime">Own chimes sound</string>
     <string name="hour_own_none">default</string>
+    <string name="bn_color_icon_btn">By icon</string>
+    <string name="bg_hue_bar">Background hue</string>
+    <string name="bn_color_bar">Own colour</string>
+    <string name="align_stretch">Stretch to the edges</string>
+    <string name="align_keep">Keep the size</string>
+    <string name="align_left">Left</string>
+    <string name="align_center">Center</string>
+    <string name="align_right">Right</string>
+    <string name="row_inherit">New ones like the others in the row</string>
 </resources>
