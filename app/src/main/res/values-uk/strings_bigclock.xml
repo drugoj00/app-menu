@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="wg_bigclock">Великий годинник</string>
+    <string name="add_bigclock">Великий годинник (як на ТБ)</string>
+    <string name="bc_front">За переднім планом картинки</string>
+    <string name="bc_alpha">Непрозорість цифр</string>
+    <string name="bc_drop">Опустити нижче</string>
+    <string name="bc_nn">Ділити будь-яку картинку</string>
+    <string name="bc_nn_get">Скачати, 70 МБ</string>
+    <string name="bc_nn_ready">Завантажено</string>
+    <string name="bc_nn_retry">Не вийшло: %1$s. Натисніть ще раз</string>
+    <string name="bc_nn_space">мало вільного місця</string>
+    <string name="bc_nn_bad">файл прийшов пошкодженим</string>
+    <string name="bc_cover">Закривати низ цифр</string>
+    <string name="bc_motion">Рух: об\'єм, вітер, вода</string>
+    <string name="top_wx">Погода у верхньому рядку</string>
+    <string name="top_search_icon">Пошук: лише значок</string>
+    <string name="top_clean_plate">Підкладка в «Очищення пам\'яті»</string>
+    <string name="bg_3d">3D-шпалери (обʼєм і рух)</string>
+    <string name="wall_open">Живі шпалери з файлу або «живого» фото…</string>
+    <string name="wall_export">Зберегти цей фон у файл живих шпалер</string>
+    <string name="wall_added">Живі шпалери поставлено</string>
+    <string name="wall_bad">Це не файл живих шпалер і не «живе» фото</string>
+    <string name="wall_saved">Файл шпалер збережено</string>
+    <string name="fly_title">Предмети, що летять за вітром</string>
+    <string name="fly_what">Що літає</string>
+    <string name="fly_money">Гроші</string>
+    <string name="fly_leaves">Листя</string>
+    <string name="fly_snow">Сніг</string>
+    <string name="fly_petals">Пелюстки</string>
+    <string name="wall_saved_to">Збережено: %1$s</string>
+</resources>
