@@ -1045,8 +1045,8 @@
     <string name="dock_hint">Тонкая постоянная полоса избранных приложений у нижнего края «Дома», как док-панель Pulsar. Кнопка «вниз» на доке открывает панель «Все приложения» (если она включена) или меню. По умолчанию выключено.</string>
     <string name="dock_apps_title">Приложения</string>
     <string name="dock_pick">Приложения дока</string>
-    <string name="dock_pick_h">Отметьте приложения и порядок; пусто: «Избранное»</string>
-    <string name="dock_count">Число значков</string>
+    <string name="dock_pick_h">Добавить, убрать и расставить по порядку. Все отмеченные видны в доке, он прокручивается. Пусто: «Избранное»</string>
+    <string name="dock_count">Значков, когда док набирается сам</string>
     <string name="dock_look">Вид</string>
     <string name="dock_icon">Размер значков</string>
     <string name="dock_transp">Прозрачность</string>
@@ -1103,11 +1103,9 @@
     <string name="install_noaccess_title">Нет доступа к файлам</string>
     <string name="install_noaccess">У программы нет права читать файлы на этом устройстве, поэтому APK не искались. Разреши «Доступ ко всем файлам» (Настройки, Приложения, Меню приложений, Разрешения), подключи ADB или root либо выбери файлы в системном окне выбора.</string>
     <string name="dock_m_hide">Скрыть док</string>
-    <string name="dock_m_add">Добавить приложение…</string>
     <string name="dock_hide_pick">Не показывать в доке</string>
     <string name="dock_hide_h">Отмеченные приложения не показываются в доке (ни выбранные, ни автодобавленные, ни недавние). Снять отметку: вернуть.</string>
     <string name="dock_hide_title">Скрытые в доке</string>
-    <string name="dock_add_h">Открывает список всех приложений с галочками: отмеченные попадают в док.</string>
     <string name="dock_label_sp">Размер подписи</string>
     <string name="dock_scroll">Полоса прокрутки дока</string>
     <string name="dock_scroll_h">Тонкая полоса под значками, когда они не помещаются; прокрутка пальцем, мышью или стрелками.</string>
