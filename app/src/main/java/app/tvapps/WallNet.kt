@@ -44,7 +44,12 @@ internal object WallSafe {
         "\\b(nudes?|nudity|naked|erotic\\w*|topless|breasts?|genital\\w*|penis|vulva|porn\\w*|sexuality|aktstudie\\w*|aktfoto\\w*|aktfotografie\\w*|nackt\\w*|desnud\\w*)\\b",
         RegexOption.IGNORE_CASE,
     )
-    fun ok(text: String): Boolean = !BAD.containsMatchIn(text.replace('_', ' '))
+    /** 23.0: люди на обоях не нужны (в 22.0 отсеивалось только неприличное). По словам в названии, метках и описании; гарантии на каждую картинку нет. */
+    private val PEOPLE = Regex(
+        "\\b(people|persons?|humans?|man(?![- ]made)|men|woman|women|guys?|girls?|boys?|lady|ladies|child|children|kids|toddlers?|couple|brides?|crowds?|tourists?|hikers?|swimmers?|bathers?|surfers?|climbers?|selfies?|portraits?)\\b",
+        RegexOption.IGNORE_CASE,
+    )
+    fun ok(text: String): Boolean = text.replace('_', ' ').let { !BAD.containsMatchIn(it) && !PEOPLE.containsMatchIn(it) }
 }
 
 /**
@@ -314,7 +319,7 @@ object WallNet {
             val tags = o.optJSONArray("tags")?.let { t -> (0 until t.length()).joinToString(" ") { i -> t.optJSONObject(i)?.str("name").orEmpty() } }.orEmpty()
             if (o.optBoolean("mature") || !WallSafe.ok(o.str("title") + " " + tags)) continue
             val licName = if (lic == "cc0") "CC0" else "CC BY " + o.str("license_version")
-            out.add(WallPic("openverse", o.str("title"), unpercent(o.str("creator")).take(60), licName.trim(), url.replace("http://", "https://"), o.str("foreign_landing_url")))
+            out.add(WallPic("openverse", strip(o.str("title")), unpercent(o.str("creator")).take(60), licName.trim(), url.replace("http://", "https://"), o.str("foreign_landing_url")))
         }
         return out
     }
@@ -330,6 +335,7 @@ object WallNet {
             // под экран: у портретной картинки размер 1080x2340 (телефон), у альбомной large2x (около 1880 по ширине)
             val url = if (portrait && src.str("original").isNotEmpty()) src.str("original") + "?auto=compress&cs=tinysrgb&fit=crop&w=1080&h=2340" else src.str("large2x").ifEmpty { src.str("original") }
             if (url.isEmpty()) continue
+            if (!WallSafe.ok(o.str("alt"))) continue
             out.add(WallPic("pexels", o.str("alt"), o.str("photographer").take(60), "Pexels License", url, o.str("url")))
         }
         return out
@@ -343,6 +349,7 @@ object WallNet {
             val o = arr.getJSONObject(i)
             val raw = o.optJSONObject("urls")?.str("raw").orEmpty()
             if (raw.isEmpty()) continue
+            if (!WallSafe.ok(o.str("alt_description") + " " + o.str("description"))) continue
             val links = o.optJSONObject("links")
             val url = raw + (if (raw.contains('?')) "&" else "?") + (if (portrait) "w=1080&h=2340&fit=crop&q=80&fm=jpg" else "w=1920&q=80&fm=jpg&fit=max")
             // по условиям Unsplash автор и ссылка на него с метками показываются, а скачивание отмечается отдельным запросом

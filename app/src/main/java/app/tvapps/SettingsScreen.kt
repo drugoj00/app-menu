@@ -1323,7 +1323,6 @@ fun SettingsScreen(apps: List<Entry>, onBack: () -> Unit, onFullscreenChanged: (
                     if (rvl.next(5)) { Section(stringResource(R.string.dock_apps_title)) {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             ActionRow(HIcons.list, stringResource(R.string.dock_pick) + " (" + HomeDock.list(ctx).size + ")", stringResource(R.string.dock_pick_h)) { sub = "dockapps" }
-                            ActionRow(HIcons.list, stringResource(R.string.dock_m_add), stringResource(R.string.dock_add_h)) { sub = "dockapps" }
                             ActionRow(HIcons.eyeOff, stringResource(R.string.dock_hide_pick) + " (" + HomeDock.hiddenList(ctx).size + ")", stringResource(R.string.dock_hide_h)) { sub = "dockhide" }
                         }
                         CounterRow(stringResource(R.string.dock_count), HomeDock.count(ctx), 6..12, "") { HomeDock.setCount(ctx, it) }

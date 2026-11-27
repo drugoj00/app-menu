@@ -209,26 +209,34 @@ object HomeDock {
     }
     fun setAlign(c: Context, v: Int) { sp(c).edit().putInt("dock_align", v).apply(); rev.intValue++ }
 
-    /** Приложения дока по порядку: выбор пользователя, а если он пуст, то «Избранное»; не больше заданного числа. */
+    /**
+     * 23.0: что стоит в доке. Выбранное человеком (список дока, а если он пуст, «Избранное») показывается всё, сколько бы ни было: док прокручивается.
+     * Число [count] ограничивает только то, что Меню набирает само: когда ничего не выбрано и при автодобавлении.
+     */
+    fun <T> fill(chosen: List<T>, popular: List<T>, auto: List<T>, autoOn: Boolean, count: Int): List<T> {
+        val base = chosen.ifEmpty { popular.take(count) }
+        if (!autoOn) return base
+        val have = base.toHashSet()
+        return base + auto.filter { it !in have }.take(maxOf(0, count - base.size))
+    }
+
+    /** Приложения дока по порядку. */
     fun shown(c: Context, all0: List<Entry>): List<Entry> {
         // скрытые владельцем приложения в доке не показываются нигде (ни при выборе, ни при пустом списке, ни при автодобавлении)
         val dh = hiddenList(c).toSet()
         val all = all0.filter { !Cfg.isHidden(it.pkg) && it.pkg !in dh }
         val byPkg = all.associateBy { it.pkg }
-        val src = list(c).ifEmpty { Cfg.favorites }.ifEmpty { all.filter { !it.system }.sortedByDescending { Cfg.launches(it.pkg) }.map { it.pkg } }
-        var res = src.mapNotNull { byPkg[it] }
+        val chosen = list(c).ifEmpty { Cfg.favorites }.mapNotNull { byPkg[it] }
+        val popular = all.filter { !it.system }.sortedByDescending { Cfg.launches(it.pkg) }
         // автодобавление: часто запускаемые приложения сами попадают в док (если выключено, только выбранные)
-        if (auto(c)) {
-            val have = res.map { it.pkg }.toSet()
-            res = res + all.filter { !it.system && it.pkg !in have && Cfg.launches(it.pkg) > 0 }.sortedByDescending { Cfg.launches(it.pkg) }
-        }
+        var res = fill(chosen, popular, popular.filter { Cfg.launches(it.pkg) > 0 }, auto(c), count(c))
         res = when (sort(c)) {
             1 -> res.sortedBy { it.label.lowercase() }
             2 -> res.sortedByDescending { Cfg.launches(it.pkg) }
             3 -> res.sortedByDescending { Cfg.lastLaunch(it.pkg) }
             else -> res
         }
-        return res.take(count(c))
+        return res
     }
 
     /** Высота дока в dp (чтобы строки «Дома» не уезжали под него). */
@@ -340,6 +348,10 @@ fun HomeDockHost() {
                                 if (ev.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                                 // клавиша «Меню» («Инфо») на ячейке дока: меню ячейки (убрать из дока, настройки дока)
                                 if ((ev.key == Key.Menu || ev.key == Key.Info) && ev.nativeKeyEvent.repeatCount == 0) { menuFor = e; return@onPreviewKeyEvent true }
+                                // 23.0: «вправо» с последнего и «влево» с первого значка не выпускают из дока (раньше подсветка прыгала на часы вверху); выход: «вверх»
+                                val first = e.pkg == items.first().pkg
+                                val last = e.pkg == (rec.lastOrNull() ?: items.last()).pkg
+                                if ((ev.key == Key.DirectionRight && last) || (ev.key == Key.DirectionLeft && first)) return@onPreviewKeyEvent true
                                 // «вниз» с дока: остальные приложения в стекле, фокус центра освобождается
                                 if (ev.key == Key.DirectionDown) { if (PulsarDock.heightDp(ctx) > 0) PulsarDock.focusDock(ctx) else if (HomeDock.downOpens(ctx)) openAll(); true } else false
                             }
@@ -432,7 +444,7 @@ fun HomeDockHost() {
             listOf(
                 Opt(androidx.compose.ui.res.stringResource(R.string.dock_settings)) { closeBar(); HomeDock.openSettings(ctx) },
                 Opt(androidx.compose.ui.res.stringResource(R.string.dock_m_hide)) { closeBar(); HomeDock.setOn(ctx, false) },
-                Opt(androidx.compose.ui.res.stringResource(R.string.dock_m_add)) { closeBar(); HomeDock.openSettings(ctx, "dockapps") },
+                Opt(androidx.compose.ui.res.stringResource(R.string.dock_pick) + " (" + HomeDock.list(ctx).size + ")") { closeBar(); HomeDock.openSettings(ctx, "dockapps") },
                 Opt(androidx.compose.ui.res.stringResource(R.string.dock_m_close_menu)) { closeBar() },
             ),
             closeBar,
