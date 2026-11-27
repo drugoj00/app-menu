@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="wg_bigclock">Big clock</string>
+    <string name="add_bigclock">Big clock (TV style)</string>
+    <string name="bc_front">Behind the wallpaper foreground</string>
+    <string name="bc_alpha">Digit opacity</string>
+    <string name="bc_drop">Move lower</string>
+    <string name="bc_nn">Split any picture</string>
+    <string name="bc_nn_get">Download, 70 MB</string>
+    <string name="bc_nn_ready">Downloaded</string>
+    <string name="bc_nn_retry">Failed: %1$s. Tap to retry</string>
+    <string name="bc_nn_space">not enough free space</string>
+    <string name="bc_nn_bad">the file arrived damaged</string>
+    <string name="bc_cover">Cover bottom of digits</string>
+    <string name="bc_motion">Motion: depth, wind, water</string>
+    <string name="top_wx">Weather in the top bar</string>
+    <string name="top_search_icon">Search: icon only</string>
+    <string name="top_clean_plate">“Clean memory” background</string>
+    <string name="bg_3d">3D wallpaper (depth, motion)</string>
+    <string name="wall_open">Live wallpaper from a file or a motion photo…</string>
+    <string name="wall_export">Save this background as a live wallpaper file</string>
+    <string name="wall_added">Live wallpaper is set</string>
+    <string name="wall_bad">This file is not a live wallpaper or a motion photo</string>
+    <string name="wall_saved">Wallpaper file saved</string>
+    <string name="fly_title">Things flying in the wind</string>
+    <string name="fly_what">What flies</string>
+    <string name="fly_money">Money</string>
+    <string name="fly_leaves">Leaves</string>
+    <string name="fly_snow">Snow</string>
+    <string name="fly_petals">Petals</string>
+    <string name="wall_saved_to">Saved: %1$s</string>
+</resources>
