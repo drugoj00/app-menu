@@ -1045,8 +1045,8 @@
     <string name="dock_hint">Тонка постійна смуга обраних застосунків біля нижнього краю «Дому», як док-панель Pulsar. Кнопка «вниз» на доку відкриває панель «Усі застосунки» (якщо вона ввімкнена) або меню. Типово вимкнено.</string>
     <string name="dock_apps_title">Застосунки</string>
     <string name="dock_pick">Застосунки дока</string>
-    <string name="dock_pick_h">Позначте застосунки та порядок; порожньо: «Обране»</string>
-    <string name="dock_count">Кількість значків</string>
+    <string name="dock_pick_h">Додати, прибрати й розставити по порядку. Усі позначені видно в доку, він прокручується. Порожньо: «Обране»</string>
+    <string name="dock_count">Значків, коли док набирається сам</string>
     <string name="dock_look">Вигляд</string>
     <string name="dock_icon">Розмір значків</string>
     <string name="dock_transp">Прозорість</string>
@@ -1103,11 +1103,9 @@
     <string name="install_noaccess_title">Немає доступу до файлів</string>
     <string name="install_noaccess">У програми немає права читати файли на цьому пристрої, тому APK не шукалися. Дозволь «Доступ до всіх файлів» (Налаштування, Застосунки, Меню застосунків, Дозволи), підключи ADB або root чи вибери файли в системному вікні вибору.</string>
     <string name="dock_m_hide">Сховати док</string>
-    <string name="dock_m_add">Додати застосунок…</string>
     <string name="dock_hide_pick">Не показувати в доку</string>
     <string name="dock_hide_h">Позначені застосунки не показуються в доку (ні вибрані, ні автододані, ні нещодавні). Зняти позначку: повернути.</string>
     <string name="dock_hide_title">Приховані в доку</string>
-    <string name="dock_add_h">Відкриває список усіх застосунків із галочками: позначені потрапляють у док.</string>
     <string name="dock_label_sp">Розмір підпису</string>
     <string name="dock_scroll">Смуга прокрутки дока</string>
     <string name="dock_scroll_h">Тонка смуга під значками, коли вони не вміщуються; прокрутка пальцем, мишею або стрілками.</string>
