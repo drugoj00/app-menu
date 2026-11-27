@@ -14,22 +14,17 @@ App Menu replaces the stock app list with a big grid made for a remote and for t
 
 ## Download
 
-**Version 22.0.** [AppMenu-22.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
+**Version 23.0.** [AppMenu-23.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `ff41414640ff0ada8f4aca4ddacc36d809ad780721a12ec5f5549f6ae9500660`
+SHA-256: `d86cfb4031d0defc230ec8ac09ee0825f64253eaddc404ab165ea5df8cf4cda2`
 
-## What's new in 22.0
+## What's new in 23.0
 
-- Large TV-style clock: the digits go behind the trees in the picture
-- The background comes alive: wind in the trees, ripples on water, clouds
-- "3D wallpaper": depth and motion without the clock
-- For depth, a 70 MB add-on is downloaded once, only when you press the button
-- Optionally money, leaves, snow or petals fly in the wind
-- An own live wallpaper format; a phone "motion photo" is converted to it
-- Top bar: search as an icon, weather, new date formats
-- The "Free memory" button in the top bar can go without a plate
-- Internet wallpapers: added filtering of people and indecent pictures
-- Fixed: the "Inputs" row came back and multiplied
+- The dock shows all chosen apps, not just 12
+- Internet wallpapers: people are now filtered out
+- Flying items slow down TV boxes less
+- Dock settings: one "Dock apps" row instead of two
+- Fixed: the remote focus jumped from the end of the dock to the clock
 - Bug fixes
 
 ## Features
@@ -67,7 +62,7 @@ SHA-256: `ff41414640ff0ada8f4aca4ddacc36d809ad780721a12ec5f5549f6ae9500660`
 
 ## Quick start
 
-1. Download AppMenu-22.0.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
+1. Download AppMenu-23.0.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
 2. Open it: apps are launched with OK or a tap, a long press (or holding OK, or the Menu key) opens the action card. To use it instead of the stock menu turn on “Launcher mode” in Settings.
 3. To act on other apps connect ADB: Settings → “Connect ADB”. Android 9 and older TV boxes with network ADB connect by themselves. Android 11+: turn on the “App Menu” service in Accessibility once, press “Connect automatically”. Android 10 and older: run adb tcpip 5555 once from a computer (repeat after a reboot). With root none of this is needed: allow root for the app once and it connects by itself.
 
