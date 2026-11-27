@@ -14,8 +14,8 @@ android {
         applicationId = "app.tvapps"
         minSdk = 23
         targetSdk = 34
-        versionCode = 79
-        versionName = "21.0"
+        versionCode = 81
+        versionName = "22.0"
         // ABI НЕ ограничиваем (слово владелицы 06.11): программа должна ставиться на всё, куда ставилась раньше, в том числе на x86-приставки
         // системные строки библиотек (material/compose/activity) только на трёх языках программы
         resourceConfigurations += listOf("ru", "uk", "en")
@@ -65,6 +65,8 @@ android {
             "org/bouncycastle/**", "org/apache/commons/codec/**", "kotlin-tooling-metadata.json", "DebugProbesKt.bin")
         // .so сжаты внутри APK (APK меньше), при установке распаковываются в папку программы
         jniLibs.useLegacyPackaging = true
+        // библиотека нейросети глубины в APK не кладётся (2,7 МБ): она скачивается вместе с нейросетью (DepthCut.kt)
+        jniLibs.excludes += "**/libtensorflowlite_jni.so"
     }
 }
 
@@ -85,5 +87,8 @@ dependencies {
     implementation("com.github.junrar:junrar:7.5.5")
     implementation("eu.agno3.jcifs:jcifs-ng:2.1.10") { exclude(group = "org.bouncycastle") }
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+    // крупные часы между ближним и дальним планом обоев: только классы запуска нейросети глубины; версия должна совпадать
+    // с адресом и контрольной суммой скачиваемой библиотеки в DepthCut.kt
+    implementation("com.google.ai.edge.litert:litert:1.0.1")
     testImplementation("junit:junit:4.13.2")
 }
