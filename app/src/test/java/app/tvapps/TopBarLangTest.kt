@@ -10,9 +10,9 @@ class TopBarLangTest {
     private val day = java.util.Calendar.getInstance().apply { set(2026, java.util.Calendar.NOVEMBER, 6, 12, 0, 0) }.timeInMillis
 
     @Test fun datesFollowChosenLanguage() {
-        assertEquals("Пятница" to "Ноябрь 06.11.2026", dateTwoLines(3, day, Locale("ru")))
-        assertEquals("П’ятниця" to "Листопад 06.11.2026", dateTwoLines(3, day, Locale("uk")).let { it!!.first.replace('ʼ', '’') to it.second })
-        assertEquals("Friday" to "November 06.11.2026", dateTwoLines(3, day, Locale("en")))
+        assertEquals("Пятница" to "Ноябрь 6, 2026", dateTwoLines(3, day, Locale("ru")))
+        assertEquals("П’ятниця" to "Листопад 6, 2026", dateTwoLines(3, day, Locale("uk")).let { it!!.first.replace('ʼ', '’') to it.second })
+        assertEquals("Friday" to "November 6, 2026", dateTwoLines(3, day, Locale("en")))
     }
 
     @Test fun monthGenitive() {
