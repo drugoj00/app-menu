@@ -1045,8 +1045,8 @@
     <string name="dock_hint">A thin permanent strip of favorite apps at the bottom edge of Home, like the dock panel of Pulsar. The Down button on the dock opens the All apps panel (if it is on) or the menu. Off by default.</string>
     <string name="dock_apps_title">Apps</string>
     <string name="dock_pick">Apps of the dock</string>
-    <string name="dock_pick_h">Tick the apps and set the order; empty list: favorites</string>
-    <string name="dock_count">Number of icons</string>
+    <string name="dock_pick_h">Add and remove apps and set their order. All checked apps are shown, the dock scrolls. Empty: Favorites</string>
+    <string name="dock_count">Icons when the dock fills itself</string>
     <string name="dock_look">Look</string>
     <string name="dock_icon">Icon size</string>
     <string name="dock_transp">Transparency</string>
@@ -1103,11 +1103,9 @@
     <string name="install_noaccess_title">No access to files</string>
     <string name="install_noaccess">The program may not read files on this device, so no APK could be looked for. Allow “All files access” (Settings, Apps, App Menu, Permissions), connect ADB or root, or pick files in the system picker.</string>
     <string name="dock_m_hide">Hide the dock</string>
-    <string name="dock_m_add">Add an app…</string>
     <string name="dock_hide_pick">Do not show in the dock</string>
     <string name="dock_hide_h">Checked apps never show in the dock (chosen, auto-added or recent). Uncheck to bring them back.</string>
     <string name="dock_hide_title">Hidden in the dock</string>
-    <string name="dock_add_h">Opens the list of all apps with checkboxes: checked ones go to the dock.</string>
     <string name="dock_label_sp">Label size</string>
     <string name="dock_scroll">Dock scroll bar</string>
     <string name="dock_scroll_h">A thin bar under the icons when they do not fit; scroll with a finger, mouse or arrows.</string>
