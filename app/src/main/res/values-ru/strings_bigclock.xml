@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="wg_bigclock">Крупные часы</string>
+    <string name="add_bigclock">Крупные часы (как на ТВ)</string>
+    <string name="bc_front">За передним планом картинки</string>
+    <string name="bc_alpha">Непрозрачность цифр</string>
+    <string name="bc_drop">Опустить ниже</string>
+    <string name="bc_nn">Делить любую картинку</string>
+    <string name="bc_nn_get">Скачать, 70 МБ</string>
+    <string name="bc_nn_ready">Скачано</string>
+    <string name="bc_nn_retry">Не вышло: %1$s. Нажмите ещё раз</string>
+    <string name="bc_nn_space">мало свободного места</string>
+    <string name="bc_nn_bad">файл пришёл повреждённым</string>
+    <string name="bc_cover">Закрывать низ цифр</string>
+    <string name="bc_motion">Движение: объём, ветер, вода</string>
+    <string name="top_wx">Погода в верхней строке</string>
+    <string name="top_search_icon">Поиск: только значок</string>
+    <string name="top_clean_plate">Подложка у «Очистки памяти»</string>
+    <string name="bg_3d">3D-обои (объём и движение)</string>
+    <string name="wall_open">Живые обои из файла или «живого» фото…</string>
+    <string name="wall_export">Сохранить этот фон в файл живых обоев</string>
+    <string name="wall_added">Живые обои поставлены</string>
+    <string name="wall_bad">Это не файл живых обоев и не «живое» фото</string>
+    <string name="wall_saved">Файл обоев сохранён</string>
+    <string name="fly_title">Летающие по ветру предметы</string>
+    <string name="fly_what">Что летает</string>
+    <string name="fly_money">Деньги</string>
+    <string name="fly_leaves">Листья</string>
+    <string name="fly_snow">Снег</string>
+    <string name="fly_petals">Лепестки</string>
+    <string name="wall_saved_to">Сохранено: %1$s</string>
+</resources>
