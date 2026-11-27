@@ -14,21 +14,28 @@ App Menu replaces the stock app list with a big grid made for a remote and for t
 
 ## Download
 
-**Version 21.0.** [AppMenu-21.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
+**Version 22.0.** [AppMenu-22.0.apk](https://github.com/drugoj00/app-menu/releases/latest) (Assets) · [Releases](https://github.com/drugoj00/app-menu/releases)
 
-SHA-256: `576408c8de852aa6d74cf6bea962a5aef7ea29c9ce4fb826982a1983ceb2b447`
+SHA-256: `ff41414640ff0ada8f4aca4ddacc36d809ad780721a12ec5f5549f6ae9500660`
 
-## What's new in 21.0
+## What's new in 22.0
 
-- Own banner and Home background color are picked with a strip; a new banner in a row looks like the others
-- Row setting: "Stretch to the edges" or "Keep the size" left, center, right; "Move" without holding, a long OK opens the menu
-- Notifications: the green eye hides an app, "Show hidden" is at the bottom; "Clear all" removes everything the system allows; dimming without a window is fixed
-- Date without a repeated month, plate transparency 0% is opaque, setting "Open Home at launch", "Show" at the top of the top-bar item menu
+- Large TV-style clock: the digits go behind the trees in the picture
+- The background comes alive: wind in the trees, ripples on water, clouds
+- "3D wallpaper": depth and motion without the clock
+- For depth, a 70 MB add-on is downloaded once, only when you press the button
+- Optionally money, leaves, snow or petals fly in the wind
+- An own live wallpaper format; a phone "motion photo" is converted to it
+- Top bar: search as an icon, weather, new date formats
+- The "Free memory" button in the top bar can go without a plate
+- Internet wallpapers: added filtering of people and indecent pictures
+- Fixed: the "Inputs" row came back and multiplied
 - Bug fixes
 
 ## Features
 
 - **Home screen.** A separate screen of rows: widgets (weather, clock, date, memory, Android widgets), app banners and icons, cards from Android TV channels and from the catalogue of any app (SmartTube, MEGOGO, HD VideoBox, Seena), favourites and history. Banners are made from the icon when an app has none. Optional: turn it on in Settings. Iron mode switches off the stock home screen (ADB or root), one button brings it back.
+- **3D wallpapers and a large clock.** A neural network on the device splits a picture into near and far: wind, ripples and clouds move, and large clock digits can go behind the trees. The depth add-on (MiDaS, about 70 MB) is downloaded only when you press the button. Optional flying money, leaves, snow or petals, and an own live wallpaper file.
 - **Menu for remote, touch, mouse and air mouse.** A full-screen grid: OK opens, holding OK or the Menu key shows actions, touch and mouse work as usual (left button opens, right button shows actions, wheel scrolls). Columns, icon size down to tiny (5 columns on a phone), labels, sorting (name, new, old, most used, your own), search, hiding, list mode.
 - **Several desks.** Optional: pages without scrolling, up to 9, switching in a loop. The desk menu opens on an empty spot and on the header.
 - **Action card on every icon.** Like in One UI: stop, clear cache, clear data, permissions, special access (with automatic restore after a reboot), battery, hide, uninstall, icon, folder, versions. Needs ADB of the same device (see below).
@@ -60,7 +67,7 @@ SHA-256: `576408c8de852aa6d74cf6bea962a5aef7ea29c9ce4fb826982a1983ceb2b447`
 
 ## Quick start
 
-1. Download AppMenu-21.0.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
+1. Download AppMenu-22.0.apk and install it (allow installing from this source if Android asks). The icon “App Menu” appears in the list of apps (on a TV box in the Leanback launcher).
 2. Open it: apps are launched with OK or a tap, a long press (or holding OK, or the Menu key) opens the action card. To use it instead of the stock menu turn on “Launcher mode” in Settings.
 3. To act on other apps connect ADB: Settings → “Connect ADB”. Android 9 and older TV boxes with network ADB connect by themselves. Android 11+: turn on the “App Menu” service in Accessibility once, press “Connect automatically”. Android 10 and older: run adb tcpip 5555 once from a computer (repeat after a reboot). With root none of this is needed: allow root for the app once and it connects by itself.
 

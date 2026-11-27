@@ -26,3 +26,11 @@ The recordings in `app/src/main/res/raw/` are used under Creative Commons licens
 - `cuckoo_call.wav`: a fragment of "Schlag Kuckucksuhr Beispiel 01" (audio of a cuckoo clock) by **HNH**, CC BY-SA 3.0 - https://commons.wikimedia.org/wiki/File:Schlag_Kuckucksuhr_Beispiel_01.ogv (trimmed, filtered, volume adjusted).
 - `bell_strike.wav`: a fragment of "Samariter Church bell I (Es) 01" by **Pete w. View**, CC BY-SA 4.0 - https://commons.wikimedia.org/wiki/File:Samariter_Church_bell_I_(Es)_01.ogg (trimmed, faded, volume adjusted).
 
+## Depth for 3D wallpapers (22.0)
+
+The 3D wallpaper and the large clock behind the trees can use a depth add-on. It is not part of the APK: it is downloaded only when the user presses the button (about 70 MB), and each file is checked by SHA-256.
+
+- **MiDaS v2.1 small** (depth estimation model, TensorFlow Lite) by Intel ISL, MIT License - https://github.com/isl-org/MiDaS
+- **LiteRT 1.0.1** (TensorFlow Lite runtime) by Google, Apache License 2.0 - https://github.com/google-ai-edge/LiteRT
+
+Объём для 3D-обоев считает нейросеть MiDaS (Intel ISL, лицензия MIT) на библиотеке LiteRT (Google, Apache 2.0). Дополнение скачивается только по кнопке.
