@@ -642,7 +642,9 @@ private fun WidgetsRow(row: HRow, tick: Int, refreshTick: Int, firstReq: FocusRe
     // на широком экране (ТВ, плотность мелкая) стандартная высота 120 dp слишком мала для крупных значков и подписей: берём 160 dp;
     // если владелица сама поменяла высоту (не 120), берётся её значение
     val wideScreen = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 900
-    val rowH = if (wideScreen && row.size == 120) 160 else row.size
+    // крупные часы можно опустить ниже: строка становится выше на выбранную долю экрана, цифры прижаты к её низу
+    val drop = row.slots.firstOrNull { it.type == "bigclock" }?.let { BigClockOpt.drop(it.ref) * androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp / 100 } ?: 0
+    val rowH = (if (wideScreen && row.size == 120) 160 else row.size) + drop
     Row(Modifier.fillMaxWidth().height(rowH.dp).padding(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(row.gap.dp)) {
         row.slots.forEachIndexed { i, w ->
             androidx.compose.runtime.key(i) {
@@ -653,9 +655,10 @@ private fun WidgetsRow(row: HRow, tick: Int, refreshTick: Int, firstReq: FocusRe
                 }
                 val wRing = if (w.borderC == 0L) t.accent else Color(w.borderC.toInt())
                 HomeBox(
-                    Modifier.weight(w.wt.coerceAtLeast(1).toFloat()).fillMaxHeight(), wShape, if (w.type == "appwidget" || w.type == WIDGET_EMPTY) Color.Transparent else if (w.style.isNotEmpty() && (w.type == "clock" || w.type == "weather")) t.tile.copy(alpha = t.tile.alpha * (WStyle.parse(w.style).bgAlpha / 100f)) else t.tile, focusReq = if (i == 0) firstReq else null, memKey = row.id + "|w" + i,
+                    Modifier.weight(w.wt.coerceAtLeast(1).toFloat()).fillMaxHeight(), wShape, if (w.type == "appwidget" || w.type == "bigclock" || w.type == WIDGET_EMPTY) Color.Transparent else if (w.style.isNotEmpty() && (w.type == "clock" || w.type == "weather")) t.tile.copy(alpha = t.tile.alpha * (WStyle.parse(w.style).bgAlpha / 100f)) else t.tile, focusReq = if (i == 0) firstReq else null, memKey = row.id + "|w" + i,
                     ringColor = if (w.borderW > 0 && w.borderHover) wRing else null, ringWidth = if (w.borderHover) w.borderW else 0,
                     focusTint = false,      // у виджета выбор и так виден по смене фона
+                    clearFocus = w.type == "bigclock",
                     // пустое место: одиночный клик сразу открывает выбор вида виджета; недействительный Android-виджет (после восстановления копии): клик добавляет его заново
                     onClick = {
                         if (w.type == WIDGET_EMPTY) onDlg(Dlg.WidgetType(row.id, i))

@@ -345,11 +345,12 @@ private fun HdAddRow(dlg: Dlg.AddRow, e: HdEnv) {
                 val r = when (kind) {
                     "cards" -> HRow(id, "", true, "cards", size = 100, count = 20)
                     "widgets" -> HRow(id, "", true, "widgets", size = 120, slots = listOf(HWidget("weather")))
+                    "bigclock" -> HRow(id, "", true, "widgets", size = 300, slots = listOf(HWidget("bigclock", n = 75, flag = true)))
                     "hdmi" -> HRow(id, ctx.getString(R.string.home_inputs), true, "apps", emptyList(), "hdmi", 8, 72)
                     else -> HRow(id, "", true, "apps", size = 72)
                 }
                 HomeStore.addRow(r, dlg.afterId)
-                setDlg(when (kind) { "cards" -> Dlg.CardSource(id); "widgets", "hdmi" -> Dlg.RowD(id); else -> Dlg.PickApps(id) })
+                if (kind == "bigclock") close() else setDlg(when (kind) { "cards" -> Dlg.CardSource(id); "widgets", "hdmi" -> Dlg.RowD(id); else -> Dlg.PickApps(id) })
             }
             ListDialog(
                 stringResource(R.string.add_what),
@@ -357,6 +358,7 @@ private fun HdAddRow(dlg: Dlg.AddRow, e: HdEnv) {
                     Opt(stringResource(R.string.add_icons)) { make("apps") },
                     Opt(stringResource(R.string.add_cards)) { make("cards") },
                     Opt(stringResource(R.string.add_widgets)) { make("widgets") },
+                    Opt(stringResource(R.string.add_bigclock)) { make("bigclock") },
                     Opt(stringResource(R.string.add_hdmi_row)) { make("hdmi") },
                 ),
                 close,
@@ -556,6 +558,38 @@ private fun HdWidgetD(dlg: Dlg.WidgetD, e: HdEnv) {
                         add(Opt(stringResource(R.string.wg_days), "${w.n}", { upd { it.copy(n = (it.n - 1).coerceAtLeast(0)) } }, { upd { it.copy(n = (it.n + 1).coerceAtMost(5)) } }, range = 0..5))
                         add(Opt(stringResource(R.string.wg_refresh)) { refreshWeather(); close() })
                     }
+                    "bigclock" -> {
+                        add(Opt(stringResource(R.string.bc_front), onOff(w.flag, on, off), onClick = { upd { it.copy(flag = !it.flag) } }))
+                        val op = if (w.n in 20..100) w.n else 75
+                        add(Opt(stringResource(R.string.bc_alpha), "$op%", { upd { it.copy(n = (op - 5).coerceAtLeast(20)) } }, { upd { it.copy(n = (op + 5).coerceAtMost(100)) } }, onClick = { upd { it.copy(n = if (op >= 100) 40 else (op + 5).coerceAtMost(100)) } }, range = 20..100))
+                        val h12 = BigClockOpt.h12(w.ref); val dr = BigClockOpt.drop(w.ref)
+                        val cv = BigClockOpt.cover(w.ref)
+                        val mv = BigClockOpt.live(w.ref)
+                        if (w.flag) {
+                            add(Opt(stringResource(R.string.bc_cover), "$cv%",
+                                { upd { it.copy(ref = BigClockOpt.make(h12, dr, cv - 5, mv)) } }, { upd { it.copy(ref = BigClockOpt.make(h12, dr, cv + 5, mv)) } },
+                                onClick = { upd { it.copy(ref = BigClockOpt.make(h12, dr, if (cv >= 40) 5 else cv + 5, mv)) } }, range = 5..40))
+                        }
+                        if (w.flag && DepthCut.supported) {
+                            val nnCtx = androidx.compose.ui.platform.LocalContext.current
+                            val has = remember(DepthCut.ver) { DepthCut.ready(nnCtx) }
+                            val pr = DepthCut.progress
+                            add(Opt(stringResource(R.string.bc_nn), when {
+                                pr >= 0 -> "$pr%"
+                                has -> stringResource(R.string.bc_nn_ready)
+                                DepthCut.error.isNotEmpty() -> stringResource(R.string.bc_nn_retry, DepthCut.error)
+                                else -> stringResource(R.string.bc_nn_get)
+                            }, onClick = { if (has) DepthCut.remove(nnCtx) else DepthCut.download(nnCtx) }))
+                            if (has) add(Opt(stringResource(R.string.bc_motion), onOff(mv, on, off), onClick = { upd { it.copy(ref = BigClockOpt.make(h12, dr, cv, !mv)) } }))
+                            if (has && mv) {
+                                val wind = HomeStore.layout.bg
+                                add(Opt(stringResource(R.string.fly_title), onOff(wind.flyOn, on, off), onClick = { HomeStore.layout.bg.let { HomeStore.setBg(it.copy(flyOn = !it.flyOn)) } }))
+                                if (wind.flyOn) add(Opt(stringResource(R.string.fly_what), stringResource(flyName(wind.fly)), onClick = { HomeStore.layout.bg.let { HomeStore.setBg(it.copy(fly = flyNext(it.fly))) } }))
+                            }
+                        }
+                        add(Opt(stringResource(R.string.bc_drop), "$dr%", { upd { it.copy(ref = BigClockOpt.make(h12, dr - 2, cv, mv)) } }, { upd { it.copy(ref = BigClockOpt.make(h12, dr + 2, cv, mv)) } }, onClick = { upd { it.copy(ref = BigClockOpt.make(h12, if (dr >= 40) 0 else dr + 4, cv, mv)) } }, range = 0..40))
+                        add(Opt(stringResource(R.string.wg_time_fmt), if (h12) "12 h" else "24 h", onClick = { upd { it.copy(ref = BigClockOpt.make(!h12, dr, cv, mv)) } }))
+                    }
                     "clock" -> {
                         add(Opt(stringResource(R.string.wg_time_fmt), if ((w.n and 1) != 0) "12 h" else "24 h", onClick = { upd { it.copy(n = it.n xor 1) } }))
                         add(Opt(stringResource(R.string.wg_seconds), onOff((w.n and 2) != 0, on, off), onClick = { upd { it.copy(n = it.n xor 2) } }))
@@ -633,7 +667,7 @@ private fun HdWidgetType(dlg: Dlg.WidgetType, e: HdEnv) {
                         HomeStore.updateSlot(dlg.rowId, dlg.slot) {
                             // новая установка: часы и погода получают новые стандартные наборы («Цифровой», «Как у Tablet Clock»); у обновившихся остаётся прежний вид
                             val w0 = it.copy(type = ty, n = if (ty == "weather") 5 else 0, ref = "", prov = "")
-                            if (HomeStore.digitalDefault && (ty == "clock" || ty == "weather")) applyPreset(w0, 1) else w0
+                            if (ty == "bigclock") w0.copy(n = 75, flag = true, fs = 100, style = "") else if (HomeStore.digitalDefault && (ty == "clock" || ty == "weather")) applyPreset(w0, 1) else w0
                         }
                         setDlg(Dlg.WidgetD(dlg.rowId, dlg.slot))
                     }
@@ -757,7 +791,7 @@ private fun HdStatus(dlg: Dlg.Status, e: HdEnv) {
                     if (s.id == "cclock") addAll(timeFaceOpts(s.opt, on, off, setDlg))
                     else add(Opt(stringResource(R.string.alarm_menu)) { setDlg(Dlg.Alarms) })      // у обычных часов тоже есть вход в будильники
                 }
-                if (s.id == "date") add(Opt(stringResource(R.string.st_date_fmt), dateSample(s.opt), onClick = { HomeStore.updateStatus(s.id) { it.copy(opt = (it.opt and 3.inv()) or (((it.opt and 3) + 1) % 4)) } }))
+                if (s.id == "date") add(Opt(stringResource(R.string.st_date_fmt), dateSample(s.opt), onClick = { HomeStore.updateStatus(s.id) { it.copy(opt = dateNext(it.opt)) } }))
                 if (s.id == "date") add(Opt(stringResource(R.string.date_year), onOff(dateYear(s.opt), on, off), onClick = { HomeStore.updateStatus(s.id) { it.copy(opt = (it.opt and 24.inv()) or (if (dateYear(it.opt)) 16 else 8)) } }))
                 add(Opt(stringResource(R.string.st_open)) { close(); if (s.id == "bt") openBluetoothSettings(ctx) else statusClick(ctx, s.id) })
                 add(Opt(stringResource(R.string.st_hide)) { HomeStore.updateStatus(s.id) { it.copy(visible = false) }; close() })
@@ -786,8 +820,11 @@ private fun HdTop(e: HdEnv) {
                 add(Opt(stringResource(R.string.dock_btn), onOff(HomeDock.btn(ctx), on, off), onClick = { HomeDock.setBtn(ctx, !HomeDock.btn(ctx)) }))
                 add(Opt(stringResource(R.string.dock_settings)) { close(); HomeDock.openSettings(ctx) })
                 add(Opt(stringResource(R.string.top_clean), onOff(top.clean, on, off), onClick = { HomeStore.updateTop { it.copy(clean = !it.clean) } }))
+                if (top.clean) add(Opt(stringResource(R.string.top_clean_plate), onOff(top.cleanPlate, on, off), onClick = { HomeStore.updateTop { it.copy(cleanPlate = !it.cleanPlate) } }))
                 add(Opt(stringResource(R.string.top_hdmi), onOff(top.hdmi, on, off), onClick = { HomeStore.updateTop { it.copy(hdmi = !it.hdmi) } }))
                 add(Opt(stringResource(R.string.top_search), onOff(top.search, on, off), onClick = { HomeStore.updateTop { it.copy(search = !it.search) } }))
+                if (top.search) add(Opt(stringResource(R.string.top_search_icon), onOff(top.searchIcon, on, off), onClick = { HomeStore.updateTop { it.copy(searchIcon = !it.searchIcon) } }))
+                add(Opt(stringResource(R.string.top_wx), onOff(top.weather, on, off), onClick = { HomeStore.updateTop { it.copy(weather = !it.weather) } }))
                 add(Opt(stringResource(R.string.top_voice_btn), onOff(top.voice, on, off), onClick = { HomeStore.updateTop { it.copy(voice = !it.voice) } }))
                 add(Opt(stringResource(R.string.voice_engine), Voice.label(ctx).take(26), onClick = { Voice.picking.value = true; close() }))
                 add(Opt(stringResource(R.string.voice_bind_key), Voice.keyName(Voice.customCode(ctx)).ifEmpty { stringResource(R.string.voice_key_default) }, onClick = { Voice.capturing.value = true; close() }))
@@ -941,6 +978,13 @@ internal fun BgDialogHost(menu: Boolean, onClose: () -> Unit) {
     fun put(b: HBg) { if (menu) HomeStore.changeMenuBg(b) else HomeStore.setBg(b) }
     var ownPick by remember { mutableStateOf<String?>(null) }
     var videoWarn by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val wallSave = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/octet-stream")) { to ->
+        if (to != null) scope.launch {
+            val type = HomeStore.layout.bg.type
+            val done = withContext(Dispatchers.IO) { HomeBgFiles.exportWall(ctx, to, type) }
+            Toast.makeText(ctx, ctx.getString(if (done) R.string.wall_saved else R.string.failed), Toast.LENGTH_LONG).show()
+        }
+    }
     fun saveBg(uri: android.net.Uri?, kind: String?, from: WallPic? = null, confirmed: Boolean = false) {
         // видео нагружает устройство: при включении спрашиваем (кнопки «Включить» / «Отмена»)
         if (uri != null && kind == "video" && !confirmed && cur().type != "video") { videoWarn = { saveBg(uri, kind, from, true) }; return }
@@ -948,8 +992,18 @@ internal fun BgDialogHost(menu: Boolean, onClose: () -> Unit) {
             // на слабых приставках сохранение занимает несколько секунд: без сообщения кажется, что выбор не сработал
             Toast.makeText(ctx, ctx.getString(R.string.bg_saving), Toast.LENGTH_SHORT).show()
             val port = from?.portrait == true
+            // «живое» фото телефона или наш файл обоев, выбранные как картинка: переделываются в наш формат
+            val wallType = if ((kind == "image" || kind == "wall") && from == null) withContext(Dispatchers.IO) { HomeBgFiles.saveWall(ctx, uri, menu) } else null
+            if (wallType != null) {
+                put(cur().copy(type = wallType, d3 = wallType == "image"))
+                WallNet.put(ctx, "mode_" + (if (menu) "menu" else "home"), "off")
+                WallNet.setCredit(ctx, (if (menu) "menu" else "home") + (if (wallType == "video") "_v" else ""), null, null)
+                Toast.makeText(ctx, ctx.getString(R.string.wall_added), Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            if (kind == "wall") { Toast.makeText(ctx, ctx.getString(R.string.wall_bad), Toast.LENGTH_LONG).show(); return@launch }
             val ok = withContext(Dispatchers.IO) { if (kind == "image") HomeBgFiles.saveImage(ctx, uri, menu, port) else HomeBgFiles.saveMedia(ctx, uri, menu) }
-            if (ok) put(cur().copy(type = kind))
+            if (ok) put(cur().copy(type = kind, d3 = if (kind == "image") cur().d3 else false))
             // 15.11.2026 (Евгений, Telegram: «поставил картинку из своей папки, а потом на «Доме» картинка с копирайтом»): своя картинка или видео,
             // выбранные вручную, выключают ежедневную автосмену обоев этой поверхности, иначе на следующий день автосмена молча подменит выбор картинкой из интернета
             if (ok && from == null) WallNet.put(ctx, "mode_" + (if (menu) "menu" else "home"), "off")
@@ -967,7 +1021,7 @@ internal fun BgDialogHost(menu: Boolean, onClose: () -> Unit) {
     }
     fun systemPick(kind: String) {
         pickKind = kind
-        runCatching { picker.launch(if (kind == "video") "video/*" else "image/*") }.onFailure {
+        runCatching { picker.launch(if (kind == "video") "video/*" else if (kind == "wall") "*/*" else "image/*") }.onFailure {
             pickKind = null
             Toast.makeText(ctx, ctx.getString(R.string.icon_no_picker), Toast.LENGTH_LONG).show()
         }
@@ -1012,6 +1066,32 @@ internal fun BgDialogHost(menu: Boolean, onClose: () -> Unit) {
                 // размытие картинки и видео: дешёвое (уменьшенное чтение), на слабых устройствах нагрузки не добавляет
                 if (bg.type == "image" || bg.type == "video" || bg.type == "anim") add(Opt(stringResource(R.string.bg_blur), "${bg.blur}%",
                     { put(bg.copy(blur = (bg.blur - 5).coerceAtLeast(0))) }, { put(bg.copy(blur = (bg.blur + 5).coerceAtMost(100))) }))
+                if (!menu && bg.type == "image" && DepthCut.supported) {
+                    val has = remember(DepthCut.ver) { DepthCut.ready(ctx) }
+                    val pr = DepthCut.progress
+                    add(Opt(stringResource(R.string.bg_3d), when {
+                        pr >= 0 -> "$pr%"
+                        !has -> stringResource(R.string.bc_nn_get)
+                        else -> onOff(bg.d3, stringResource(R.string.on), stringResource(R.string.off))
+                    }, onClick = { if (!has) { DepthCut.download(ctx); put(bg.copy(d3 = true)) } else put(bg.copy(d3 = !bg.d3)) }))
+                }
+                // что носит ветер: только когда картинка живая («3D-обои» или движение у крупных часов)
+                if (!menu && bg.type == "image" && (bg.d3 || LiveWall.clockMotion)) {
+                    add(Opt(stringResource(R.string.fly_title), stringResource(if (bg.flyOn) R.string.on else R.string.off), onClick = { put(bg.copy(flyOn = !bg.flyOn)) }))
+                    if (bg.flyOn) add(Opt(stringResource(R.string.fly_what), stringResource(flyName(bg.fly)), onClick = { put(bg.copy(fly = flyNext(bg.fly))) }))
+                }
+                if (!menu) add(Opt(stringResource(R.string.wall_open)) { pick("wall") })
+                if (!menu && (bg.type == "video" || (bg.type == "image" && bg.d3))) add(Opt(stringResource(R.string.wall_export)) {
+                    val here = {
+                        scope.launch {
+                            val type = HomeStore.layout.bg.type
+                            val where = withContext(Dispatchers.IO) { HomeBgFiles.exportWallHere(ctx, type) }
+                            Toast.makeText(ctx, if (where != null) ctx.getString(R.string.wall_saved_to, where) else ctx.getString(R.string.failed), Toast.LENGTH_LONG).show()
+                        }
+                        Unit
+                    }
+                    if (HomeBgFiles.hasSaveWindow(ctx)) runCatching { wallSave.launch("oboi-3d." + WallFile.EXT) }.onFailure { here() } else here()
+                })
                 if (bg.type != "none") add(Opt(stringResource(R.string.bg_dim), "${bg.dim}%",
                     { put(bg.copy(dim = (bg.dim - 1).coerceAtLeast(0))) }, { put(bg.copy(dim = (bg.dim + 1).coerceAtMost(80))) }))
             }
@@ -1170,13 +1250,15 @@ private fun HdTopItem(dlg: Dlg.TopItem, e: HdEnv) {
         }
         if (TopOrder.isGap(id)) add(Opt(stringResource(R.string.ord_remove)) { HomeStore.removeGap(id); setDlg(Dlg.Order) })
         else add(Opt(stringResource(R.string.ord_show), onOff(TopOrder.visible(ctx, top, id), on, off), onClick = { TopOrder.toggle(ctx, id) }))
+        if (id == "search") add(Opt(stringResource(R.string.top_search_icon), onOff(top.searchIcon, on, off), onClick = { HomeStore.updateTop { it.copy(searchIcon = !it.searchIcon) } }))
+        if (id == "clean") add(Opt(stringResource(R.string.top_clean_plate), onOff(top.cleanPlate, on, off), onClick = { HomeStore.updateTop { it.copy(cleanPlate = !it.cleanPlate) } }))
         if ((id == "time" || id == "cclock") && st != null) {
             add(Opt(stringResource(R.string.wg_time_fmt), if ((st.opt and 1) != 0) "12 h" else "24 h", onClick = { HomeStore.updateStatus(id) { it.copy(opt = it.opt xor 1) } }))
             add(Opt(stringResource(R.string.wg_seconds), onOff((st.opt and 2) != 0, on, off), onClick = { HomeStore.updateStatus(id) { it.copy(opt = it.opt xor 2) } }))
             if (id == "cclock") addAll(timeFaceOpts(st.opt, on, off, setDlg))
         }
         if (id == "date" && st != null) {
-            add(Opt(stringResource(R.string.st_date_fmt), dateSample(st.opt), onClick = { HomeStore.updateStatus(id) { it.copy(opt = (it.opt and 3.inv()) or (((it.opt and 3) + 1) % 4)) } }))
+            add(Opt(stringResource(R.string.st_date_fmt), dateSample(st.opt), onClick = { HomeStore.updateStatus(id) { it.copy(opt = dateNext(it.opt)) } }))
             add(Opt(stringResource(R.string.date_year), onOff(dateYear(st.opt), on, off), onClick = { HomeStore.updateStatus(id) { it.copy(opt = (it.opt and 24.inv()) or (if (dateYear(it.opt)) 16 else 8)) } }))
         }
     }
@@ -1209,3 +1291,10 @@ private fun timeFaceOpts(opt: Int, on: String, off: String, setDlg: (Dlg?) -> Un
     out += hourSignalOpts(HourSignal.mode(opt), setDlg)      // часы работы, громкость, проверка, свои звуки, будильники
     return out
 }
+
+private fun flyName(kind: Int): Int = when (kind) {
+    Flyers.LEAVES -> R.string.fly_leaves; Flyers.SNOW -> R.string.fly_snow; Flyers.PETALS -> R.string.fly_petals; else -> R.string.fly_money
+}
+
+/** Следующее из того, что может летать, по кругу. */
+private fun flyNext(kind: Int): Int = if (kind + 1 < Flyers.KINDS) kind + 1 else Flyers.MONEY

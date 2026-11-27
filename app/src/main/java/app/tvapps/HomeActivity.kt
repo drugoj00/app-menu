@@ -506,6 +506,7 @@ private fun HomeScreen(tick: Int, again: Int) {
             detectTapGestures(onLongPress = { if (dlg == null) dlg = Dlg.Empty })
         }) {
             HomeBackground(layout.bg)
+            LiveFlyersOverlay(layout.bg)
             Column(Modifier.fillMaxSize().padding(horizontal = if (narrow) 10.dp else 32.dp, vertical = if (narrow) 10.dp else 16.dp)) {
                 run {
                     Column(Modifier.fillMaxSize()) {

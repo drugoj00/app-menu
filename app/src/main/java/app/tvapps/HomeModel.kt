@@ -124,6 +124,9 @@ data class HTop(
     val scale: Int = 100,                    // 20.0: размер строки, % (70-150)
     val plateAlpha: Int = 45,                // 20.0: непрозрачность подложки строки, % (0 совсем прозрачная, 100 чёрная); в окне показывается как прозрачность наоборот (0% непрозрачная)
     val style: Int = 0,                      // 20.0: вид строки: 0 раздельные кнопки, 1 общая подложка справа, 2 подложка и поиск иконкой
+    val searchIcon: Boolean = false,         // 22.0 (Евгений): вместо поля поиска только значок
+    val weather: Boolean = false,            // 22.0 (Евгений): маленькая погода в верхней строке
+    val cleanPlate: Boolean = true,          // 22.0 (Евгений): подложка у «Очистки памяти»
 )
 
 /** Фон экрана: none (по теме), color, gradient (живой градиент), image, video, anim (GIF/WebP). */
@@ -136,6 +139,12 @@ data class HBg(
     val dim: Int = 0,
     /** размытие картинки и видео, % (0: нет) */
     val blur: Int = 0,
+    /** 22.0: «3D-обои»: картинка делится на планы и движется (объём, ветер, рябь, облака). */
+    val d3: Boolean = false,
+    /** Что носит ветер по живой картинке: см. Flyers. */
+    val fly: Int = Flyers.MONEY,
+    /** Летающие предметы включены. По умолчанию выключены: это на любителя. */
+    val flyOn: Boolean = false,
 )
 
 /** rowGap: расстояние между строками «Дома», dp. */
@@ -171,8 +180,8 @@ private fun JSONObject.toRow(): HRow {
 
 private fun HLayout.toJson() = JSONObject()
     .put("v", 1).put("rg", rowGap)
-    .put("voice", top.voice).put("big", top.big).put("search", top.search).put("menu", top.menu).put("recent", top.recent).put("hdmi", top.hdmi).put("clean", top.clean).put("ord", JSONArray(top.order)).put("sc", top.scale).put("sty", top.style).put("pa", top.plateAlpha)
-    .put("bg", JSONObject().put("t", bg.type).put("c", bg.color).put("f", bg.fit).put("d", bg.dim).put("b", bg.blur))
+    .put("voice", top.voice).put("big", top.big).put("search", top.search).put("menu", top.menu).put("recent", top.recent).put("hdmi", top.hdmi).put("clean", top.clean).put("ord", JSONArray(top.order)).put("sc", top.scale).put("sty", top.style).put("pa", top.plateAlpha).put("si", top.searchIcon).put("wxb", top.weather).put("cp", top.cleanPlate)
+    .put("bg", JSONObject().put("t", bg.type).put("c", bg.color).put("f", bg.fit).put("d", bg.dim).put("b", bg.blur).put("x3", bg.d3).put("fl", bg.fly).put("fo", bg.flyOn))
     .put("st", JSONArray(top.status.map { JSONObject().put("id", it.id).put("v", it.visible).put("o", it.opt) }))
     .put("rows", JSONArray(rows.map { it.toJson() }))
 
@@ -192,9 +201,9 @@ private fun parseLayout(s: String): HLayout? = runCatching {
     val st1 = if (others.isEmpty()) st else if (ti >= 0) st.take(ti) + others + st.drop(ti) else st + others
     val stFull = if (newNotif.isEmpty()) st1 else newNotif + st1
     val b = j.optJSONObject("bg")
-    val bg = if (b == null) HBg() else HBg(b.optString("t", "none"), b.optLong("c", 0xFF0B0B10), b.optString("f", "crop"), b.optInt("d"), b.optInt("b"))
+    val bg = if (b == null) HBg() else HBg(b.optString("t", "none"), b.optLong("c", 0xFF0B0B10), b.optString("f", "crop"), b.optInt("d"), b.optInt("b"), d3 = b.optBoolean("x3"), fly = b.optInt("fl", Flyers.MONEY).coerceIn(Flyers.MONEY, Flyers.KINDS - 1), flyOn = b.optBoolean("fo"))
     HLayout(HTop(j.optBoolean("voice", true), stFull, j.optBoolean("big", true), j.optBoolean("search", true), true, j.optBoolean("recent", true), j.optBoolean("hdmi", true), j.optBoolean("clean", true),
-        order = (j.optJSONArray("ord")?.let { a -> (0 until a.length()).map { a.getString(it) } } ?: emptyList()), scale = j.optInt("sc", 100).coerceIn(50, 200), style = j.optInt("sty", 0).coerceIn(0, 2), plateAlpha = j.optInt("pa", 45).coerceIn(0, 100)), rows, bg, j.optInt("rg", 8))
+        order = (j.optJSONArray("ord")?.let { a -> (0 until a.length()).map { a.getString(it) } } ?: emptyList()), scale = j.optInt("sc", 100).coerceIn(50, 200), style = j.optInt("sty", 0).coerceIn(0, 2), plateAlpha = j.optInt("pa", 45).coerceIn(0, 100), searchIcon = j.optBoolean("si"), weather = j.optBoolean("wxb"), cleanPlate = j.optBoolean("cp", true)), rows, bg, j.optInt("rg", 8))
 }.getOrNull()
 
 // "cclock": «Часы по центру» (20.0): отдельный элемент со своими настройками; стоит по центру экрана намертво, в порядок строки не входит; по умолчанию выключен
@@ -558,13 +567,28 @@ object HomeStore {
 
     // ------------------------------------------------------------ первый запуск: каналы и входы
 
+    /** Один раз после исправления убирает накопившиеся одинаковые строки «Входы» (остаётся первая); изменённые пользователем не трогаются. */
+    private fun dropExtraInputRows(ctx: Context) {
+        if (sp.getBoolean("home_inputs_dedup", false)) return
+        val same = layout.rows.filter { it.auto == "hdmi" && it.count == 8 && it.size == 56 && it.items.isEmpty() }
+        val extra = same.drop(1).filter { it.title == same.first().title }.map { it.id }.toSet()
+        if (extra.isNotEmpty()) set(layout.copy(rows = layout.rows.filter { it.id !in extra }))
+        sp.edit().putBoolean("home_inputs_dedup", true).apply()
+    }
+
     /** Один раз добавляет строки для каналов приложений и входов HDMI, которые уже есть на устройстве. */
     fun seed(ctx: Context, channels: List<ChRow>, inputs: List<TvIn>, bannerApps: List<String> = emptyList(), otherApps: List<String> = emptyList(), youtube: String? = null) {
         val chDone = sp.getBoolean("home_seeded", false)
         val appsDone = sp.getBoolean("home_seeded_apps", false)
+        dropExtraInputRows(ctx)
+        // 26.11.2026 (4PDA st0p0r 146221154): отметка о строке «Входы» своя. Общая «home_seeded» без доступа к каналам телевизора не ставится,
+        // из-за этого строка добавлялась при каждом открытии «Дома»: удалённая возвращалась, копии множились
+        val inputsDone = sp.getBoolean("home_seeded_inputs", false)
+        val addInputs = !chDone && !inputsDone && !appsDone && inputs.isNotEmpty() && layout.rows.none { it.auto == "hdmi" }
+        if (!inputsDone && (appsDone || inputs.isNotEmpty())) sp.edit().putBoolean("home_seeded_inputs", true).apply()
         if (chDone && appsDone) return
         val rows = ArrayList<HRow>()
-        if (!chDone && inputs.isNotEmpty()) rows += HRow(newId("r"), ctx.getString(R.string.home_inputs), true, "apps", auto = "hdmi", count = 8, size = 56)
+        if (addInputs) rows += HRow(newId("r"), ctx.getString(R.string.home_inputs), true, "apps", auto = "hdmi", count = 8, size = 56)
         if (!chDone && channels.any { it.key == "watch_next" }) rows += HRow(newId("r"), ctx.getString(R.string.home_watch_next), true, "cards", auto = "watch_next", count = 20, size = 100)
         // официальный YouTube есть почти у всех: две строки его каналов, «все» и «музыка»
         // строки создаются, только если у YouTube на этом устройстве есть каналы (на мобильной версии их нет)
@@ -670,6 +694,96 @@ object HomeBgFiles {
         android.util.Log.w("TVApps", "фон: " + it.javaClass.simpleName + ": " + it.message)
         false
     }
+
+    /**
+     * Файл живых обоев (.amwall) или «живое» фото телефона: переделывается в наш формат и ставится фоном.
+     * Возвращает тип фона («image» с объёмом или «video» с движением) или null, если это обычная картинка.
+     */
+    fun saveWall(ctx: Context, uri: Uri, menu: Boolean = false): String? = runCatching {
+        lastFail = ""
+        val bytes = ctx.contentResolver.openInputStream(uri)?.use { input ->
+            val out = java.io.ByteArrayOutputStream()
+            val buf = ByteArray(65536)
+            while (true) {
+                val n = input.read(buf)
+                if (n < 0) break
+                out.write(buf, 0, n)
+                if (out.size() > WallFile.LIMIT) return null
+            }
+            out.toByteArray()
+        } ?: return null
+        val c = WallFile.read(bytes) ?: return null
+        // всё принятое хранится только в нашем формате
+        File(ctx.filesDir, "wall_" + (if (menu) "menu" else "home") + "." + WallFile.EXT).outputStream().use { WallFile.pack(it, c) }
+        val still = File(ctx.cacheDir, "wall_still.tmp")
+        still.writeBytes(c.picture)
+        val stillOk = saveImage(ctx, Uri.fromFile(still), menu)
+        still.delete()
+        val video = c.video
+        if (video != null) {
+            val f = media(ctx, menu)
+            f.writeBytes(video)
+            HomeStore.bumpImg()
+            "video"
+        } else {
+            if (!stillOk) return null
+            c.depth?.let { DepthCut.putDepth(ctx, image(ctx, menu), it) }
+            "image"
+        }
+    }.getOrElse {
+        lastFail = if (it is OutOfMemoryError) "mem" else "read"
+        android.util.Log.w("TVApps", "живые обои: " + it.javaClass.simpleName + ": " + it.message)
+        null
+    }
+
+    /** Текущий фон в файл .amwall: с картой глубины («3d») или с движением («motion»). */
+    /** Есть ли настоящее окно «Сохранить файл»: на приставках вместо него пусто или заглушка, которая молча закрывается. */
+    fun hasSaveWindow(ctx: Context): Boolean {
+        val i = android.content.Intent(android.content.Intent.ACTION_CREATE_DOCUMENT).addCategory(android.content.Intent.CATEGORY_OPENABLE).setType("application/octet-stream")
+        val pkg = runCatching { ctx.packageManager.resolveActivity(i, 0)?.activityInfo?.packageName }.getOrNull()
+        return pkg != null && !pkg.contains("stubs", ignoreCase = true)
+    }
+
+    /** 27.11.2026: без окна сохранения кладёт файл обоев в «Загрузки» (если туда нельзя, в папку программы). Возвращает, куда сохранено, или null. */
+    fun exportWallHere(ctx: Context, type: String): String? {
+        val name = "oboi-3d-" + java.text.SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.US).format(java.util.Date()) + "." + WallFile.EXT
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            val uri = runCatching {
+                val v = android.content.ContentValues()
+                v.put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, name)
+                v.put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/octet-stream")
+                v.put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS)
+                ctx.contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, v)
+            }.getOrNull()
+            if (uri != null) {
+                if (exportWall(ctx, uri, type)) return "Download/" + name
+                runCatching { ctx.contentResolver.delete(uri, null, null) }
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            val dir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+            dir.mkdirs()
+            val f = File(dir, name)
+            if (exportWall(ctx, Uri.fromFile(f), type)) return f.path
+            f.delete()
+        }
+        val own = ctx.getExternalFilesDir(null) ?: return null
+        val f = File(own, name)
+        if (exportWall(ctx, Uri.fromFile(f), type)) return f.path
+        f.delete()
+        return null
+    }
+
+    fun exportWall(ctx: Context, uri: Uri, type: String): Boolean = runCatching {
+        val picture = image(ctx, false)
+        val content = if (type == "video") {
+            val kept = File(ctx.filesDir, "wall_home." + WallFile.EXT).takeIf { it.exists() }?.let { WallFile.read(it.readBytes()) }
+            val video = media(ctx, false).readBytes()
+            WallFile.Content("motion", kept?.picture ?: picture.takeIf { it.exists() }?.readBytes() ?: ByteArray(0), null, video)
+        } else WallFile.Content("3d", picture.readBytes(), DepthCut.depthBytes(ctx, picture) ?: return false)
+        ctx.contentResolver.openOutputStream(uri)!!.use { WallFile.pack(it, content) }
+        true
+    }.getOrElse { android.util.Log.w("TVApps", "сохранение обоев: " + it.message); false }
 
     fun saveMedia(ctx: Context, uri: Uri, menu: Boolean = false): Boolean = runCatching {
         lastFail = ""

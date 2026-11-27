@@ -65,7 +65,8 @@ object FilePick {
 
     /** Файлы подходящего вида; папки wallpaper идут первыми. */
     fun list(kind: String, ctx: android.content.Context? = null): List<File> {
-        val ext = if (kind == "image") IMG else VID
+        // «wall»: наши файлы живых обоев и снимки, внутри которых может лежать движение («живое» фото телефона)
+        val ext = if (kind == "image") IMG else if (kind == "wall") setOf(WallFile.EXT, "jpg", "jpeg", "heic") else VID
         val out = LinkedHashMap<String, File>()
         fun walk(d: File, depth: Int) {
             val items = d.listFiles() ?: return
@@ -168,7 +169,7 @@ fun FilePickDialog(kind: String, onPick: (Uri) -> Unit, onSystem: () -> Unit, on
             Modifier.clip(RoundedCornerShape(20.dp)).background(t.tile).border(1.dp, t.border, RoundedCornerShape(20.dp)).padding(18.dp).fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(stringResource(if (kind == "image") R.string.imgp_title_image else R.string.imgp_title_video), color = t.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(if (kind == "image") R.string.imgp_title_image else if (kind == "wall") R.string.wall_open else R.string.imgp_title_video), color = t.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             if (list == null) Text(stringResource(R.string.working), color = t.accent, fontSize = 14.sp)
             else if (list.isEmpty()) Text(stringResource(if (Storage.hasAccess(ctx)) R.string.imgp_none else R.string.imgp_no_access), color = t.sub, fontSize = 14.sp)
             else {

@@ -11,7 +11,7 @@ import androidx.compose.ui.res.stringResource
  * Если порядок не сохранён, он прежний: кнопки слева, поле поиска, значки состояния справа.
  */
 internal object TopOrder {
-    val BUTTONS = listOf("menu", "recent", "dock", "clean", "hdmi", "search")
+    val BUTTONS = listOf("menu", "recent", "dock", "clean", "hdmi", "wx", "search")
 
     fun isGap(id: String) = id.startsWith("sp")
 
@@ -21,7 +21,12 @@ internal object TopOrder {
         val known = BUTTONS + statusIds
         val saved = top.order.filter { it in known || isGap(it) }.distinct()
         val base = if (saved.isEmpty()) known else saved
-        return base + known.filter { it !in base }
+        val all = base + known.filter { it !in base }
+        // погода, появившаяся в сохранённом порядке впервые, встаёт слева от поиска (так просил Евгений)
+        if ("wx" in saved || saved.isEmpty()) return all
+        val rest = all.filter { it != "wx" }
+        val at = rest.indexOf("search").let { if (it < 0) rest.size else it }
+        return rest.take(at) + "wx" + rest.drop(at)
     }
 
     /** Занимает ли элемент место в строке сейчас (включён и есть на этом устройстве). */
@@ -31,6 +36,7 @@ internal object TopOrder {
         "dock" -> HomeDock.btn(ctx)
         "clean" -> top.clean
         "hdmi" -> top.hdmi && TopMode.isTv(ctx)
+        "wx" -> top.weather
         "search" -> top.search || (top.voice && Voice.available(ctx))
         else -> if (isGap(id)) true else top.status.firstOrNull { it.id == id }?.visible == true
     }
@@ -43,6 +49,7 @@ internal object TopOrder {
             "dock" -> HomeDock.setBtn(ctx, !HomeDock.btn(ctx))
             "clean" -> HomeStore.updateTop { it.copy(clean = !it.clean) }
             "hdmi" -> HomeStore.updateTop { it.copy(hdmi = !it.hdmi) }
+            "wx" -> HomeStore.updateTop { it.copy(weather = !it.weather) }
             "search" -> HomeStore.updateTop { it.copy(search = !it.search) }
             else -> if (!isGap(id)) HomeStore.updateStatus(id) { it.copy(visible = !it.visible) }
         }
@@ -59,6 +66,7 @@ internal fun topItemLabel(id: String): String = when (id) {
     "dock" -> stringResource(R.string.dock_btn)
     "clean" -> stringResource(R.string.top_clean)
     "hdmi" -> stringResource(R.string.top_hdmi)
+    "wx" -> stringResource(R.string.top_wx)
     "search" -> stringResource(R.string.top_search)
     else -> if (TopOrder.isGap(id)) stringResource(R.string.ord_gap) + " " + id.removePrefix("sp") else statusName(id)
 }

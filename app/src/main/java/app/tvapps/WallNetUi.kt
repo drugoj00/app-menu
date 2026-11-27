@@ -86,8 +86,9 @@ internal fun WallFrame(bmp: ImageBitmap?, portrait: Boolean, crop: WallNet.Crop,
         }
         if (dim > 0) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = dim.coerceAtMost(90) / 100f)))
         val time = remember(now) { java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(now)) }
-        Text(time, color = Color.White, fontSize = if (portrait) 18.sp else 22.sp, fontWeight = FontWeight.Bold,
-            modifier = Modifier.align(if (portrait) Alignment.TopCenter else Alignment.TopEnd).padding(8.dp))
+        val timeSize = with(androidx.compose.ui.platform.LocalDensity.current) { (if (portrait) 16.dp else 22.dp).toSp() }
+        Text(time, color = Color.White, fontSize = timeSize, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
+            modifier = Modifier.align(if (portrait) Alignment.TopCenter else Alignment.TopEnd).padding(vertical = 8.dp, horizontal = if (portrait) 2.dp else 8.dp))
         val n = if (portrait) 3 else 5
         Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             for (i in 0 until n) Box(Modifier.size(if (portrait) 26.dp else 34.dp).clip(RoundedCornerShape(7.dp)).background(Color.White.copy(alpha = 0.55f)))

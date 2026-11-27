@@ -82,21 +82,39 @@ private fun locale(): Locale = AppLoc.locale()
 private fun cap(s: String) = s.replaceFirstChar { it.uppercase() }
 
 /** Год в дате: явный выбор (биты 8 «показывать», 16 «не показывать») или по виду (длинная дата с годом, короткие без). */
-internal fun dateYear(opt: Int): Boolean = if ((opt and 8) != 0) true else if ((opt and 16) != 0) false else (opt and 3) == 3
+internal fun dateYear(opt: Int): Boolean = if ((opt and 8) != 0) true else if ((opt and 16) != 0) false else dateKind(opt) == 3
+
+/** Вид даты 0..7 (младшие два бита и бит 64). */
+internal fun dateKind(opt: Int): Int = (opt and 3) or ((opt and 64) shr 4)
+
+/** Следующий вид даты по кругу, остальные настройки не меняются. */
+internal fun dateNext(opt: Int): Int {
+    val v = (dateKind(opt) + 1) % 8
+    return (opt and (3 or 64).inv()) or (v and 3) or (if (v >= 4) 64 else 0)
+}
 
 internal fun datePattern(opt: Int): String {
     val y = dateYear(opt)
-    return when (opt and 3) { 0 -> if (y) "dd.MM.yyyy" else "dd.MM"; 1 -> if (y) "d MMM yyyy" else "d MMM"; 2 -> if (y) "EEE, d MMMM yyyy" else "EEE, d MMMM"; else -> "d EEEE MMMM" }
+    return when (dateKind(opt)) {
+        0 -> if (y) "dd.MM.yyyy" else "dd.MM"
+        1 -> if (y) "d MMM yyyy" else "d MMM"
+        2 -> if (y) "EEE, d MMMM yyyy" else "EEE, d MMMM"
+        4 -> if (y) "d MMMM yyyy, EEEE" else "d MMMM, EEEE"      // 22.0 (st0p0r): «26 ноября, четверг»
+        5 -> if (y) "EEEE, d MMMM yyyy" else "EEEE, d MMMM"
+        6 -> if (y) "d MMMM yyyy" else "d MMMM"
+        else -> "d EEEE MMMM"
+    }
 }
 
 /** Две строки даты верхней полосы (день недели; месяц и число) для режима «длинная дата»; для коротких режимов null. Язык задаётся явно. */
 internal fun dateTwoLines(opt: Int, now: Long, loc: Locale): Pair<String, String>? =
-    if ((opt and 3) == 3) Pair(cap(DFmt.format("EEEE", loc, now)), cap(DFmt.format("LLLL", loc, now)) + " " + DFmt.format(if (dateYear(opt)) "d, yyyy" else "d", loc, now))   // 26.11.2026 (st0p0r на 4PDA): месяц не повторяется цифрами
+    if (dateKind(opt) == 7) Pair(DFmt.format(if (dateYear(opt)) "d MMMM yyyy" else "d MMMM", loc, now), cap(DFmt.format("EEEE", loc, now)))
+    else if (dateKind(opt) == 3) Pair(cap(DFmt.format("EEEE", loc, now)), cap(DFmt.format("LLLL", loc, now)) + " " + DFmt.format(if (dateYear(opt)) "d, yyyy" else "d", loc, now))   // 26.11.2026 (st0p0r на 4PDA): месяц не повторяется цифрами
     else null
 
 /** Одна строка даты по режиму (для образца в настройках и для коротких режимов). */
 internal fun dateLine(opt: Int, now: Long, loc: Locale): String =
-    dateTwoLines(opt, now, loc)?.let { it.first + ", " + it.second } ?: DFmt.format(datePattern(opt), loc, now)
+    dateTwoLines(opt, now, loc)?.let { it.first + ", " + it.second } ?: DFmt.format(datePattern(opt), loc, now).let { if (dateKind(opt) == 5) cap(it) else it }
 
 internal fun dateSample(opt: Int): String = dateLine(opt, System.currentTimeMillis(), locale())
 
@@ -156,7 +174,7 @@ internal fun statusValue(ctx: Context, s: HStatus, now: Long): SVal = when (s.id
     // 12.0 (просьба владелицы: «колокольчик всегда серый, нажимаю, а там есть уведомления»): колокольчик всегда цвета остальных значков (как шестерёнка), без тусклого
     // состояния; число уведомлений рисуется красной цифрой внутри колокольчика и берётся из наблюдаемого NotifService.badge (см. BellWithCount)
     "notif" -> SVal(HIcons.bell, null, true)
-    else -> dateTwoLines(s.opt, now, locale())?.let { SVal(null, null, true, null, it.first, it.second) } ?: SVal(null, DFmt.format(datePattern(s.opt), locale(), now), true)
+    else -> dateTwoLines(s.opt, now, locale())?.let { SVal(null, null, true, null, it.first, it.second) } ?: SVal(null, dateLine(s.opt, now, locale()), true)
 }
 
 /** Настройки Bluetooth. На приставках (не Samsung) система ведёт действие ACTION_BLUETOOTH_SETTINGS на «Подключенные устройства», а страница самого Bluetooth (переключатель и устройства) открывается через ADB (am start SubSettings, приложению напрямую недоступно); без ADB и на телефонах обычное действие. */
@@ -383,7 +401,8 @@ internal fun HomeTopBar(
     val timeSt = vis.firstOrNull { it.id == "cclock" }
     val faceOn = timeSt != null && ClockFace.on(timeSt.opt)                      // циферблат вместо цифр: по центру строки, выступает вниз
     val centeredText = timeSt != null && !faceOn     // цифры по центру экрана, крупнее
-    val shown = TopOrder.normalize(top).filter { id -> TopOrder.visible(ctx, top, id) && !(id == "search" && top.search && stack) && !(id == "time" && timeSt != null) }      // включены «Часы по центру»: обычные часы справа отключены
+    val searchIsIcon = top.searchIcon && top.search
+    val shown = TopOrder.normalize(top).filter { id -> TopOrder.visible(ctx, top, id) && !(id == "search" && top.search && stack && !searchIsIcon) && !(id == "time" && timeSt != null) }      // включены «Часы по центру»: обычные часы справа отключены
     // 20.0: вид строки (просьба Евгения и владелицы): 0 раздельные кнопки, 1 общая подложка справа (часы, уведомления, HDMI, очистка, Bluetooth, сеть, USB на одной подложке), 2 то же и поиск иконкой слева (раскрывается по нажатию)
     val style = top.style
     val plateMode = style >= 1
@@ -397,7 +416,6 @@ internal fun HomeTopBar(
     val flow = if (plateOrder.isNotEmpty()) shown.filter { it !in plateSet } + "plate" else shown
     val tightId = { id: String -> id == "plate" || id in statusIds }
     val searchOpen = remember { androidx.compose.runtime.mutableStateOf(false) }
-    val searchIsIcon = false      // 26.11.2026: два вида «подложки» слиты в один, поиск всегда полем (раньше иконка оставляла пустоту); сохранённый style 2 работает как 1
     androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().zIndex(5f)) {
     // ширина полосы известна: подбираем зазоры и размер значков так, чтобы всё поместилось без наложения и обрезки
     val dn = androidx.compose.ui.platform.LocalDensity.current
@@ -414,6 +432,7 @@ internal fun HomeTopBar(
         if (HomeDock.btn(ctx)) left += box(if (big0) 34f else 26f, if (big0) 9f else 7f)
         if (top.clean) left += box(if (big0) 34f else 26f, if (big0) 9f else 7f)
         if (showHdmi) left += box(if (big0) 34f else 26f, if (big0) 9f else 7f)
+        if (top.weather) left += (if (big0) 21f else 15f) * 1.5f + tw("-88°", if (big0) 21f else 15f, 700) + 2 * (if (big0) 10f else 8f)
         if (!(top.search && !stack) && top.voice && !top.search) left += 32f + (if (big0) 28f else 22f) + 8f + tw(stringResource(R.string.home_voice), if (big0) 19f else 15f, 400)
         val searchMin = if (top.search && !stack) 2 * box(if (big0) 28f else 22f, if (big0) 12f else 9f) + 16f + 16f else 0f
         val st = vis.map { s0 ->
@@ -437,6 +456,7 @@ internal fun HomeTopBar(
             "menu" -> box(if (big0) 38f else 28f, 4f)
             "recent", "dock", "clean", "hdmi" -> box(if (big0) 34f else 26f, if (big0) 9f else 7f)
             "search" -> if (searchIsIcon) box(if (big0) 34f else 26f, if (big0) 9f else 7f) else if (top.search && !stack) searchMin else voiceW
+            "wx" -> (if (big0) 21f else 15f) * 1.5f + tw("-88°", if (big0) 21f else 15f, 700) + 2 * (if (big0) 10f else 8f)
             "plate" -> plateOrder.sumOf { wOf(it).toDouble() }.toFloat() + 16f + (plateOrder.size - 1).coerceAtLeast(0) * 4f
             else -> if (TopOrder.isGap(id)) 0f else (stW[id] ?: 0f)
         }
@@ -554,7 +574,7 @@ internal fun HomeTopBar(
             val cleanScope = androidx.compose.runtime.rememberCoroutineScope()
             val cleanBusy = remember { booleanArrayOf(false) }
             HomeBox(
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(barR(14.dp)), bg = if (id in plateSet) androidx.compose.ui.graphics.Color.Transparent else barBg(t.tile), edge = if (id in plateSet) androidx.compose.ui.graphics.Color.Transparent else barEdge(t.accent), moving = movingStatus == id, stepPx = 90f, onMoveKey = { k -> onStatusMoveKey(id, k) }, onStep = { d -> onStatusStep(id, d) }, onMoveEnd = onStatusMoveEnd,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(barR(14.dp)), bg = if (id in plateSet || !top.cleanPlate) androidx.compose.ui.graphics.Color.Transparent else barBg(t.tile), edge = if (id in plateSet || !top.cleanPlate) androidx.compose.ui.graphics.Color.Transparent else barEdge(t.accent), moving = movingStatus == id, stepPx = 90f, onMoveKey = { k -> onStatusMoveKey(id, k) }, onStep = { d -> onStatusStep(id, d) }, onMoveEnd = onStatusMoveEnd,
                 onClick = {
                     if (!cleanBusy[0]) {
                         cleanBusy[0] = true
@@ -564,6 +584,11 @@ internal fun HomeTopBar(
                 onLong = { onStatusLong(id) },
             ) { BarIcon(HIcons.memory, ctx.getString(R.string.mem_clean), t.accent, (if (big) 34f else 26f).times(sc).dp, (if (big) 9f else 7f).times(sc).dp) }
         }
+        // 22.0 (Евгений): маленькая погода (сейчас) в верхней строке; город тот же, что у виджета погоды на «Доме»
+        if (id == "wx") HomeBox(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(barR(14.dp)), bg = androidx.compose.ui.graphics.Color.Transparent, edge = androidx.compose.ui.graphics.Color.Transparent, moving = movingStatus == id, stepPx = 90f, onMoveKey = { k -> onStatusMoveKey(id, k) }, onStep = { d -> onStatusStep(id, d) }, onMoveEnd = onStatusMoveEnd,
+            onClick = { if (movingStatus == id) onStatusMoveEnd() else onStatusLong(id) }, onLong = { onStatusLong(id) },
+        ) { TopWeather((if (big) 21f else 15f) * sc, (if (big) 10f else 8f) * sc) }
         if (id == "hdmi") HomeBox(
             shape = androidx.compose.foundation.shape.RoundedCornerShape(barR(14.dp)), bg = if (id in plateSet) androidx.compose.ui.graphics.Color.Transparent else barBg(t.tile), edge = if (id in plateSet) androidx.compose.ui.graphics.Color.Transparent else barEdge(t.accent), moving = movingStatus == id, stepPx = 90f, onMoveKey = { k -> onStatusMoveKey(id, k) }, onStep = { d -> onStatusStep(id, d) }, onMoveEnd = onStatusMoveEnd,
             onClick = { if (movingStatus == id) onStatusMoveEnd() else TopUi.hdmi.value = true }, onLong = { onStatusLong(id) },
@@ -571,7 +596,7 @@ internal fun HomeTopBar(
         // строка поиска занимает всё свободное место между кнопками слева и значками справа
         if (id == "search") if (searchIsIcon) HomeBox(
             shape = androidx.compose.foundation.shape.RoundedCornerShape(barR(14.dp)), bg = barBg(t.tile), edge = barEdge(t.accent),
-            onClick = { searchOpen.value = true }, onLong = { onStatusLong("search") },
+            onClick = { onSearch("") }, onLong = { onStatusLong("search") },
         ) { BarIcon(HIcons.search, null, t.accent, (if (big) 34f else 26f).times(sc).dp, (if (big) 9f else 7f).times(sc).dp) }
         else if (top.search && !stack) SearchBar(big, onVoice, { q -> searchOpen.value = false; onSearch(q) }, { onStatusLong("search") }, if (searchFixed) searchFixedMod else Modifier.weight(1f), sc)
         else if (top.voice && !top.search && Voice.available(androidx.compose.ui.platform.LocalContext.current)) HomeBox(
@@ -644,8 +669,28 @@ internal fun HomeTopBar(
         if (!hasWeight && firstStatus < 0) Spacer(Modifier.weight(1f))
     }
     }
-    if (top.search && stack) Row(Modifier.fillMaxWidth().padding(top = 6.dp)) { SearchBar(big, onVoice, onSearch, { onStatusLong("search") }, Modifier.weight(1f)) }
+    if (top.search && stack && !searchIsIcon) Row(Modifier.fillMaxWidth().padding(top = 6.dp)) { SearchBar(big, onVoice, onSearch, { onStatusLong("search") }, Modifier.weight(1f)) }
     }
+    }
+}
+
+/** Маленькая погода верхней строки: значок и температура сейчас. Данные берутся оттуда же, что у виджета погоды, раз в 10 минут. */
+@Composable
+private fun TopWeather(sp: Float, padDp: Float) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val t = LocalTh.current
+    val city = HomeStore.layout.rows.firstNotNullOfOrNull { r -> r.slots.firstOrNull { it.type == "weather" } }?.city.orEmpty()
+    val lang = AppLoc.code()
+    val now by androidx.compose.runtime.produceState<Weather?>(WeatherData.cached(ctx, city), city, lang) {
+        while (true) {
+            value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { WeatherData.load(ctx, city, lang, false) } ?: value
+            kotlinx.coroutines.delay(if (value == null) 60_000L else 600_000L)
+        }
+    }
+    val w = now
+    Row(Modifier.padding(horizontal = padDp.dp, vertical = (padDp * 0.8f).dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy((padDp * 0.5f).dp)) {
+        if (w != null) WxIcon(w.code, sp)
+        OutlinedText(androidx.compose.ui.text.AnnotatedString(if (w == null) "…" else WxUnits.tempShort(w.temp, WStyle())), IconColor.forced ?: t.text, sp.sp, fontWeight = FontWeight.Bold)
     }
 }
 

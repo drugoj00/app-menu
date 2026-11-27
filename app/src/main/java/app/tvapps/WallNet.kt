@@ -38,6 +38,15 @@ class WallPic(val source: String, val title: String, val author: String, val lic
 /** Ошибка получения обоев: net (нет сети, причина в NetErr), rate (лимит), key (ключ неверный), nokey (ключ нужен), http, none (ничего не нашлось), bad (файл не картинка). */
 class WallErr(val kind: String, val code: Int = 0) : Exception(kind)
 
+/** Отбор обоев из открытых хранилищ: обои видят все, кто смотрит на экран, обнажённой натуре и эротике там не место. */
+internal object WallSafe {
+    private val BAD = Regex(
+        "\\b(nudes?|nudity|naked|erotic\\w*|topless|breasts?|genital\\w*|penis|vulva|porn\\w*|sexuality|aktstudie\\w*|aktfoto\\w*|aktfotografie\\w*|nackt\\w*|desnud\\w*)\\b",
+        RegexOption.IGNORE_CASE,
+    )
+    fun ok(text: String): Boolean = !BAD.containsMatchIn(text.replace('_', ' '))
+}
+
 /**
  * Обои из интернета. Источники без ключа: Wikimedia Commons (избранные картинки, картинка дня), NASA (APOD без чужого авторства, запасной вариант: Библиотека NASA),
  * Openverse (только CC0 и CC BY). Pexels и Unsplash работают только со своим ключом пользователя (поле ввода, по умолчанию пусто, ключ лежит только на устройстве
@@ -171,6 +180,10 @@ object WallNet {
     }
 
     // ---------- Wikimedia Commons ----------
+    /** Всё, что у Commons известно о файле словами: название, разделы и описание. */
+    private fun words(title: String, em: JSONObject?) =
+        strip(listOf(title, em?.optJSONObject("Categories")?.str("value").orEmpty(), em?.optJSONObject("ImageDescription")?.str("value").orEmpty()).joinToString(" "))
+
     private fun commonsPics(json: String, portrait: Boolean = false): List<WallPic> {
         val pages = JSONObject(json).optJSONObject("query")?.optJSONObject("pages") ?: return emptyList()
         val out = ArrayList<WallPic>()
@@ -184,6 +197,7 @@ object WallNet {
             val em = ii.optJSONObject("extmetadata")
             val url = ii.str("thumburl").ifEmpty { ii.str("url") }
             if (url.isEmpty()) continue
+            if (!WallSafe.ok(words(p.str("title"), em))) continue
             out.add(WallPic("commons", p.str("title").removePrefix("File:").substringBeforeLast('.'),
                 strip(em?.optJSONObject("Artist")?.str("value").orEmpty()).take(60),
                 strip(em?.optJSONObject("LicenseShortName")?.str("value").orEmpty()), url, ii.str("descriptionurl")))
@@ -191,7 +205,7 @@ object WallNet {
         return out
     }
 
-    private fun commonsBase(portrait: Boolean) = "https://commons.wikimedia.org/w/api.php?action=query&format=json&prop=imageinfo&iiprop=url%7Csize%7Cmime%7Cextmetadata&iiurlwidth=" + (if (portrait) 1080 else 1920) + "&iiextmetadatafilter=Artist%7CLicenseShortName"
+    private fun commonsBase(portrait: Boolean) = "https://commons.wikimedia.org/w/api.php?action=query&format=json&prop=imageinfo&iiprop=url%7Csize%7Cmime%7Cextmetadata&iiurlwidth=" + (if (portrait) 1080 else 1920) + "&iiextmetadatafilter=Artist%7CLicenseShortName%7CCategories%7CImageDescription"
 
     private fun commons(cat: String, today: Boolean, portrait: Boolean): List<WallPic> {
         val COMMONS = commonsBase(portrait)
@@ -211,11 +225,16 @@ object WallNet {
             }
             return emptyList()
         }
-        // портретных среди избранных мало: берём больше записей и добавляем к запросу слово portrait
-        val q = enc("incategory:\"Featured pictures on Wikimedia Commons\" " + term("commons", cat) + (if (portrait) " portrait" else ""))
+        // 26.11.2026: слово portrait в запрос не добавляется: поиск понимает его как «портрет» и приносил людей (в «Природе» выпала обнажённая натура).
+        // Вертикальных среди избранных пейзажей мало: берём больше записей, а если их не набралось, горизонтальные (экран заполнится обрезкой по центру)
+        val q = enc("incategory:\"Featured pictures on Wikimedia Commons\" " + term("commons", cat))
         val base = "$COMMONS&generator=search&gsrnamespace=6&gsrlimit=" + (if (portrait) 50 else 20) + "&gsrsearch=$q"
-        var r = commonsPics(http("$base&gsroffset=" + rnd.nextInt(if (portrait) 40 else 100)), portrait)
-        if (r.isEmpty()) r = commonsPics(http("$base&gsroffset=0"), portrait)
+        fun suitable(json: String): List<WallPic> {
+            val own = commonsPics(json, portrait)
+            return if (!portrait || own.size >= 5) own else (own + commonsPics(json, false)).distinctBy { it.url }
+        }
+        var r = suitable(http("$base&gsroffset=" + rnd.nextInt(if (portrait) 40 else 100)))
+        if (r.isEmpty()) r = suitable(http("$base&gsroffset=0"))
         return r
     }
 
@@ -292,6 +311,8 @@ object WallNet {
             if (portrait) { if (h.toFloat() / w < 1.2f) continue } else if (w.toFloat() / h < 1.3f) continue
             val url = o.str("url")
             if (!url.startsWith("http")) continue
+            val tags = o.optJSONArray("tags")?.let { t -> (0 until t.length()).joinToString(" ") { i -> t.optJSONObject(i)?.str("name").orEmpty() } }.orEmpty()
+            if (o.optBoolean("mature") || !WallSafe.ok(o.str("title") + " " + tags)) continue
             val licName = if (lic == "cc0") "CC0" else "CC BY " + o.str("license_version")
             out.add(WallPic("openverse", o.str("title"), unpercent(o.str("creator")).take(60), licName.trim(), url.replace("http://", "https://"), o.str("foreign_landing_url")))
         }
@@ -585,7 +606,7 @@ object WallNet {
     private fun commonsVideos(cat: String, portrait: Boolean, cap: Int): List<WallPic> {
         val q = enc("filetype:video " + term("commons", cat) + (if (portrait) " vertical" else ""))
         val j = JSONObject(http("https://commons.wikimedia.org/w/api.php?action=query&format=json&generator=search&gsrnamespace=6&gsrlimit=20&gsroffset=" + rnd.nextInt(40) +
-            "&gsrsearch=$q&prop=videoinfo&viprop=url%7Csize%7Cmime%7Cderivatives%7Cextmetadata%7Cduration&viextmetadatafilter=Artist%7CLicenseShortName"))
+            "&gsrsearch=$q&prop=videoinfo&viprop=url%7Csize%7Cmime%7Cderivatives%7Cextmetadata%7Cduration&viextmetadatafilter=Artist%7CLicenseShortName%7CCategories%7CImageDescription"))
         val pages = j.optJSONObject("query")?.optJSONObject("pages") ?: return emptyList()
         val out = ArrayList<WallPic>()
         for (k in pages.keys()) {
@@ -606,6 +627,7 @@ object WallNet {
             }
             val b = best ?: continue
             val em = vi.optJSONObject("extmetadata")
+            if (!WallSafe.ok(words(p.str("title"), em))) continue
             out.add(vpic("commons", p.str("title").removePrefix("File:").substringBeforeLast('.'), strip(em?.optJSONObject("Artist")?.str("value").orEmpty()).take(60),
                 strip(em?.optJSONObject("LicenseShortName")?.str("value").orEmpty()), b.str("src").replace("http://", "https://"), vi.str("descriptionurl")))
         }

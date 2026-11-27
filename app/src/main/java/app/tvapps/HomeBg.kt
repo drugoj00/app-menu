@@ -27,9 +27,13 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.Dispatchers
@@ -43,7 +47,7 @@ internal fun HomeBackground(bg: HBg, menu: Boolean = false) {
     if (!menu) androidx.compose.runtime.LaunchedEffect(bg.type, bg.color, bg.dim, HomeStore.imgTick) { BgLum.top = withContext(Dispatchers.IO) { BgLum.measure(ctx0, bg) } }
     if (bg.type == "none") return
     val ctx = LocalContext.current
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().onGloballyPositioned { if (!menu) { HomeBgBounds.pos = it.positionInWindow(); HomeBgBounds.size = it.size } }) {
         when (bg.type) {
             "color" -> Box(Modifier.fillMaxSize().background(Color(bg.color.toInt())))
             "gradient" -> LiveGradient(Color(bg.color.toInt()))
@@ -62,7 +66,21 @@ internal fun HomeBackground(bg: HBg, menu: Boolean = false) {
                 }
                 // «Сдвинуть / Масштаб»: запоминается для поверхности и ориентации
                 val crop = remember(HomeStore.imgTick, menu, portrait) { WallNet.crop(ctx, if (menu) "menu" else "home", portrait) }
-                img?.let {
+                // 27.11.2026: под крупными часами картинка бывает разделена на планы (TreeScene, LiveWall): тогда «Дом» рисует её сам
+                val shownFile = HomeBgFiles.image(ctx, menu, portrait).takeIf { f -> portrait && f.exists() } ?: HomeBgFiles.image(ctx, menu)
+                val clockScene = LiveWall.scene?.takeIf { s -> !menu && blur == 0 && s.key.startsWith(shownFile.path + "|") }
+                // «3D-обои» без крупных часов: картинка делится на планы сама
+                val wantWall = !menu && bg.d3 && blur == 0 && !LiveWall.clockFront
+                val wall by produceState<LiveScene?>(null, wantWall, HomeStore.imgTick, portrait, DepthCut.ver) {
+                    value = if (!wantWall) null else withContext(Dispatchers.IO) { if (shownFile.exists()) DepthCut.wallpaper(ctx, shownFile.path) else null }
+                }
+                val live = clockScene ?: wall?.takeIf { wantWall && it.key.startsWith(shownFile.path + "|") }
+                if (!menu) {
+                    val moving = live != null && (bg.d3 || LiveWall.clockMotion)
+                    androidx.compose.runtime.SideEffect { LiveWall.motion = moving }
+                }
+                if (live != null) LiveBackdrop(live, bg.fit == "stretch", crop.ox, crop.oy, crop.zoom, if (bg.flyOn) bg.fly else Flyers.OFF)
+                else img?.let {
                     Image(
                         it, null,
                         Modifier.fillMaxSize().graphicsLayer { scaleX = crop.zoom; scaleY = crop.zoom; transformOrigin = androidx.compose.ui.graphics.TransformOrigin((crop.ox + 1f) / 2f, (crop.oy + 1f) / 2f) },
@@ -86,6 +104,69 @@ internal fun HomeBackground(bg: HBg, menu: Boolean = false) {
                     modifier = Modifier.padding(8.dp).background(Color.Black.copy(alpha = 0.35f), androidx.compose.foundation.shape.RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
                 )
             }
+        }
+    }
+}
+
+/** Ближнее из того, что носит ветер: пролетает поверх всего «Дома», в том числе перед крупными часами. Нажатиям не мешает. */
+@Composable
+internal fun LiveFlyersOverlay(bg: HBg) {
+    if (!bg.flyOn || !LiveWall.motion || LiveWall.shown <= 0) return
+    Canvas(Modifier.fillMaxSize().zIndex(20f)) {
+        Flyers.draw(drawContext.canvas.nativeCanvas, bg.fly, LiveWall.time, size.width, size.height, true)
+    }
+}
+
+/** Разделённая картинка: без движения одним слоем, с движением дальний и ближний планы по отдельности. */
+@Composable
+private fun LiveBackdrop(s: LiveScene, stretch: Boolean, ox: Float, oy: Float, zoom: Float, fly: Int) {
+    androidx.compose.runtime.DisposableEffect(Unit) { LiveWall.shown++; onDispose { LiveWall.shown-- } }
+    val moving = LiveWall.motion
+    if (moving) androidx.compose.runtime.LaunchedEffect(Unit) {
+        var n = 0
+        while (true) androidx.compose.runtime.withFrameMillis { if (n++ % 2 == 0) LiveWall.tick(it) }   // около 30 кадров в секунду
+    }
+    val verts = remember { FloatArray((LiveWall.COLS + 1) * (LiveWall.ROWS + 1) * 2) }
+    val m = remember { Matrix() }
+    val dst = remember { android.graphics.RectF() }
+    Canvas(Modifier.fillMaxSize()) {
+        val c = drawContext.canvas.nativeCanvas
+        val t = LiveWall.phase
+        fun lay(bitmap: android.graphics.Bitmap, depth: Int) {
+            LiveWall.place(m, bitmap.width, bitmap.height, size.width, size.height, stretch, ox, oy, zoom)
+            LiveWall.camera(m, depth, t, size.width, size.height)
+        }
+        if (!moving) {
+            lay(s.scene, 0)
+            c.drawBitmap(s.scene, m, LiveWall.paint)
+        } else {
+            lay(s.back, 0)
+            c.drawBitmap(s.back, m, LiveWall.paint)
+            val clouds = s.clouds
+            val land = s.land
+            if (clouds != null && land != null) {
+                // два куска одной полосы облаков друг за другом: плывёт без шва
+                val wide = s.back.width.toFloat()
+                val shift = ((LiveWall.time % 60_000L) / 60_000f) * wide
+                c.save()
+                c.concat(m)
+                c.clipRect(0f, 0f, wide, s.skyHeight.toFloat())
+                for (part in 0..1) {
+                    val left = shift - part * wide
+                    dst.set(left, 0f, left + wide, s.skyHeight.toFloat())
+                    c.drawBitmap(clouds, null, dst, LiveWall.paint)
+                }
+                c.restore()
+                c.drawBitmap(land, m, LiveWall.paint)
+            }
+            LiveWall.verts(s, t, verts)
+            lay(s.front, 2)
+            c.save()
+            c.concat(m)
+            c.drawBitmapMesh(s.front, LiveWall.COLS, LiveWall.ROWS, verts, 0, null, 0, LiveWall.paint)
+            c.restore()
+            // то, что носит ветер; ближние перед крупными часами рисует сам виджет часов
+            Flyers.draw(c, fly, LiveWall.time, size.width, size.height, false)
         }
     }
 }

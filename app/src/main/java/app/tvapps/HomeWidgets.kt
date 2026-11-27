@@ -45,7 +45,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-internal val WIDGET_TYPES = listOf("weather", "clock", "date", "storage", "ram")
+internal val WIDGET_TYPES = listOf("weather", "clock", "bigclock", "date", "storage", "ram")
 
 /** Пустое место на месте удалённого виджета: ничего не рисуется, долгое нажатие открывает меню (там можно выбрать вид виджета). */
 const val WIDGET_EMPTY = "empty"
@@ -53,7 +53,7 @@ const val WIDGET_EMPTY = "empty"
 @Composable
 internal fun widgetName(type: String): String = stringResource(
     when (type) {
-        "weather" -> R.string.wg_weather; "clock" -> R.string.wg_clock; "date" -> R.string.wg_date; "empty" -> R.string.wg_empty
+        "weather" -> R.string.wg_weather; "clock" -> R.string.wg_clock; "bigclock" -> R.string.wg_bigclock; "date" -> R.string.wg_date; "empty" -> R.string.wg_empty
         "storage" -> R.string.wg_storage; "appwidget" -> R.string.wg_android; else -> R.string.wg_ram
     },
 )
@@ -72,7 +72,7 @@ internal fun widgetClick(ctx: Context, w: HWidget, refresh: () -> Unit) {
     when (w.type) {
         // у часов можно выбрать нажатие «будильник» (настройки вида открываются в строке «Дома», где есть окна)
         "clock" -> if (WStyle.parse(w.style).clickT == 2) openSys(ctx, android.provider.AlarmClock.ACTION_SHOW_ALARMS) else openSys(ctx, Settings.ACTION_DATE_SETTINGS)
-        "date" -> openSys(ctx, Settings.ACTION_DATE_SETTINGS)
+        "date", "bigclock" -> openSys(ctx, Settings.ACTION_DATE_SETTINGS)
         // «Память»: ОК или щелчок мышью чистит память (как кнопка очистки), «Хранилище» открывает настройки хранилища
         "ram" -> MemoryCleaner.cleanAsync(ctx, refresh)
         "storage" -> openSys(ctx, Settings.ACTION_INTERNAL_STORAGE_SETTINGS)
@@ -87,6 +87,7 @@ internal fun WidgetBody(w: HWidget, tick: Int, refreshTick: Int, onLong: () -> U
         "empty" -> {}
         "weather" -> WeatherBody(w, tick, refreshTick)
         "clock" -> ClockBody(w)
+        "bigclock" -> BigClockBody(w)
         "date" -> DateBody()
         "appwidget" -> AppWidgetBody(w, onLong)
         "storage" -> MemBody(w.type, refreshTick)

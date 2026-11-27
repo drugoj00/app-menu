@@ -183,6 +183,8 @@ internal fun HomeBox(
     edge: Color = Color.Transparent,
     /** 15.0: увеличение плитки при выделении по настройке «Увеличение при выделении» (только у плиток-значков рядов «Дома») */
     zoomOnFocus: Boolean = false,
+    /** 26.11.2026: без подложки и при выборе (крупные часы): остаётся только рамка */
+    clearFocus: Boolean = false,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val selfReq = focusReq ?: remember { FocusRequester() }
@@ -264,7 +266,7 @@ internal fun HomeBox(
             }
             .clip(shape)
             .drawBehind {
-                val c = if (focusedS.value || hover) t.tileFocus else bg
+                val c = if ((focusedS.value || hover) && !clearFocus) t.tileFocus else bg
                 if (c.alpha > 0f) drawOutline(shape.createOutline(size, layoutDirection, this), c)
             }
             .drawWithContent {
